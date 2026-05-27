@@ -12,10 +12,17 @@ public class QuestionService {
     @Autowired
     private KnowledgeMapper knowledgeMapper;
 
-    public List<Knowledge> search(String keyword) {
+    @Autowired
+    private DeepSeekService deepSeekService;
+
+    public Object search(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return List.of();
         }
-        return knowledgeMapper.searchByKeyword(keyword.trim());
+        List<Knowledge> results = knowledgeMapper.searchByKeyword(keyword.trim());
+        if (!results.isEmpty()) {
+            return results;
+        }
+        return deepSeekService.ask(keyword);
     }
 }

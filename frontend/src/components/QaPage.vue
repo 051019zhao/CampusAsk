@@ -20,6 +20,11 @@
       </div>
     </div>
 
+    <div v-if="aiAnswer" class="ai-answer">
+      <h3>🤖 AI 回答</h3>
+      <p>{{ aiAnswer }}</p>
+    </div>
+
     <div v-if="noResult" class="no-result">暂无相关答案，请尝试其他关键词</div>
   </div>
 </template>
@@ -31,6 +36,7 @@ export default {
     return {
       keyword: '',
       results: [],
+      aiAnswer: '',
       loading: false,
       noResult: false
     }
@@ -41,6 +47,7 @@ export default {
       this.loading = true
       this.noResult = false
       this.results = []
+      this.aiAnswer = ''
       try {
         const res = await fetch('http://localhost:8080/api/qa/ask', {
           method: 'POST',
@@ -48,9 +55,15 @@ export default {
           body: JSON.stringify({ keyword: this.keyword })
         })
         const data = await res.json()
-        if (data.code === 200 && Array.isArray(data.data)) {
-          this.results = data.data
-          if (this.results.length === 0) this.noResult = true
+        if (data.code === 200) {
+          if (Array.isArray(data.data)) {
+            this.results = data.data
+            if (this.results.length === 0) this.noResult = true
+          } else if (typeof data.data === 'string') {
+            this.aiAnswer = data.data
+          } else {
+            this.noResult = true
+          }
         } else {
           this.noResult = true
         }
@@ -114,6 +127,15 @@ button:hover { background: #33a06f; }
   padding: 2px 8px;
   border-radius: 4px;
 }
+.ai-answer {
+  background: #f0f4ff;
+  border: 1px solid #c5d3f7;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.ai-answer h3 { margin: 0 0 8px; color: #3a5bd9; }
+.ai-answer p { margin: 0; color: #333; line-height: 1.6; }
 .loading, .no-result {
   text-align: center;
   color: #999;
