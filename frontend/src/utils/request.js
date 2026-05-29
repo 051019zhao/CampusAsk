@@ -1,14 +1,8 @@
 // src/utils/request.js
 import axios from 'axios'
 
-const request = axios.create({
-    // baseURI 会自动加在所有请求路径的前面
-    baseURL: '/api',
-    timeout: 5000 // 超时时间
-})
-
-// 响应拦截器
-request.interceptors.response.use(
+// 响应拦截器（直接挂载到全局 axios 上）
+axios.interceptors.response.use(
     response => {
         return response.data // 直接返回后端的数据包
     },
@@ -18,4 +12,5 @@ request.interceptors.response.use(
     }
 )
 
-export default request
+// 直接导出原生的 axios
+export default axios
