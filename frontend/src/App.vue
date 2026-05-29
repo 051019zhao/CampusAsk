@@ -1,14 +1,18 @@
+<!-- src/App.vue -->
 <template>
-  <div id="app">
-    <QaPage />
-  </div>
+  <!-- 这个标签是路由的出口，没有它，任何路由页面都装载不进来！ -->
+  <router-view />
 </template>
 
 <script>
-import QaPage from './components/QaPage.vue'
-
 export default {
-  name: 'App',
-  components: { QaPage }
+  name: 'App'
 }
 </script>
+
+<style>
+body {
+  margin: 0;
+  padding: 0;
+}
+</style>
