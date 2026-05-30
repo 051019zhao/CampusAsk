@@ -46,7 +46,7 @@
 </template>
 
 <script>
-import { submitContribution } from '@/api/contribution'
+import { submitContribution, getSensitiveWords } from '@/api/contribution'
 
 export default {
   name: 'ContributePage',
@@ -72,6 +72,9 @@ export default {
       ]
     }
   },
+  created() {
+    this.loadSensitiveWords()
+  },
   computed: {
     sensitiveHint() {
       if (!this.foundWords.length) {
@@ -86,9 +89,19 @@ export default {
       const parsed = Number.parseInt(raw || '', 10)
       return Number.isFinite(parsed) ? parsed : null
     },
+    async loadSensitiveWords() {
+      try {
+        const response = await getSensitiveWords()
+        if (response?.code === 200 && Array.isArray(response.data)) {
+          this.sensitiveWords = response.data.map((word) => String(word || '').toLowerCase())
+        }
+      } catch (error) {
+        // 保持默认敏感词列表，后端仍会做最终校验
+      }
+    },
     checkSensitive() {
       const text = `${this.question}\n${this.answer}`.toLowerCase()
-      this.foundWords = this.sensitiveWords.filter((word) => text.includes(word))
+      this.foundWords = this.sensitiveWords.filter((word) => word && text.includes(word))
     },
     resetForm() {
       this.question = ''

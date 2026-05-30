@@ -47,11 +47,37 @@ CREATE TABLE `hot_keyword`  (
   `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `keyword`(`keyword` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of hot_keyword
 -- ----------------------------
+
+-- ----------------------------
+-- Table structure for sensitive_word
+-- ----------------------------
+DROP TABLE IF EXISTS `sensitive_word`;
+CREATE TABLE `sensitive_word` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `word` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of sensitive_word
+-- ----------------------------
+INSERT INTO `sensitive_word` (`word`) VALUES
+('政治'),
+('色情'),
+('暴力'),
+('赌博'),
+('违规'),
+('违禁'),
+('敏感词'),
+('涉政'),
+('涉黄'),
+('谣言');
 
 -- ----------------------------
 -- Table structure for knowledge
