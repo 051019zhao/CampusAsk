@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.campusask.campusask.mapper.HotKeywordMapper">
+
+    <insert id="upsertKeyword">
+        INSERT INTO hot_keyword (keyword, search_count, updated_at)
+        VALUES (#{keyword}, 1, NOW())
+        ON DUPLICATE KEY UPDATE
+            search_count = search_count + 1,
+            updated_at = NOW()
+    </insert>
+
+    <select id="findTopKeywords" resultType="com.campusask.campusask.entity.HotKeyword">
+        SELECT id, keyword, search_count, updated_at
+        FROM hot_keyword
+        ORDER BY search_count DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
