@@ -1,0 +1,23 @@
+package com.campusask.campusask.mapper;
+
+import com.campusask.campusask.entity.User;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+
+@Mapper
+public interface UserMapper {
+    /**
+     * 根据学号查询是否存在用户
+     */
+    @Select("select * from user where username = #{username}")
+    User getByUsername(String username);
+
+    /**
+     * 注册员工
+     * @param user
+     */
+    @Insert("insert into user (username, password, role, created_at) VALUES " +
+            "(#{username}, #{password}, #{role}, #{createAt})")
+    void insert(User user);
+}

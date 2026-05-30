@@ -1,6 +1,8 @@
 // src/utils/request.js
 import axios from 'axios'
 
+axios.defaults.baseURL = 'http://localhost:8080'
+
 // 响应拦截器（直接挂载到全局 axios 上）
 axios.interceptors.response.use(
     response => {

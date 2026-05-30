@@ -28,3 +28,19 @@ const router = createRouter({
 })
 
 export default router
+router.beforeEach((to, from, next) => {
+    const token = localStorage.getItem('token')
+
+    // 如果去的目标页面刚好就是登录页 '/login'，必须无条件直接放行！
+    if (to.path === '/login') {
+        next()
+    }
+    // 如果去的是其他页面（比如主页 '/'）且没有登录，才拦截它去登录页
+    else if (!token) {
+        next('/login')
+    }
+    // 其他情况（已登录，去主页等），直接放行
+    else {
+        next()
+    }
+})
