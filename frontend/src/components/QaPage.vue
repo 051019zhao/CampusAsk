@@ -26,7 +26,7 @@
             </div>
           </div>
         </div>
-        <button class="upgrade-btn">我要更新</button>
+        <button class="contribute-btn" @click="goContribute">我要投稿</button>
       </aside>
 
       <main class="content-panel">
@@ -183,6 +183,9 @@ export default {
     async refreshMeta() {
       await Promise.all([this.loadHotList(), this.loadHistory()])
     },
+    goContribute() {
+      this.$router.push({ name: 'ContributePage' })
+    },
     async loadHotList() {
       try {
         const res = await fetch('/api/qa/hot')
@@ -313,8 +316,7 @@ export default {
   font-size: 12px;
 }
 
-.upgrade-btn {
-  margin-top: auto;
+.contribute-btn {
   border: none;
   background: #2b4857;
   color: #eef7fb;
@@ -322,6 +324,8 @@ export default {
   padding: 9px 12px;
   font-size: 13px;
   cursor: pointer;
+  margin-top: auto;
+  width: 100%;
 }
 
 .content-panel {
