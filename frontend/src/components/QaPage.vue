@@ -94,12 +94,12 @@
 
 <script>
 export default {
-  name: 'QaPage',
+  name: "QaPage",
   data() {
     return {
-      keyword: '',
+      keyword: "",
       results: [],
-      aiAnswer: '',
+      aiAnswer: "",
       loading: false,
       noResult: false,
       chatMessages: [],
@@ -138,15 +138,15 @@ export default {
         const data = await res.json()
         if (data.code === 200) {
           if (Array.isArray(data.data)) {
-            this.results = data.data
-            if (this.results.length === 0) this.noResult = true
-          } else if (typeof data.data === 'string') {
-            this.aiAnswer = data.data
+            this.results = data.data;
+            if (this.results.length === 0) this.noResult = true;
+          } else if (typeof data.data === "string") {
+            this.aiAnswer = data.data;
           } else {
-            this.noResult = true
+            this.noResult = true;
           }
         } else {
-          this.noResult = true
+          this.noResult = true;
         }
         replyText = this.buildAnswerText()
       } catch (e) {
