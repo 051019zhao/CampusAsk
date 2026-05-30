@@ -3,9 +3,9 @@
     <h1>CampusAsk 校园智能问答</h1>
     <div class="search-box">
       <input
-          v-model="keyword"
-          placeholder="请输入问题，如：食堂几点关门？"
-          @keyup.enter="search"
+        v-model="keyword"
+        placeholder="请输入问题，如：食堂几点关门？"
+        @keyup.enter="search"
       />
       <button @click="search">搜索</button>
     </div>
@@ -31,50 +31,50 @@
 
 <script>
 export default {
-  name: 'QaPage',
+  name: "QaPage",
   data() {
     return {
-      keyword: '',
+      keyword: "",
       results: [],
-      aiAnswer: '',
+      aiAnswer: "",
       loading: false,
-      noResult: false
-    }
+      noResult: false,
+    };
   },
   methods: {
     async search() {
-      if (!this.keyword.trim()) return
-      this.loading = true
-      this.noResult = false
-      this.results = []
-      this.aiAnswer = ''
+      if (!this.keyword.trim()) return;
+      this.loading = true;
+      this.noResult = false;
+      this.results = [];
+      this.aiAnswer = "";
       try {
-        const res = await fetch('http://localhost:8080/api/qa/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: this.keyword })
-        })
-        const data = await res.json()
+        const res = await fetch("http://localhost:8081/api/qa/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keyword: this.keyword }),
+        });
+        const data = await res.json();
         if (data.code === 200) {
           if (Array.isArray(data.data)) {
-            this.results = data.data
-            if (this.results.length === 0) this.noResult = true
-          } else if (typeof data.data === 'string') {
-            this.aiAnswer = data.data
+            this.results = data.data;
+            if (this.results.length === 0) this.noResult = true;
+          } else if (typeof data.data === "string") {
+            this.aiAnswer = data.data;
           } else {
-            this.noResult = true
+            this.noResult = true;
           }
         } else {
-          this.noResult = true
+          this.noResult = true;
         }
       } catch (e) {
-        this.noResult = true
+        this.noResult = true;
       } finally {
-        this.loading = false
+        this.loading = false;
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>
 
 <style scoped>
@@ -110,7 +110,9 @@ button {
   font-size: 16px;
   cursor: pointer;
 }
-button:hover { background: #33a06f; }
+button:hover {
+  background: #33a06f;
+}
 .result-card {
   background: #f9f9f9;
   border: 1px solid #eee;
@@ -118,8 +120,14 @@ button:hover { background: #33a06f; }
   padding: 16px;
   margin-bottom: 12px;
 }
-.result-card h3 { margin: 0 0 8px; color: #2c3e50; }
-.result-card p { margin: 0 0 8px; color: #555; }
+.result-card h3 {
+  margin: 0 0 8px;
+  color: #2c3e50;
+}
+.result-card p {
+  margin: 0 0 8px;
+  color: #555;
+}
 .category {
   font-size: 12px;
   background: #e8f5e9;
@@ -134,9 +142,17 @@ button:hover { background: #33a06f; }
   padding: 16px;
   margin-bottom: 12px;
 }
-.ai-answer h3 { margin: 0 0 8px; color: #3a5bd9; }
-.ai-answer p { margin: 0; color: #333; line-height: 1.6; }
-.loading, .no-result {
+.ai-answer h3 {
+  margin: 0 0 8px;
+  color: #3a5bd9;
+}
+.ai-answer p {
+  margin: 0;
+  color: #333;
+  line-height: 1.6;
+}
+.loading,
+.no-result {
   text-align: center;
   color: #999;
   margin-top: 20px;

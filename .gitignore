@@ -1,0 +1,48 @@
+# ======================================
+# 后端 SpringBoot / Maven 忽略
+# ======================================
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.logs
+*.log
+
+# mvn 包装器（可保留，也可忽略）
+# mvnw
+# mvnw.cmd
+# .mvn/
+
+# IDE 文件
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# ======================================
+# 前端 Vue / Node 忽略
+# ======================================
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================================
+# 系统垃圾文件
+# ======================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Tradespaces
+Thumbs.db
