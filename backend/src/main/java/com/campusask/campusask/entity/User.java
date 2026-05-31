@@ -5,9 +5,14 @@ import java.time.LocalDateTime;
 
 @Data
 public class User {
+    //主键
     private Long id;
+    //邮箱或者学号
     private String username;
+    //密码
     private String password;
-    private String role;
-    private LocalDateTime createdAt;
+    //身份
+    private String role;//0学生1管理员
+    //创建时间
+    private LocalDateTime createAt;
 }

@@ -26,7 +26,7 @@
             </div>
           </div>
         </div>
-        <button class="upgrade-btn">我要更新</button>
+        <button class="contribute-btn" @click="goContribute">我要投稿</button>
       </aside>
 
       <main class="content-panel">
@@ -94,12 +94,12 @@
 
 <script>
 export default {
-  name: 'QaPage',
+  name: "QaPage",
   data() {
     return {
-      keyword: '',
+      keyword: "",
       results: [],
-      aiAnswer: '',
+      aiAnswer: "",
       loading: false,
       noResult: false,
       chatMessages: [],
@@ -138,15 +138,15 @@ export default {
         const data = await res.json()
         if (data.code === 200) {
           if (Array.isArray(data.data)) {
-            this.results = data.data
-            if (this.results.length === 0) this.noResult = true
-          } else if (typeof data.data === 'string') {
-            this.aiAnswer = data.data
+            this.results = data.data;
+            if (this.results.length === 0) this.noResult = true;
+          } else if (typeof data.data === "string") {
+            this.aiAnswer = data.data;
           } else {
-            this.noResult = true
+            this.noResult = true;
           }
         } else {
-          this.noResult = true
+          this.noResult = true;
         }
         replyText = this.buildAnswerText()
       } catch (e) {
@@ -182,6 +182,9 @@ export default {
     },
     async refreshMeta() {
       await Promise.all([this.loadHotList(), this.loadHistory()])
+    },
+    goContribute() {
+      this.$router.push({ name: 'ContributePage' })
     },
     async loadHotList() {
       try {
@@ -313,8 +316,7 @@ export default {
   font-size: 12px;
 }
 
-.upgrade-btn {
-  margin-top: auto;
+.contribute-btn {
   border: none;
   background: #2b4857;
   color: #eef7fb;
@@ -322,6 +324,8 @@ export default {
   padding: 9px 12px;
   font-size: 13px;
   cursor: pointer;
+  margin-top: auto;
+  width: 100%;
 }
 
 .content-panel {

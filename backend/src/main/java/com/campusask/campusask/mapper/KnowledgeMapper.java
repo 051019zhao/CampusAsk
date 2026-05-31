@@ -10,14 +10,15 @@ import java.util.List;
 @Mapper
 public interface KnowledgeMapper {
 
-    @Select("SELECT * FROM knowledge WHERE title LIKE CONCAT('%',#{keyword},'%') " +
-            "OR keywords LIKE CONCAT('%',#{keyword},'%') ORDER BY view_count DESC LIMIT 5")
+    // 关键词搜索（组员已添加）
     List<Knowledge> searchByKeyword(@Param("keyword") String keyword);
 
-    @Select("SELECT * FROM knowledge ORDER BY created_at DESC")
-    List<Knowledge> listAll();
-
+    // 新增知识点（Excel导入用）
     @Insert("INSERT INTO knowledge(title, content, category, keywords, view_count, created_by, created_at) " +
             "VALUES(#{title}, #{content}, #{category}, #{keywords}, #{viewCount}, #{createdBy}, NOW())")
     int insert(Knowledge knowledge);
+
+    // 查询全部知识点（前端列表展示用）
+    @Select("SELECT * FROM knowledge ORDER BY created_at DESC")
+    List<Knowledge> listAll();
 }

@@ -1,19 +1,28 @@
 <template>
-  <div class="auth-wrapper">
-    <div class="auth-card">
-      <h2 class="auth-title">CampusAsk {{ isLogin ? '登录' : '注册' }}</h2>
+  <div class="auth-container">
+    <div class="auth-box">
+      <!-- 标题 -->
+      <h2>{{ isLogin ? 'CampusAsk 登录' : 'CampusAsk 注册' }}</h2>
 
       <form @submit.prevent="handleSubmit">
+        <!-- 账号 -->
         <div class="form-item">
           <label>学号/工号</label>
-          <input v-model="formData.username" type="text" placeholder="请输入学号或工号" required />
+          <input
+              v-model="formData.username"
+              type="text"
+              placeholder="请输入学号或工号"
+              required
+          />
         </div>
 
+        <!-- 密码 -->
         <div class="form-item">
           <label>密码</label>
           <input v-model="formData.password" type="password" placeholder="请输入密码" required />
         </div>
 
+        <!-- 确认密码（仅注册可见） -->
         <div v-if="!isLogin" class="form-item">
           <label>确认密码</label>
           <input v-model="formData.confirmPassword" type="password" placeholder="请再次输入密码" required />
@@ -33,11 +42,43 @@
           </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- 新增：身份选择区域（数字 0 和 1 完美对接后端） -->
+        <!-- ========================================== -->
+        <div class="form-item">
+          <label>登录身份</label>
+          <div class="role-radio-group">
+            <label class="radio-label">
+              <input
+                  type="radio"
+                  v-model="formData.role"
+                  :value="0"
+                  name="role"
+              />
+              <span class="custom-radio"></span>
+              学生
+            </label>
+            <label class="radio-label">
+              <input
+                  type="radio"
+                  v-model="formData.role"
+                  :value="1"
+                  name="role"
+              />
+              <span class="custom-radio"></span>
+              管理员
+            </label>
+          </div>
+        </div>
+        <!-- ========================================== -->
+
+        <!-- 提交按钮 -->
         <button type="submit" class="submit-btn">
           {{ isLogin ? '立即登录' : '立即注册' }}
         </button>
       </form>
 
+      <!-- 底部切换提示 -->
       <p class="switch-tip">
         {{ isLogin ? '没有账号？' : '已有账号？' }}
         <span @click="toggleStatus">{{ isLogin ? '立即注册' : '去登录' }}</span>
@@ -50,42 +91,53 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { loginAPI, registerAPI } from '@/api/auth'
+import { useRouter } from 'vue-router'
 
-const router = useRouter()
+// 是否为登录状态
 const isLogin = ref(true)
 
+const router = useRouter()
+// 表单数据绑定（初始化时 role 默认为 0，即学生）
 const formData = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  role: 'student'
+  role: 0 // 0: 学生, 1: 管理员
 })
 
+// 切换登录/注册状态，清空表单并重置身份为学生
 const toggleStatus = () => {
   isLogin.value = !isLogin.value
   formData.username = ''
   formData.password = ''
   formData.confirmPassword = ''
-  formData.role = 'student'
+  formData.role = 0
 }
 
 const handleSubmit = () => {
-  isLogin.value ? handleLogin() : handleRegister()
+  if (isLogin.value) {
+    handleLogin()
+  } else {
+    handleRegister()
+  }
 }
 
 const handleLogin = async () => {
   try {
+    console.log('正在提交登录，传输数据：', formData)
+    // 此时提交的参数包含：username, password, role(0或1)
     const res = await loginAPI({
       username: formData.username,
       password: formData.password,
       role: formData.role
     })
-    if (res.code === 200) {
-      localStorage.setItem('token', res.data)
+
+    if (res.data && res.data.token) {
+      localStorage.setItem('token', res.token)
+      // 顺便可以存一下身份，方便后续页面判断展示
       localStorage.setItem('role', formData.role)
+      alert('登录成功！')
       router.push('/')
-    } else {
-      alert(res.message || '登录失败')
     }
   } catch (error) {
     console.error('登录失败', error)
@@ -98,9 +150,12 @@ const handleRegister = async () => {
     return
   }
   try {
-    const res = await registerAPI({
+    console.log('正在提交注册，传输数据：', formData)
+    // 此时提交的参数包含：username, password, role(0或1)
+    await registerAPI({
       username: formData.username,
-      password: formData.password
+      password: formData.password,
+      role: formData.role
     })
     if (res.code === 200) {
       alert('注册成功，请登录！')
@@ -115,111 +170,160 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.auth-wrapper {
-  min-height: 100vh;
+/* 基础容器 */
+.auth-container {
   display: flex;
-  align-items: center;
   justify-content: center;
-  background: #f0f2f5;
+  align-items: center;
+  min-height: 80vh;
+  font-family: sans-serif;
+  padding: 0 20px;
 }
 
-.auth-card {
-  background: #fff;
+/* 核心登录框 */
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border: 1px solid #eee;
   border-radius: 12px;
-  padding: 48px 40px;
-  width: 400px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 35px 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
-.auth-title {
+h2 {
   text-align: center;
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 30px;
   font-size: 24px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin: 0 0 32px;
+  font-weight: 600;
 }
 
 .form-item {
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .form-item label {
-  display: block;
   font-size: 14px;
   color: #555;
-  margin-bottom: 8px;
+  font-weight: bold;
+  padding-left: 2px;
 }
 
 .form-item input[type="text"],
 .form-item input[type="password"] {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #d9d9d9;
+  padding: 12px;
+  font-size: 15px;
+  border: 1px solid #ddd;
   border-radius: 6px;
-  font-size: 14px;
-  box-sizing: border-box;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.25s ease;
 }
 
-.form-item input[type="text"]:focus,
-.form-item input[type="password"]:focus {
-  border-color: #4dc3b8;
+.form-item input:focus {
+  border-color: #42b883;
+  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
 }
 
-.role-group {
+/* ========================================== */
+/* 新增：单选框美化样式 */
+/* ========================================== */
+.role-radio-group {
   display: flex;
-  gap: 32px;
-  padding-top: 4px;
+  gap: 30px;
+  padding: 5px 2px;
 }
 
-.role-option {
+.radio-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  color: #333;
+  gap: 8px;
   cursor: pointer;
+  font-size: 15px !important; /* 覆盖上面的label大小 */
+  color: #333 !important;
+  font-weight: normal !important;
 }
 
-.role-option input[type="radio"] {
-  accent-color: #4dc3b8;
-  width: 16px;
-  height: 16px;
+/* 隐藏原生收音机圆圈 */
+.radio-label input[type="radio"] {
+  display: none;
 }
+
+/* 自定义漂亮的圆圈 */
+.custom-radio {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ddd;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* 当被选中时，外圈变绿 */
+.radio-label input[type="radio"]:checked + .custom-radio {
+  border-color: #42b883;
+  background: #42b883;
+}
+
+/* 当被选中时，内嵌一个小百点 */
+.radio-label input[type="radio"]:checked + .custom-radio::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+/* ========================================== */
 
 .submit-btn {
   width: 100%;
   padding: 12px;
-  background: #4dc3b8;
-  color: #fff;
+  background: #42b883;
+  color: white;
   border: none;
   border-radius: 6px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
-  margin-top: 8px;
-  transition: background 0.2s;
+  margin-top: 10px;
+  transition: background 0.2s ease;
 }
 
 .submit-btn:hover {
-  background: #3aada2;
+  background: #33a06f;
+}
+
+.submit-btn:active {
+  transform: scale(0.99);
 }
 
 .switch-tip {
   text-align: center;
-  margin-top: 20px;
+  margin-top: 25px;
+  margin-bottom: 0;
   font-size: 14px;
-  color: #888;
+  color: #999;
 }
 
 .switch-tip span {
-  color: #4dc3b8;
+  color: #42b883;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: bold;
+  margin-left: 5px;
+  transition: color 0.2s;
 }
 
 .switch-tip span:hover {
+  color: #33a06f;
   text-decoration: underline;
 }
 </style>
