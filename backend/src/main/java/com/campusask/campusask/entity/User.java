@@ -1,7 +1,6 @@
 package com.campusask.campusask.entity;
 
 import lombok.Data;
-
 import java.time.LocalDateTime;
 
 @Data

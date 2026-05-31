@@ -19,23 +19,27 @@
         <!-- 密码 -->
         <div class="form-item">
           <label>密码</label>
-          <input
-              v-model="formData.password"
-              type="password"
-              placeholder="请输入密码"
-              required
-          />
+          <input v-model="formData.password" type="password" placeholder="请输入密码" required />
         </div>
 
         <!-- 确认密码（仅注册可见） -->
         <div v-if="!isLogin" class="form-item">
           <label>确认密码</label>
-          <input
-              v-model="formData.confirmPassword"
-              type="password"
-              placeholder="请再次输入密码"
-              required
-          />
+          <input v-model="formData.confirmPassword" type="password" placeholder="请再次输入密码" required />
+        </div>
+
+        <div v-if="isLogin" class="form-item">
+          <label>登录身份</label>
+          <div class="role-group">
+            <label class="role-option">
+              <input type="radio" v-model="formData.role" value="student" />
+              <span>学生</span>
+            </label>
+            <label class="role-option">
+              <input type="radio" v-model="formData.role" value="admin" />
+              <span>管理员</span>
+            </label>
+          </div>
         </div>
 
         <!-- ========================================== -->
@@ -70,13 +74,13 @@
 
         <!-- 提交按钮 -->
         <button type="submit" class="submit-btn">
-          {{ isLogin ? '立即登录' : '注册账号' }}
+          {{ isLogin ? '立即登录' : '立即注册' }}
         </button>
       </form>
 
       <!-- 底部切换提示 -->
       <p class="switch-tip">
-        {{ isLogin ? '还没有账号？' : '已有账号？' }}
+        {{ isLogin ? '没有账号？' : '已有账号？' }}
         <span @click="toggleStatus">{{ isLogin ? '立即注册' : '去登录' }}</span>
       </p>
     </div>
@@ -85,6 +89,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { loginAPI, registerAPI } from '@/api/auth'
 import { useRouter } from 'vue-router'
 
@@ -109,7 +114,6 @@ const toggleStatus = () => {
   formData.role = 0
 }
 
-// 提交表单逻辑
 const handleSubmit = () => {
   if (isLogin.value) {
     handleLogin()
@@ -118,7 +122,6 @@ const handleSubmit = () => {
   }
 }
 
-// 登录业务
 const handleLogin = async () => {
   try {
     console.log('正在提交登录，传输数据：', formData)
@@ -141,13 +144,11 @@ const handleLogin = async () => {
   }
 }
 
-// 注册业务
 const handleRegister = async () => {
   if (formData.password !== formData.confirmPassword) {
     alert('两次输入的密码不一致！')
     return
   }
-
   try {
     console.log('正在提交注册，传输数据：', formData)
     // 此时提交的参数包含：username, password, role(0或1)
@@ -156,9 +157,12 @@ const handleRegister = async () => {
       password: formData.password,
       role: formData.role
     })
-
-    alert('注册成功，请登录！')
-    toggleStatus()
+    if (res.code === 200) {
+      alert('注册成功，请登录！')
+      toggleStatus()
+    } else {
+      alert(res.message || '注册失败')
+    }
   } catch (error) {
     console.error('注册失败', error)
   }

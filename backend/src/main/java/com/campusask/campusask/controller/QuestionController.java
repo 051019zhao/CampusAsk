@@ -19,7 +19,7 @@ public class QuestionController {
     private QuestionService questionService;
 
     @PostMapping("/ask")
-    public Result ask(@RequestBody java.util.Map<String, String> body) {
+    public Result<Object> ask(@RequestBody java.util.Map<String, String> body) {
         String keyword = body.get("keyword");
         Long userId = null;
         String userIdValue = body.get("userId");
@@ -34,12 +34,12 @@ public class QuestionController {
     }
 
     @GetMapping("/hot")
-    public Result hotKeywords() {
+    public Result<Object> hotKeywords() {
         return Result.success(questionService.getHotKeywords(10));
     }
 
     @GetMapping("/history")
-    public Result recentHistory(@RequestParam(required = false) Long userId) {
+    public Result<Object> recentHistory(@RequestParam(required = false) Long userId) {
         return Result.success(questionService.getRecentQuestions(userId, 6));
     }
 }

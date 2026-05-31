@@ -1,12 +1,23 @@
 // src/utils/request.js
 import axios from 'axios'
 
-axios.defaults.baseURL = 'http://localhost:8080'
+const request = axios.create({
+    baseURL: '/api'
+})
 
-// 响应拦截器（直接挂载到全局 axios 上）
-axios.interceptors.response.use(
+// 请求拦截器：自动带上 token
+request.interceptors.request.use(config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+        config.headers['token'] = token
+    }
+    return config
+})
+
+// 响应拦截器
+request.interceptors.response.use(
     response => {
-        return response.data // 直接返回后端的数据包
+        return response.data
     },
     error => {
         alert(error.response?.data?.message || '网络请求错误')
@@ -14,5 +25,4 @@ axios.interceptors.response.use(
     }
 )
 
-// 直接导出原生的 axios
-export default axios
+export default request

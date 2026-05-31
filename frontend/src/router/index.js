@@ -12,7 +12,7 @@ import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
 
 const routes = [
     {
-        path: '/',         // 默认访问根路径
+        path: '/',
         name: 'QaPage',
         component: QaPage
     },
@@ -37,6 +37,11 @@ const routes = [
                 component: KnowledgeImport,
             },
         ],
+    },
+    {
+        path: '/admin/knowledge-import',
+        name: 'KnowledgeImport',
+        component: KnowledgeImport
     },
     {
         path: '/:pathMatch(.*)*',

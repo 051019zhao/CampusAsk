@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
 <mapper namespace="com.campusask.campusask.mapper.UserMapper">
 
+    <!-- 1. 表名从 users 改成 user（和数据库表名一致） -->
+    <select id="findByUsername" resultType="com.campusask.campusask.entity.User">
+        SELECT * FROM `user` WHERE username = #{username} LIMIT 1
+    </select>
 
-
+    <!-- 2. 表名从 users 改成 user，其他字段和你的数据库完全匹配 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `user` (username, password, role, created_at)
+        VALUES (#{username}, #{password}, #{role}, NOW())
+    </insert>
 
 </mapper>
