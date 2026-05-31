@@ -12,7 +12,6 @@ import java.util.Map;
 
 @Component
 public class JwtUtil {
-
     @Value("${campusask.jwt.user-secret-key}")
     private String secretKey;
 

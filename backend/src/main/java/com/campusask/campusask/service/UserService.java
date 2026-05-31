@@ -1,5 +1,6 @@
 package com.campusask.campusask.service;
 
+
 import com.campusask.campusask.entity.User;
 import com.campusask.campusask.mapper.UserMapper;
 import com.campusask.campusask.utils.JwtUtil;
@@ -12,6 +13,7 @@ import java.util.Map;
 
 @Service
 public class UserService {
+    
 
     @Autowired
     private UserMapper userMapper;
@@ -45,4 +47,5 @@ public class UserService {
         claims.put("role", user.getRole());
         return jwtUtil.generateToken(claims);
     }
+
 }
