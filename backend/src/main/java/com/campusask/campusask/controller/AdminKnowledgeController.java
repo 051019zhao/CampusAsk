@@ -1,15 +1,22 @@
 package com.campusask.campusask.controller;
-
+import com.alibaba.excel.EasyExcel;
+import java.io.IOException;
+import com.campusask.campusask.dto.KnowledgeExcelDTO;
+import com.campusask.campusask.listener.KnowledgeExcelListener;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+
 
 import jakarta.annotation.Resource;
 import java.util.List;
@@ -50,4 +57,20 @@ public class AdminKnowledgeController {
     public List<Knowledge> search(@RequestParam String keyword) {
         return knowledgeMapper.searchByKeyword(keyword);
     }
+        /**
+     * Excel批量导入知识点
+     */
+   @PostMapping("/importExcel")
+@ResponseBody
+public String importExcel(@RequestParam("file") MultipartFile file){
+    try {
+        EasyExcel.read(file.getInputStream(), KnowledgeExcelDTO.class, new KnowledgeExcelListener(knowledgeMapper))
+                .sheet()
+                .doRead();
+        return "导入成功";
+    }catch (IOException e){
+        e.printStackTrace();
+        return "导入失败："+e.getMessage();
+    }
+}
 }
