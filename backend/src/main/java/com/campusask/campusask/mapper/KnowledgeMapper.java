@@ -1,10 +1,14 @@
 package com.campusask.campusask.mapper;
 
 import com.campusask.campusask.entity.Knowledge;
+
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
 import java.util.List;
 
 @Mapper
@@ -18,7 +22,22 @@ public interface KnowledgeMapper {
             "VALUES(#{title}, #{content}, #{category}, #{keywords}, #{viewCount}, #{createdBy}, NOW())")
     int insert(Knowledge knowledge);
 
+     // 批量插入知识点
+    void batchInsert(@Param("list") List<Knowledge> list);
+
     // 查询全部知识点（前端列表展示用）
     @Select("SELECT * FROM knowledge ORDER BY created_at DESC")
     List<Knowledge> listAll();
+
+     // 根据ID查询知识点
+    @Select("SELECT * FROM knowledge WHERE id = #{id}")
+    Knowledge selectById(@Param("id") Long id);
+ 
+    // 更新知识点
+    @Update("UPDATE knowledge SET title = #{title}, content = #{content}, category = #{category}, keywords = #{keywords} WHERE id = #{id}")
+    int update(Knowledge knowledge);
+ 
+    // 删除知识点
+    @Delete("DELETE FROM knowledge WHERE id = #{id}")
+    int deleteById(@Param("id") Long id);
 }

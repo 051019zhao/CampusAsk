@@ -9,7 +9,7 @@ public class Knowledge {
     private String category;
     private String keywords;
     private Integer viewCount;
-    private String createdBy;
+    private Long createdBy;
     private LocalDateTime createdAt;
 
     // Getters and Setters
@@ -31,8 +31,8 @@ public class Knowledge {
     public Integer getViewCount() { return viewCount; }
     public void setViewCount(Integer viewCount) { this.viewCount = viewCount; }
 
-    public String getCreatedBy() { return createdBy; }
-    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

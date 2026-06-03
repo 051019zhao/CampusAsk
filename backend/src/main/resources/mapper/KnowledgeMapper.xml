@@ -11,6 +11,14 @@
            OR content LIKE CONCAT('%', #{keyword}, '%')
         ORDER BY view_count DESC
             LIMIT 5
-    </select>
 
-</mapper>
+ </select>
+    <!-- 批量插入知识点 -->
+    <insert id="batchInsert">
+        INSERT INTO knowledge(title, content, category, keywords, view_count, created_by, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.title}, #{item.content}, #{item.category}, #{item.keywords}, #{item.viewCount}, #{item.createdBy}, NOW())
+        </foreach>
+    </insert>
+    </mapper>

@@ -1,76 +1,118 @@
 package com.campusask.campusask.controller;
-import com.alibaba.excel.EasyExcel;
-import java.io.IOException;
-import com.campusask.campusask.dto.KnowledgeExcelDTO;
-import com.campusask.campusask.listener.KnowledgeExcelListener;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
+
+import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.Knowledge;
+
 import com.campusask.campusask.mapper.KnowledgeMapper;
-import org.springframework.stereotype.Controller;
-
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import com.campusask.campusask.service.KnowledgeService;
 
 
-import jakarta.annotation.Resource;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+
 import java.util.List;
 
-// 这里用 @Controller，同时支持页面跳转和接口返回
+/**
+ * 知识库管理接口（管理员专用）
+ */
 @RestController
 @RequestMapping("/api/knowledge")
-@CrossOrigin(origins = "http://localhost:8080") // 允许前端地址跨域访问
-@Controller
+
+@CrossOrigin(origins = "http://localhost:8080")
 
 public class AdminKnowledgeController {
 
-    @Resource
+    @Autowired
+    private KnowledgeService knowledgeService;
+     @Autowired
     private KnowledgeMapper knowledgeMapper;
-
-    // ========== 1. 页面跳转接口 ==========
-    // 访问 http://localhost:8081/admin 时，跳转到 admin.html 页面
-   
-
-    // ========== 2. 数据接口（给前端页面调用） ==========
     /**
      * 获取所有知识点列表
-     * @return JSON 格式的知识点列表
+     
      */
     @GetMapping("/listAll")
-    @ResponseBody // 加上这个注解，表示返回 JSON 数据，而不是页面
-    public List<Knowledge> listAll() {
-        return knowledgeMapper.listAll();
+   
+    public Result<List<Knowledge>> listAll() {
+        List<Knowledge> list = knowledgeService.listAll();
+        return Result.success(list);
     }
 
     /**
      * 根据关键词搜索知识点
-     * @param keyword 搜索关键词
-     * @return JSON 格式的搜索结果
+    
      */
     @GetMapping("/search")
     @ResponseBody
-    public List<Knowledge> search(@RequestParam String keyword) {
-        return knowledgeMapper.searchByKeyword(keyword);
+      public Result<List<Knowledge>> search(@RequestParam String keyword) {
+        List<Knowledge> list = knowledgeMapper.searchByKeyword(keyword);
+        return Result.success(list);
+    }
+    /**
+     * 根据ID获取知识点详情
+     */
+    @GetMapping("/{id}")
+    public Result<Knowledge> getById(@PathVariable Long id) {
+        Knowledge knowledge = knowledgeService.getById(id);
+        if (knowledge == null) {
+            return Result.error("知识点不存在");
+        }
+        return Result.success(knowledge);
     }
         /**
      * Excel批量导入知识点
      */
-   @PostMapping("/importExcel")
-@ResponseBody
-public String importExcel(@RequestParam("file") MultipartFile file){
-    try {
-        EasyExcel.read(file.getInputStream(), KnowledgeExcelDTO.class, new KnowledgeExcelListener(knowledgeMapper))
-                .sheet()
-                .doRead();
-        return "导入成功";
-    }catch (IOException e){
-        e.printStackTrace();
-        return "导入失败："+e.getMessage();
+    @PostMapping("/importExcel")
+    public Result<String> importExcel(@RequestParam("file") MultipartFile file) {
+        try {
+            knowledgeService.importFromExcel(file);
+            return Result.success("导入成功");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
-}
+ /**
+     * 编辑知识点（更新）
+     */
+    @PutMapping("/{id}")
+    public Result<String> update(@PathVariable Long id, @RequestBody Knowledge knowledge) {
+        try {
+            // 检查知识点是否存在
+            Knowledge existing = knowledgeService.getById(id);
+            if (existing == null) {
+                return Result.error("知识点不存在");
+            }
+            // 设置ID
+            knowledge.setId(id);
+            // 保持原有创建者和创建时间
+            knowledge.setCreatedBy(existing.getCreatedBy());
+            knowledge.setCreatedAt(existing.getCreatedAt());
+            knowledge.setViewCount(existing.getViewCount());
+            
+            knowledgeService.update(knowledge);
+            return Result.success("更新成功");
+        } catch (Exception e) {
+            return Result.error("更新失败：" + e.getMessage());
+        }
+    }
+ 
+    /**
+     * 删除知识点
+     */
+    @DeleteMapping("/{id}")
+    public Result<String> delete(@PathVariable Long id) {
+        try {
+            // 检查知识点是否存在
+            Knowledge existing = knowledgeService.getById(id);
+            if (existing == null) {
+                return Result.error("知识点不存在");
+            }
+            knowledgeService.deleteById(id);
+            return Result.success("删除成功");
+        } catch (Exception e) {
+            return Result.error("删除失败：" + e.getMessage());
+        }
+    }
 }
