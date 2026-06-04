@@ -17,6 +17,10 @@
         SELECT * FROM contribution WHERE status = 'pending' ORDER BY created_at DESC
     </select>
 
+    <select id="selectRejected" resultType="com.campusask.campusask.entity.Contribution">
+        SELECT * FROM contribution WHERE status = 'rejected' ORDER BY review_time DESC
+    </select>
+
     <delete id="deleteById" parameterType="long">
         DELETE FROM contribution WHERE id = #{id}
     </delete>

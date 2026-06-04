@@ -67,6 +67,11 @@ public class ContributionController {
         return Result.success(contributionService.listPendingContributions());
     }
 
+    @GetMapping("/rejected")
+    public Result<List<Contribution>> rejectedList() {
+        return Result.success(contributionService.listRejectedContributions());
+    }
+
     @GetMapping("/my-contributions")
     public Result<List<Contribution>> getMyContributions() {
         Long userId = BaseContext.getCurrentId();

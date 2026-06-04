@@ -9,6 +9,8 @@ public class Contribution {
     private String answer;
     private String status;
     private Long reviewedBy;
+    private String reviewReason;
+    private LocalDateTime reviewTime;
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -28,6 +30,12 @@ public class Contribution {
 
     public Long getReviewedBy() { return reviewedBy; }
     public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
+
+    public String getReviewReason() { return reviewReason; }
+    public void setReviewReason(String reviewReason) { this.reviewReason = reviewReason; }
+
+    public LocalDateTime getReviewTime() { return reviewTime; }
+    public void setReviewTime(LocalDateTime reviewTime) { this.reviewTime = reviewTime; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

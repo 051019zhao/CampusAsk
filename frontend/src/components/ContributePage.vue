@@ -91,7 +91,7 @@
 </template>
 
 <script>
-import { submitContribution, getSensitiveWords, getMyContributions } from '@/api/contribution'
+import { submitContribution, getSensitiveWords, getRejectedContributions } from '@/api/contribution'
 
 export default {
   name: 'ContributePage',
@@ -165,9 +165,9 @@ export default {
     async loadRejectedContributions() {
       this.rejectedLoading = true
       try {
-        const response = await getMyContributions()
+        const response = await getRejectedContributions()
         if (response?.code === 200 && Array.isArray(response.data)) {
-          this.rejectedContributions = response.data.filter(item => item.status === 'rejected')
+          this.rejectedContributions = response.data
         } else {
           this.rejectedContributions = []
         }
