@@ -56,7 +56,7 @@ public class QaService {
 
         // === 第 1 步：先查本地知识库 ===
         List<Knowledge> localHits = knowledgeMapper.searchByKeyword(trimmed);
-        if (localHits != null && !localHigit ts.isEmpty()) {
+        if (localHits != null && !localHits.isEmpty()) {
             resp.put("source", "knowledge");
             resp.put("answer", localHits);
             return resp;
