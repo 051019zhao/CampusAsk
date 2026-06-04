@@ -28,6 +28,8 @@ CREATE TABLE `contribution`  (
   `answer` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'pending',
   `reviewed_by` bigint NULL DEFAULT NULL,
+  `review_reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `review_time` datetime NULL DEFAULT NULL,
   `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;

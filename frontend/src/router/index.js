@@ -9,6 +9,7 @@ import ContributePage from '../components/ContributePage.vue' // 你的贡献页
 // 队友新增的后台管理组件
 import AdminLayout from "../views/admin/AdminLayout.vue";
 import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
+import ContributionReview from "../views/admin/ContributionReview.vue";
 
 const routes = [
     {
@@ -35,6 +36,11 @@ const routes = [
                 path: "knowledge-import",
                 name: "KnowledgeImport",
                 component: KnowledgeImport,
+            },
+            {
+                path: "contribution-review",
+                name: "ContributionReview",
+                component: ContributionReview,
             },
         ],
     },

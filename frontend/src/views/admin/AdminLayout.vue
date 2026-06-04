@@ -7,6 +7,9 @@
         <li>
           <router-link to="/admin/knowledge-import">知识导入</router-link>
         </li>
+        <li>
+          <router-link to="/admin/contribution-review">投稿审核</router-link>
+        </li>
       </ul>
     </aside>
     <!-- 主内容区（子页面会渲染在这里） -->

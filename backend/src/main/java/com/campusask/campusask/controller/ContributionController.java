@@ -1,19 +1,15 @@
 package com.campusask.campusask.controller;
 
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import com.campusask.campusask.context.BaseContext;
 import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.Contribution;
 import com.campusask.campusask.service.ContributionService;
 import com.campusask.campusask.service.SensitiveWordService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/contribute")
@@ -64,5 +60,44 @@ public class ContributionController {
     @GetMapping("/sensitive-words")
     public Result<List<String>> getSensitiveWords() {
         return Result.success(sensitiveWordService.getAllWords());
+    }
+
+    @GetMapping("/pending")
+    public Result<List<Contribution>> pendingList() {
+        return Result.success(contributionService.listPendingContributions());
+    }
+
+    @GetMapping("/my-contributions")
+    public Result<List<Contribution>> getMyContributions() {
+        Long userId = BaseContext.getCurrentId();
+        return Result.success(contributionService.getUserContributions(userId));
+    }
+
+    @PutMapping("/{id}/review")
+    public Result<String> review(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String action = body.get("action");
+        if (action == null || action.isBlank()) {
+            return Result.error("action 参数不能为空");
+        }
+
+        if ("approve".equalsIgnoreCase(action)) {
+            String category = body.get("category");
+            String keywords = body.get("keywords");
+            if (category == null || category.isBlank()) {
+                return Result.error("分类不能为空");
+            }
+            Long reviewerId = BaseContext.getCurrentId();
+            contributionService.approveContribution(id, category, keywords, reviewerId);
+            return Result.success("已通过并已加入知识库");
+        }
+
+        if ("reject".equalsIgnoreCase(action)) {
+            String reason = body.get("reason");
+            Long reviewerId = BaseContext.getCurrentId();
+            contributionService.rejectContribution(id, reason, reviewerId);
+            return Result.success("已驳回" + (reason != null && !reason.isBlank() ? "，原因：" + reason : ""));
+        }
+
+        return Result.error("action 参数必须是 approve 或 reject");
     }
 }
