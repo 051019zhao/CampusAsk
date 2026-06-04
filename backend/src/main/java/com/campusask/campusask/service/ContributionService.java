@@ -30,6 +30,10 @@ public class ContributionService {
         return contributionMapper.selectPending();
     }
 
+    public List<Contribution> listRejectedContributions() {
+        return contributionMapper.selectRejected();
+    }
+
     public Contribution getContributionById(Long id) {
         return contributionMapper.selectById(id);
     }

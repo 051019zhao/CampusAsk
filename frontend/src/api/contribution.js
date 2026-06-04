@@ -14,3 +14,17 @@ export function getSensitiveWords() {
     method: 'get'
   })
 }
+
+export function getRejectedContributions() {
+  return request({
+    url: '/api/contribute/rejected',
+    method: 'get'
+  })
+}
+
+export function getMyContributions() {
+  return request({
+    url: '/api/contribute/my-contributions',
+    method: 'get'
+  })
+}

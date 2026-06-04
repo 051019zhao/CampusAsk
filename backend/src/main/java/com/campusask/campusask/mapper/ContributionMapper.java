@@ -14,6 +14,8 @@ public interface ContributionMapper {
 
     List<Contribution> selectPending();
 
+    List<Contribution> selectRejected();
+
     int deleteById(@Param("id") Long id);
 
     int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("reason") String reason, @Param("reviewedBy") Long reviewedBy);
