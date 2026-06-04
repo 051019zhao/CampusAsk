@@ -54,6 +54,13 @@
               class="chat-bubble"
               :class="message.role"
             >
+              <span
+                v-if="message.role === 'bot' && message.source"
+                class="source-tag"
+                :class="'tag-' + message.source"
+              >
+                {{ message.source === 'ai' ? '🤖 AI 回答' : (message.source === 'knowledge' ? '📚 本地知识库' : '📚 本地检索（降级）') }}
+              </span>
               <div class="chat-text">{{ message.text }}</div>
             </div>
             <div v-if="loading" class="chat-bubble bot loading-bubble">
@@ -125,28 +132,27 @@ export default {
       this.results = []
       this.aiAnswer = ''
       let replyText = ''
+      let source = ''
       try {
-        const userId = this.getUserId()
-        const res = await fetch('/api/qa/ask', {
+        const res = await fetch('/api/v2/qa/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keyword: question,
-            userId: userId ? String(userId) : ''
-          })
+          body: JSON.stringify({ keyword: question })
         })
         const data = await res.json()
-        if (data.code === 200) {
-          if (Array.isArray(data.data)) {
-            this.results = data.data;
-            if (this.results.length === 0) this.noResult = true;
-          } else if (typeof data.data === "string") {
-            this.aiAnswer = data.data;
+        if (data.code === 200 && data.data) {
+          source = data.data.source || ''
+          const ans = data.data.answer
+          if (Array.isArray(ans)) {
+            this.results = ans
+            if (this.results.length === 0) this.noResult = true
+          } else if (typeof ans === 'string') {
+            this.aiAnswer = ans
           } else {
-            this.noResult = true;
+            this.noResult = true
           }
         } else {
-          this.noResult = true;
+          this.noResult = true
         }
         replyText = this.buildAnswerText()
       } catch (e) {
@@ -157,7 +163,8 @@ export default {
           this.chatMessages.push({
             id: `${Date.now()}-bot`,
             role: 'bot',
-            text: replyText
+            text: replyText,
+            source: source
           })
         }
         this.loading = false
@@ -622,5 +629,27 @@ export default {
   .upgrade-btn {
     margin-top: 0;
   }
+}
+
+/* 检索来源标签（赵丹丹任务：source 字段展示） */
+.source-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.tag-ai {
+  background: #e6f0ff;
+  color: #1d4ed8;
+}
+.tag-knowledge {
+  background: #fff4e6;
+  color: #b45309;
+}
+.tag-fallback {
+  background: #e8f8e8;
+  color: #2a6a52;
 }
 </style>
