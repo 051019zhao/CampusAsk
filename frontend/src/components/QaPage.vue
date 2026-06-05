@@ -89,10 +89,28 @@
       <aside class="hot-panel">
         <div class="hot-title">热门 TOP10</div>
         <div class="hot-list">
-          <div v-for="(item, index) in hotList" :key="item" class="hot-item">
-            <span class="hot-rank">{{ index + 1 }}</span>
-            <span class="hot-text">{{ item }}</span>
-          </div>
+          <div v-if="hotLoading" class="hot-state">加载中...</div>
+          <button
+            v-else-if="hotError"
+            class="hot-state is-error"
+            type="button"
+            @click="loadHotList"
+          >
+            获取失败，点击重试
+          </button>
+          <div v-else-if="hotList.length === 0" class="hot-state">暂无热词</div>
+          <template v-else>
+            <button
+              v-for="(item, index) in hotList"
+              :key="item + '-' + index"
+              class="hot-item"
+              type="button"
+              @click="applyHot(item)"
+            >
+              <span class="hot-rank">{{ index + 1 }}</span>
+              <span class="hot-text">{{ item }}</span>
+            </button>
+          </template>
         </div>
       </aside>
     </div>
@@ -112,7 +130,9 @@ export default {
       chatMessages: [],
       navItems: ['首页', '校园服务', '我的收藏', '设置'],
       recentList: [],
-      hotList: []
+      hotList: [],
+      hotLoading: false,
+      hotError: ''
     }
   },
   mounted() {
@@ -120,6 +140,7 @@ export default {
   },
   methods: {
     async search() {
+      if (this.loading) return
       const question = this.keyword.trim()
       if (!question) return
       this.chatMessages.push({
@@ -190,6 +211,11 @@ export default {
     async refreshMeta() {
       await Promise.all([this.loadHotList(), this.loadHistory()])
     },
+    applyHot(item) {
+      if (!item) return
+      this.keyword = item
+      this.search()
+    },
     goContribute() {
       this.$router.push({ name: 'ContributePage' })
     },
@@ -206,14 +232,22 @@ export default {
       return map[source] || source
     },
     async loadHotList() {
+      this.hotLoading = true
+      this.hotError = ''
       try {
-        const res = await fetch('/api/qa/hot')
+        const res = await fetch('/api/hotspot/top10')
         const data = await res.json()
         if (data.code === 200 && Array.isArray(data.data)) {
           this.hotList = data.data
+        } else {
+          this.hotList = []
+          this.hotError = 'error'
         }
       } catch (e) {
         this.hotList = []
+        this.hotError = 'error'
+      } finally {
+        this.hotLoading = false
       }
     },
     async loadHistory() {
@@ -583,6 +617,29 @@ export default {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   padding: 7px 9px;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.hot-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hot-state {
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  text-align: center;
+}
+
+.hot-state.is-error {
+  border: none;
+  color: #ffe2e2;
+  cursor: pointer;
 }
 
 .hot-rank {
