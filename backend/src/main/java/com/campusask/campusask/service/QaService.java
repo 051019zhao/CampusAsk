@@ -44,6 +44,9 @@ public class QaService {
     private KnowledgeMapper knowledgeMapper;
 
     @Autowired
+    private SearchService searchService;
+
+    @Autowired
     private HotKeywordMapper hotKeywordMapper;
 
     @Autowired
@@ -82,26 +85,37 @@ public class QaService {
             return resp;
         }
 
-        // 第 2+3 步：调 AI（RAG：把全部知识库作为上下文）
+        // 第 2 步：AI 检索数据库（RAG）
         List<Knowledge> allKnowledge = knowledgeMapper.listAll();
         try {
             String raw = callDeepSeekWithRAG(trimmed, allKnowledge);
 
             if (raw.contains(TAG_DB)) {
-                // AI 从知识库上下文中找到了答案
                 String answer = raw.replace(TAG_DB, "").trim();
                 resp.put("source", "ai_knowledge");
                 resp.put("sourceLabel", "🤖 AI检索数据库");
                 resp.put("answer", answer);
                 recordAsync(trimmed, "ai_knowledge");
-            } else {
-                // AI 用自身知识（华南理工）回答
-                String answer = raw.replace(TAG_WEB, "").trim();
-                resp.put("source", "ai_web");
-                resp.put("sourceLabel", "🌐 AI自主回答(华南理工)");
-                resp.put("answer", answer);
-                recordAsync(trimmed, "ai_web");
+                return resp;
             }
+
+            // 第 3 步：RAG 也没找到 → 调 Tavily 联网搜索
+            String searchResult = searchService.search(trimmed);
+            if (searchResult != null && !searchResult.isBlank()) {
+                String answer = summarizeWithDeepSeek(trimmed, searchResult);
+                resp.put("source", "ai_search");
+                resp.put("sourceLabel", "🌐 AI联网搜索(华南理工)");
+                resp.put("answer", answer);
+                recordAsync(trimmed, "ai_search");
+                return resp;
+            }
+
+            // 第 4 步：搜索也没结果 → AI 自主回答
+            String answer = raw.replace(TAG_WEB, "").trim();
+            resp.put("source", "ai_web");
+            resp.put("sourceLabel", "💡 AI自主回答");
+            resp.put("answer", answer);
+            recordAsync(trimmed, "ai_web");
             return resp;
 
         } catch (HttpTimeoutException e) {
@@ -166,6 +180,33 @@ public class QaService {
     }
 
     // ===== DeepSeek HTTP 调用 =====
+
+    /** 把 Tavily 搜索结果喂给 DeepSeek 总结 */
+    private String summarizeWithDeepSeek(String question, String searchResult) throws Exception {
+        String body = "{\"model\":\"deepseek-chat\",\"messages\":["
+                + "{\"role\":\"system\",\"content\":\"你是华南理工大学校园助手，请根据以下搜索结果简洁回答问题，控制在150字以内，不要编造信息。\"},"
+                + "{\"role\":\"user\",\"content\":\"问题：" + escape(question) + "\\n\\n搜索结果：" + escape(searchResult) + "\"}],"
+                + "\"max_tokens\":400}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.deepseek.com/chat/completions"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .timeout(Duration.ofSeconds(DEEPSEEK_TIMEOUT_SECONDS))
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        HttpResponse<String> response = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(DEEPSEEK_TIMEOUT_SECONDS))
+                .build()
+                .send(request, HttpResponse.BodyHandlers.ofString());
+
+        String text = response.body();
+        int start = text.indexOf("\"content\":\"") + 11;
+        int end = text.indexOf("\"", start);
+        if (start < 11 || end < 0) return searchResult;
+        return text.substring(start, end).replace("\\n", "\n");
+    }
 
     private String callDeepSeekWithRAG(String question, List<Knowledge> knowledgeList) throws Exception {
         String body = buildPrompt(question, knowledgeList);

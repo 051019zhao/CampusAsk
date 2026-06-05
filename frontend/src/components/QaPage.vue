@@ -197,7 +197,8 @@ export default {
       const map = {
         knowledge:    '📚 数据库关键词检索',
         ai_knowledge: '🤖 AI检索数据库',
-        ai_web:       '🌐 AI自主回答(华南理工)',
+        ai_search:    '🌐 AI联网搜索(华南理工)',
+        ai_web:       '💡 AI自主回答',
         fallback:     '⚠️ AI不可用·本地兜底',
         rejected:     '🚫 超出服务范围',
         ai:           '🤖 AI回答',
@@ -663,9 +664,13 @@ export default {
   background: #f0e6ff;
   color: #6d28d9;
 }
-.tag-ai_web {
+.tag-ai_search {
   background: #e6f7ff;
   color: #0369a1;
+}
+.tag-ai_web {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 .tag-fallback {
   background: #fef3c7;
