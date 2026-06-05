@@ -59,7 +59,7 @@
                 class="source-tag"
                 :class="'tag-' + message.source"
               >
-                {{ message.source === 'ai' ? '🤖 AI 回答' : (message.source === 'knowledge' ? '📚 本地知识库' : '📚 本地检索（降级）') }}
+                {{ sourceLabel(message.source) }}
               </span>
               <div class="chat-text">{{ message.text }}</div>
             </div>
@@ -192,6 +192,17 @@ export default {
     },
     goContribute() {
       this.$router.push({ name: 'ContributePage' })
+    },
+    sourceLabel(source) {
+      const map = {
+        knowledge:    '📚 数据库关键词检索',
+        ai_knowledge: '🤖 AI检索数据库',
+        ai_web:       '🌐 AI自主回答(华南理工)',
+        fallback:     '⚠️ AI不可用·本地兜底',
+        rejected:     '🚫 超出服务范围',
+        ai:           '🤖 AI回答',
+      }
+      return map[source] || source
     },
     async loadHotList() {
       try {
@@ -648,8 +659,20 @@ export default {
   background: #fff4e6;
   color: #b45309;
 }
+.tag-ai_knowledge {
+  background: #f0e6ff;
+  color: #6d28d9;
+}
+.tag-ai_web {
+  background: #e6f7ff;
+  color: #0369a1;
+}
 .tag-fallback {
-  background: #e8f8e8;
-  color: #2a6a52;
+  background: #fef3c7;
+  color: #92400e;
+}
+.tag-rejected {
+  background: #fee2e2;
+  color: #991b1b;
 }
 </style>
