@@ -94,7 +94,9 @@ CREATE TABLE `knowledge`  (
   `view_count` int NULL DEFAULT 0,
   `created_by` bigint NULL DEFAULT NULL,
   `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_keywords` (`keywords`) USING BTREE,
+  KEY `idx_title` (`title`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------

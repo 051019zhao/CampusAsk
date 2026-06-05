@@ -167,7 +167,7 @@ export default {
         )}`;
         const res = await fetch(url);
         const data = await res.json();
-        if (data.code === 1) {
+        if (data.code === 200) {
           this.list = data.data;
         } else {
           this.list = [];
@@ -194,7 +194,7 @@ export default {
           },
         );
         const data = await res.json();
-        if (data.code === 1) {
+        if (data.code === 200) {
           this.showMessage(data.message, "success");
         } else {
           this.showMessage(data.message, "error");
@@ -227,7 +227,7 @@ export default {
           body: JSON.stringify(this.editForm),
         });
         const data = await res.json();
-        if (data.code === 1) {
+        if (data.code === 200) {
           this.showMessage(data.message, "success");
           this.cancelEdit();
           this.loadAllData();
@@ -264,7 +264,7 @@ export default {
           },
         );
         const data = await res.json();
-        if (data.code === 1) {
+        if (data.code === 200) {
           this.showMessage(data.message, "success");
         } else {
           this.showMessage(data.message, "error");
