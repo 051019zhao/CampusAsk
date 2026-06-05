@@ -1,6 +1,8 @@
 package com.campusask.campusask.service;
 
 import com.campusask.campusask.entity.Knowledge;
+import com.campusask.campusask.entity.QuestionLog;
+import com.campusask.campusask.mapper.HotKeywordMapper;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +42,28 @@ public class QaService {
     @Autowired
     private KnowledgeMapper knowledgeMapper;
 
+    @Autowired
+    private HotKeywordMapper hotKeywordMapper;
+
+    @Autowired
+    private com.campusask.campusask.mapper.QuestionLogMapper questionLogMapper;
+
     @Value("${deepseek.api.key}")
     private String apiKey;
+
+    /** 异步把问答历史写入 question_log 表（复用组员的表结构） */
+    private void recordAsync(String keyword, String source) {
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                com.campusask.campusask.entity.QuestionLog logEntry = new com.campusask.campusask.entity.QuestionLog();
+                logEntry.setQuestion(keyword);
+                logEntry.setSource(source);
+                questionLogMapper.insertLog(logEntry);
+            } catch (Exception ex) {
+                log.warn("question_log 写入失败：{}", ex.getMessage());
+            }
+        });
+    }
 
     public Map<String, Object> ask(String keyword) {
         Map<String, Object> resp = new HashMap<>();
@@ -59,6 +81,7 @@ public class QaService {
         if (localHits != null && !localHits.isEmpty()) {
             resp.put("source", "knowledge");
             resp.put("answer", localHits);
+            recordAsync(trimmed, "knowledge");
             return resp;
         }
 
@@ -67,6 +90,7 @@ public class QaService {
             String aiAnswer = callDeepSeek(trimmed);
             resp.put("source", "ai");
             resp.put("answer", aiAnswer);
+            recordAsync(trimmed, "ai");
             return resp;
         } catch (HttpTimeoutException e) {
             log.warn("DeepSeek 调用超时，启动降级。keyword={}", trimmed);
@@ -91,6 +115,7 @@ public class QaService {
         } else {
             resp.put("answer", "AI 暂不可用，且本地知识库未命中。请稍后再试或换个关键词。");
         }
+        recordAsync(keyword, "fallback");
         return resp;
     }
 
@@ -134,6 +159,21 @@ public class QaService {
 
     private String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    public List<String> getHotKeywords(int limit) {
+        return hotKeywordMapper.findTopKeywords(limit)
+                .stream()
+                .map(item -> item.getKeyword())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public List<String> getRecentQuestions(Long userId, int limit) {
+        if (userId == null) return List.of();
+        return questionLogMapper.findRecentByUserId(userId, limit)
+                .stream()
+                .map(QuestionLog::getQuestion)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     /** 自定义异常：用于识别 429 限流 */

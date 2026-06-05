@@ -134,7 +134,7 @@ export default {
       let replyText = ''
       let source = ''
       try {
-        const res = await fetch('/api/v2/qa/ask', {
+        const res = await fetch('/api/qa/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keyword: question })
