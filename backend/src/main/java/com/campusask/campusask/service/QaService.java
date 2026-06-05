@@ -2,7 +2,6 @@ package com.campusask.campusask.service;
 
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.entity.QuestionLog;
-import com.campusask.campusask.mapper.HotKeywordMapper;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,10 +46,10 @@ public class QaService {
     private SearchService searchService;
 
     @Autowired
-    private HotKeywordMapper hotKeywordMapper;
+    private com.campusask.campusask.mapper.QuestionLogMapper questionLogMapper;
 
     @Autowired
-    private com.campusask.campusask.mapper.QuestionLogMapper questionLogMapper;
+    private HotspotService hotspotService;
 
     @Value("${deepseek.api.key}")
     private String apiKey;
@@ -248,6 +247,7 @@ public class QaService {
                 log.setQuestion(keyword);
                 log.setSource(source);
                 questionLogMapper.insertLog(log);
+                hotspotService.invalidateCache();
             } catch (Exception ex) {
                 QaService.log.warn("question_log 写入失败：{}", ex.getMessage());
             }
@@ -255,10 +255,7 @@ public class QaService {
     }
 
     public List<String> getHotKeywords(int limit) {
-        return hotKeywordMapper.findTopKeywords(limit)
-                .stream()
-                .map(item -> item.getKeyword())
-                .collect(java.util.stream.Collectors.toList());
+        return questionLogMapper.findTopKeywords(limit);
     }
 
     public List<String> getRecentQuestions(Long userId, int limit) {

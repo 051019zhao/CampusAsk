@@ -17,4 +17,23 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findTopKeywords" resultType="java.lang.String">
+        SELECT question
+        FROM question_log
+        WHERE question IS NOT NULL
+                    AND question &lt;&gt; ''
+        GROUP BY question
+        ORDER BY COUNT(*) DESC
+        LIMIT #{limit}
+    </select>
+
+        <select id="findRecentQuestions" resultType="java.lang.String">
+                SELECT question
+                FROM question_log
+                WHERE question IS NOT NULL
+                    AND question &lt;&gt; ''
+                ORDER BY created_at DESC
+                LIMIT #{limit}
+        </select>
+
 </mapper>
