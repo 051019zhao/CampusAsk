@@ -137,16 +137,24 @@ export default {
     this.loadAllData();
   },
   methods: {
+    getAuthHeaders() {
+      const token = localStorage.getItem('token')
+      return token ? { token } : {}
+    },
     async loadAllData() {
       this.loading = true;
       try {
-        const res = await fetch("http://localhost:8080/api/knowledge/listAll");
+        const res = await fetch("http://localhost:8080/api/knowledge/listAll", {
+          headers: this.getAuthHeaders(),
+        });
         const data = await res.json();
         console.log("响应数据:", data); // 添加日志
         if (data.code === 200) {
           this.list = data.data;
+          this.message = '';
         } else {
           this.list = [];
+          this.showMessage(data.message || '获取知识点失败', 'error');
         }
       } catch (err) {
         console.error("加载失败:", err);
@@ -165,7 +173,9 @@ export default {
         const url = `http://localhost:8080/api/knowledge/search?keyword=${encodeURIComponent(
           this.keyword,
         )}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: this.getAuthHeaders(),
+        });
         const data = await res.json();
         if (data.code === 200) {
           this.list = data.data;
@@ -190,6 +200,7 @@ export default {
           "http://localhost:8080/api/knowledge/importExcel",
           {
             method: "POST",
+            headers: this.getAuthHeaders(),
             body: form,
           },
         );
@@ -223,6 +234,7 @@ export default {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            ...this.getAuthHeaders(),
           },
           body: JSON.stringify(this.editForm),
         });
@@ -261,6 +273,7 @@ export default {
           `http://localhost:8080/api/knowledge/${this.deleteItem.id}`,
           {
             method: "DELETE",
+            headers: this.getAuthHeaders(),
           },
         );
         const data = await res.json();
