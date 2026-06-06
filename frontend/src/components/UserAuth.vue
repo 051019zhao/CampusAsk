@@ -142,6 +142,8 @@ const handleLogin = async () => {
     }
   } catch (error) {
     console.error('登录失败', error)
+    const errorMsg = error.response?.data?.message || error.message || '登录失败，请检查网络或账号'
+    //alert(errorMsg)
   }
 }
 

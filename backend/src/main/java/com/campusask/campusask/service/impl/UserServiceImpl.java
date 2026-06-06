@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 
 @Service
 public class UserServiceImpl implements UserService {
+    // 新增：高并发安全的本地缓存
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> retryCountMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Long> lockTimeMap = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Autowired
     private UserMapper userMapper;
@@ -94,8 +97,21 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public User login(UserDTO userDTO) {
+
         String username = userDTO.getUsername();
         String password = userDTO.getPassword();
+
+        // 新增 1：一进登录，先拦截检查是否处于 15 分钟锁定状态
+        if (lockTimeMap.containsKey(username)) {
+            long remainMillis = lockTimeMap.get(username) + java.time.Duration.ofMinutes(15).toMillis() - System.currentTimeMillis();
+            if (remainMillis > 0) {
+                long remainMinutes = (remainMillis / 1000 / 60) + 1; // 向上取整提示
+                throw new PasswordErrorException("登录失败：账号因密码错误过多已被锁定，请在 " + remainMinutes + " 分钟后再试！");
+            } else {
+                lockTimeMap.remove(username); // 满 15 分钟自动解锁
+                retryCountMap.remove(username);
+            }
+        }
 
         //根据用户名查询数据库数据
         User user = userMapper.getByUsername(username);
@@ -114,9 +130,23 @@ public class UserServiceImpl implements UserService {
         //跟前端传过来的密码比对MD5铭文加密
         password = DigestUtils.md5DigestAsHex(password.getBytes());
         if(!password.equals(user.getPassword())){
-            //密码错误
-            throw new PasswordErrorException("登录失败：密码错误");
+            // 修改 2：密码对不上了，触发错误计数器逻辑
+            int currentRetry = retryCountMap.getOrDefault(username, 0) + 1;
+            retryCountMap.put(username, currentRetry);
+
+            if (currentRetry >= 5) {
+                lockTimeMap.put(username, System.currentTimeMillis()); // 错满 5 次直接焊死
+                throw new PasswordErrorException("登录失败：密码错误已达 5 次！账号已被锁定 15 分钟！");
+            }
+
+            int remainCount = 5 - currentRetry;
+            throw new PasswordErrorException("登录失败：密码错误，你还可以输入 " + remainCount + " 次");
         }
+
+
+        // 新增 3：密码正确登录成功
+        retryCountMap.remove(username);
+        lockTimeMap.remove(username);
 
         return user;
     }
