@@ -49,11 +49,16 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                         errorRows.add("第" + (i + 1) + "行：内容为空");
                         continue;
                     }
+                     if (isBlank(category)) {
+                        errorRows.add("第" + (i + 1) + "行：分类为空");
+                        continue;
+                    }
+ 
  
                     Knowledge knowledge = new Knowledge();
                     knowledge.setTitle(title);
                     knowledge.setContent(content);
-                    knowledge.setCategory(isBlank(category) ? "未分类" : category);
+                     knowledge.setCategory(category);
                     knowledge.setKeywords(isBlank(keywords) ? "" : keywords);
                     knowledge.setViewCount(0);
                     knowledge.setCreatedBy(1L); // 这里可以改成实际的用户名
