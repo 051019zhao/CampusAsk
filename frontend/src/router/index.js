@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // 1. 引入你和队友的页面组件
+import UserCenter from '@/components/UserCenter.vue'
 import QaPage from '../components/QaPage.vue' // 假设这是你队友写的首页
 import UserAuth from '../components/UserAuth.vue' // 你写的登录注册页
 import ContributePage from '../components/ContributePage.vue' // 你的贡献页
@@ -16,6 +17,11 @@ const routes = [
         path: '/',         // 默认访问根路径
         name: 'QaPage',
         component: QaPage
+    },
+    {
+        path: '/user-center',
+        name: 'UserCenter',
+        component: UserCenter
     },
     {
         path: '/contribute',
