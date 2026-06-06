@@ -53,10 +53,23 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                         errorRows.add("第" + (i + 1) + "行：分类为空");
                         continue;
                     }
- 
+  // 检测乱码
+                    if (containsGarbled(title)) {
+                        errorRows.add("第" + (i + 1) + "行：标题包含乱码");
+                        continue;
+                    }
+                    if (containsGarbled(content)) {
+                        errorRows.add("第" + (i + 1) + "行：内容包含乱码");
+                        continue;
+                    }
+                    if (containsGarbled(category)) {
+                        errorRows.add("第" + (i + 1) + "行：分类包含乱码");
+                        continue;
+                    }
  
                     Knowledge knowledge = new Knowledge();
                     knowledge.setTitle(title);
+                    
                     knowledge.setContent(content);
                      knowledge.setCategory(category);
                     knowledge.setKeywords(isBlank(keywords) ? "" : keywords);
@@ -120,7 +133,41 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private boolean isBlank(String str) {
         return str == null || str.trim().isEmpty();
     }
- 
+  /**
+     * 检测字符串是否包含乱码
+     * 检测规则：
+     * 1. 包含 Unicode 替换字符 \uFFFD（显示为 �）
+     * 2. 包含大量不可打印的控制字符
+     * 3. 包含连续的问号或特殊符号（常见乱码表现）
+     */
+    private boolean containsGarbled(String str) {
+        if (str == null) {
+            return false;
+        }
+        // 检测 Unicode 替换字符（乱码的典型特征）
+        if (str.contains("\uFFFD")) {
+            return true;
+        }
+        // 检测连续的问号（常见于编码错误）
+        if (str.matches(".*\\?{3,}.*")) {
+            return true;
+        }
+        // 检测不可打印字符比例超过50%
+        int controlCharCount = 0;
+        for (char c : str.toCharArray()) {
+            if (Character.isISOControl(c) && !Character.isWhitespace(c)) {
+                controlCharCount++;
+            }
+        }
+        if (str.length() > 0 && controlCharCount > str.length() / 2) {
+            return true;
+        }
+        // 检测是否包含非法 UTF-8 字节序列的迹象
+        if (str.matches(".*[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F].*")) {
+            return true;
+        }
+        return false;
+    }
     @Override
     public List<Knowledge> listAll() {
         return knowledgeMapper.listAll();
