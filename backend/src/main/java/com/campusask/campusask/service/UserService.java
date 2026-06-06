@@ -1,6 +1,7 @@
 package com.campusask.campusask.service;
 
 import com.campusask.campusask.dto.UserDTO;
+import com.campusask.campusask.dto.UserUpdateDTO;
 import com.campusask.campusask.entity.User;
 
 public interface UserService {
@@ -16,4 +17,18 @@ public interface UserService {
      * @param userDTO
      */
     User login(UserDTO userDTO);
+
+    /**
+     * 更新用户个人信息
+     * @param username
+     * @param userUpdateDTO
+     */
+    void updateProfile(String username, UserUpdateDTO userUpdateDTO);
+
+    /**
+     * 根据学号/工号查询用户的完整信息
+     * @param username 学号或工号
+     * @return 包含用户所有字段的实体对象
+     */
+    User getByUsername(String username);
 }

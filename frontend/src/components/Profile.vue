@@ -1,0 +1,290 @@
+<template>
+  <div class="auth-container">
+    <div class="auth-box">
+      <h2>个人信息管理</h2>
+      <p class="subtitle">CampusAsk 校园生活百事通 · 候选流</p>
+
+      <form @submit.prevent="handleSubmit">
+        <div class="form-item">
+          <label>学号/工号 (不可修改)</label>
+          <input
+              v-model="formData.username"
+              type="text"
+              disabled
+              class="disabled-input"
+          />
+        </div>
+
+        <div class="form-item">
+          <label>当前昵称</label>
+          <input
+              v-model="formData.nickname"
+              type="text"
+              placeholder="请输入您的新昵称"
+              required
+          />
+        </div>
+
+        <div class="password-divider">
+          <span>安全设置（如需修改密码请填写）</span>
+        </div>
+
+        <div class="form-item">
+          <label>原密码</label>
+          <input
+              v-model="formData.oldPassword"
+              type="password"
+              placeholder="修改密码时必填，不改则留空"
+          />
+        </div>
+
+        <div class="form-item">
+          <label>新密码</label>
+          <input
+              v-model="formData.newPassword"
+              type="password"
+              placeholder="新密码长度不能少于 6 位"
+          />
+        </div>
+
+        <div class="form-item">
+          <label>确认新密码</label>
+          <input
+              v-model="formData.confirmPassword"
+              type="password"
+              placeholder="请再次输入新密码"
+          />
+        </div>
+
+        <button type="submit" class="submit-btn" :disabled="loading">
+          {{ loading ? '正在保存...' : '保存修改' }}
+        </button>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { getUserProfile, updateUserProfile } from '@/api/auth' // 同时平级引入两个接口
+
+const loading = ref(false)
+
+// 表单数据绑定
+const formData = reactive({
+  username: '',      // 初始留空，由数据库实时读取后填充
+  nickname: '',      // 初始留空
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+// 🚀 核心逻辑改造：页面挂载时，直接从后端数据库读取真实数据
+onMounted(async () => {
+  try {
+    loading.value = true
+    const res = await getUserProfile() // 向后端发送 GET 请求
+
+    if (res.code === 200 && res.data) {
+      // 将数据库里的学号、昵称真实渲染到对应的输入框中
+      formData.username = res.data.username
+      formData.nickname = res.data.nickname || '新用户'
+
+      // 同步刷新一下本地缓存中的昵称，确保导航栏欢迎语同步
+      if (res.data.nickname) {
+        localStorage.setItem('nickname', res.data.nickname)
+      }
+    } else {
+      alert(res.message || '获取个人信息失败，请重新登录')
+    }
+  } catch (error) {
+    console.error('从数据库读取用户信息失败:', error)
+    alert('网络异常，用户信息加载失败')
+  } finally {
+    loading.value = false
+  }
+})
+
+// 提交表单逻辑
+const handleSubmit = async () => {
+  // 严格执行 Week 3 规约的长度与友好备选流校验
+  if (formData.nickname.trim().length === 0 || formData.nickname.length > 20) {
+    alert('昵称长度必须在 1 到 20 个字符之间！')
+    return
+  }
+
+  // 如果填写了新密码，触发修改密码流校验
+  if (formData.oldPassword || formData.newPassword || formData.confirmPassword) {
+    if (!formData.oldPassword || !formData.newPassword || !formData.confirmPassword) {
+      alert('修改密码时，原密码、新密码和确认密码均不能为空！')
+      return
+    }
+    if (formData.newPassword.length < 6) {
+      alert('新密码长度不能少于 6 位！')
+      return
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      alert('两次输入的新密码不一致！')
+      return
+    }
+  }
+
+  loading.value = true
+  try {
+    // 组装传输数据
+    const updateData = {
+      nickname: formData.nickname,
+      oldPassword: formData.oldPassword || null,
+      newPassword: formData.newPassword || null
+    }
+
+    const res = await updateUserProfile(updateData)
+
+    if (res.code === 200 || res.success) {
+      alert('个人信息更新成功！')
+      localStorage.setItem('nickname', formData.nickname)
+
+      // 置空密码框
+      formData.oldPassword = ''
+      formData.newPassword = ''
+      formData.confirmPassword = ''
+    } else {
+      alert(res.message || '更新失败，请检查输入')
+    }
+  } catch (error) {
+    console.error('修改个人信息失败', error)
+    alert('网络或系统异常，请稍后再试')
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+<style scoped>
+/* 🎯 保持原本的纯手写 CSS 绿调风格，不做任何修改 */
+
+/* 基础容器 */
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  font-family: sans-serif;
+  padding: 20px;
+}
+
+/* 核心登录框外壳 */
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 35px 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 5px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: #999;
+  margin-top: 0;
+  margin-bottom: 30px;
+}
+
+.form-item {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-item label {
+  font-size: 14px;
+  color: #555;
+  font-weight: bold;
+  padding-left: 2px;
+}
+
+.form-item input[type="text"],
+.form-item input[type="password"] {
+  padding: 12px;
+  font-size: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+/* 聚焦时变为专属绿色 */
+.form-item input:focus {
+  border-color: #42b883;
+  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
+}
+
+/* 只读输入框特定优雅样式 */
+.disabled-input {
+  background-color: #f9f9f9;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+/* 完美融合的 CSS 分割线样式 */
+.password-divider {
+  display: flex;
+  align-items: center;
+  margin: 25px 0 20px 0;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.password-divider::before,
+.password-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: #eee;
+}
+
+.password-divider span {
+  padding: 0 10px;
+}
+
+/* 统一宽体的 `#42b883` 绿色提交按钮 */
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: #42b883;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.2s ease;
+}
+
+.submit-btn:hover {
+  background: #33a06f;
+}
+
+.submit-btn:disabled {
+  background: #acdcc4;
+  cursor: not-allowed;
+}
+
+.submit-btn:active {
+  transform: scale(0.99);
+}
+</style>

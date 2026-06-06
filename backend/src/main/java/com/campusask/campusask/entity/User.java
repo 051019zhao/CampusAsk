@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 @Data
 public class User {
+    //用户昵称
+    private String nickname;
     //主键
     private Long id;
     //邮箱或者学号

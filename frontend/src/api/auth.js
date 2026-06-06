@@ -1,5 +1,5 @@
 // src/api/auth.js
-import request from '@/utils/request' // 引入刚才创建的 request
+import request from '@/utils/request.js' // 引入刚才创建的 request
 
 // 登录接口
 export function loginAPI(data) {
@@ -16,5 +16,22 @@ export function registerAPI(data) {
         url: '/auth/register',
         method: 'post',
         data // 包含 username、password 等
+    })
+}
+
+// 更新用户信息接口
+export function updateUserProfile(data) {
+    return request({
+        url: '/auth/profile', // 剥离掉 /api/user，与后端精准对齐
+        method: 'put',
+        data: data
+    })
+}
+
+// 获取当前登录用户信息的接口（GET 请求）
+export function getUserProfile() {
+    return request({
+        url: '/auth/profile',
+        method: 'get'
     })
 }

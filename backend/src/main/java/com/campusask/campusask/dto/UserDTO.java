@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 @Data
 public class UserDTO {
+    //用户昵称
+    private String nickname;
     //邮箱或者学号
     private String username;
     //密码

@@ -144,3 +144,5 @@ CREATE TABLE `user`  (
 -- ----------------------------
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+ALTER TABLE user ADD COLUMN nickname VARCHAR(20) DEFAULT NULL COMMENT '用户昵称';

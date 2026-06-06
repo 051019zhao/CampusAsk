@@ -17,7 +17,13 @@ public interface UserMapper {
      * 注册员工
      * @param user
      */
-    @Insert("insert into user (username, password, role, created_at) VALUES " +
-            "(#{username}, #{password}, #{role}, #{createAt})")
+    @Insert("insert into user (username, password, role, created_at, nickname) VALUES " +
+            "(#{username}, #{password}, #{role}, #{createAt}, #{nickname})")
     void insert(User user);
+
+    /**
+     * 更新用户信息
+     * @param user
+     */
+    void updateUser(User user);
 }

@@ -122,17 +122,21 @@ const handleSubmit = () => {
 const handleLogin = async () => {
   try {
     console.log('正在提交登录，传输数据：', formData)
-    // 此时提交的参数包含：username, password, role(0或1)
     const res = await loginAPI({
       username: formData.username,
       password: formData.password,
       role: formData.role
     })
 
+    // 核心大转折：一定要从 res.data 中精准抠出真实的加密令牌
     if (res.data && res.data.token) {
-      localStorage.setItem('token', res.token)
-      // 顺便可以存一下身份，方便后续页面判断展示
+      // 🚀 核心修复：改成 res.data.token
+      localStorage.setItem('token', res.data.token)
+
+      // 顺便把你这周 Profile.vue 需要用来默认回显的学号也焊死进缓存里，做到双重保险
+      localStorage.setItem('username', formData.username)
       localStorage.setItem('role', formData.role)
+
       alert('登录成功！')
       router.push('/')
     }
