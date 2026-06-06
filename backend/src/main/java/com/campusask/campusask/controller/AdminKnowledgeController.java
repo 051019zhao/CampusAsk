@@ -1,5 +1,6 @@
 package com.campusask.campusask.controller;
 
+import com.campusask.campusask.dto.ImportResult;
 import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.Knowledge;
 
@@ -65,10 +66,16 @@ public class AdminKnowledgeController {
      * Excel批量导入知识点
      */
     @PostMapping("/importExcel")
-    public Result<String> importExcel(@RequestParam("file") MultipartFile file) {
+    public Result<ImportResult> importExcel(@RequestParam("file") MultipartFile file) {
         try {
-            knowledgeService.importFromExcel(file);
-            return Result.success("导入成功");
+            ImportResult result = knowledgeService.importFromExcel(file);
+            String message = "导入完成，成功：" + result.getSuccessCount() + "条，失败：" + result.getFailedCount() + "条";
+            if (!result.getErrorRows().isEmpty()) {
+                message += "，错误行：" + String.join("；", result.getErrorRows());
+            }
+            Result<ImportResult> response = Result.success(result);
+            response.setMessage(message);
+            return response;
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

@@ -1,5 +1,5 @@
 package com.campusask.campusask.service;
-
+import com.campusask.campusask.dto.ImportResult;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 
@@ -21,8 +21,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     @Transactional
-    public void importFromExcel(MultipartFile file) {
-         List<Knowledge> validList = new ArrayList<>();
+    public ImportResult importFromExcel(MultipartFile file) {
+        List<Knowledge> validList = new ArrayList<>();
         List<String> errorRows = new ArrayList<>();
  
         try (InputStream is = file.getInputStream();
@@ -30,7 +30,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             Sheet sheet = workbook.getSheetAt(0);
             int totalRows = sheet.getLastRowNum();
             // 跳过表头，从第二行开始读
-             for (int i = 1; i <= totalRows; i++) { 
+             for (int i = 1; i <= totalRows; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 try {
@@ -69,13 +69,12 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 knowledgeMapper.batchInsert(validList);
             }
  
-            // 如果有错误行，抛出包含错误信息的异常
-            if (!errorRows.isEmpty()) {
-                throw new RuntimeException("导入完成，但存在错误行:\n" + String.join("\n", errorRows));
-            }
- 
-        } catch (RuntimeException e) {
-            throw e;
+             // 返回导入结果
+            ImportResult result = new ImportResult();
+            result.setSuccessCount(validList.size());
+            result.setFailedCount(errorRows.size());
+            result.setErrorRows(errorRows);
+            return result;
             
         } 
         catch (Exception e) {

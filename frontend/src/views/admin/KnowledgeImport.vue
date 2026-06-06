@@ -1,5 +1,18 @@
 <template>
   <div class="admin-container">
+    <!-- 消息提示区域 -->
+    <div class="message-container">
+      <div
+        v-for="(msg, index) in messages"
+        :key="index"
+        :class="['message', msg.type]"
+        @click="removeMessage(index)"
+      >
+        {{ msg.text }}
+        <span class="close-btn">×</span>
+      </div>
+    </div>
+
     <h1>📚 知识点管理后台</h1>
 
     <!-- 搜索栏 -->
@@ -117,6 +130,7 @@ export default {
   name: "KnowledgeImport",
   data() {
     return {
+      messages: [], // 新增：消息队列
       keyword: "",
       list: [],
       loading: false,
@@ -129,18 +143,35 @@ export default {
       },
       deleteConfirmVisible: false,
       deleteItem: null,
-      message: "",
-      messageType: "success",
+      // 删除：message: "",
+      // 删除：messageType: "success",
     };
   },
   mounted() {
     this.loadAllData();
   },
   methods: {
-    getAuthHeaders() {
-      const token = localStorage.getItem('token')
-      return token ? { token } : {}
+    // 新增：消息提示方法
+    showMessage(msg, type = "success") {
+      // 添加新消息到队列
+      this.messages.push({ text: msg, type: type });
+
+      // 5秒后自动移除
+      setTimeout(() => {
+        if (this.messages.length > 0) {
+          this.messages.shift();
+        }
+      }, 5000);
     },
+    // 新增：手动关闭消息
+    removeMessage(index) {
+      this.messages.splice(index, 1);
+    },
+    getAuthHeaders() {
+      const token = localStorage.getItem("token");
+      return token ? { token } : {};
+    },
+
     async loadAllData() {
       this.loading = true;
       try {
@@ -151,10 +182,10 @@ export default {
         console.log("响应数据:", data); // 添加日志
         if (data.code === 200) {
           this.list = data.data;
-          this.message = '';
+          this.message = "";
         } else {
           this.list = [];
-          this.showMessage(data.message || '获取知识点失败', 'error');
+          this.showMessage(data.message || "获取知识点失败", "error");
         }
       } catch (err) {
         console.error("加载失败:", err);
@@ -205,8 +236,17 @@ export default {
           },
         );
         const data = await res.json();
+        console.log("导入响应:", data);
         if (data.code === 200) {
           this.showMessage(data.message, "success");
+          // 如果有错误行，显示详细错误信息
+          if (
+            data.data &&
+            data.data.errorRows &&
+            data.data.errorRows.length > 0
+          ) {
+            alert("错误行详情:\n" + data.data.errorRows.join("\n"));
+          }
         } else {
           this.showMessage(data.message, "error");
         }
@@ -421,6 +461,16 @@ th {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
+}
+/* 消息提示样式 */
+.message-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 .message {
