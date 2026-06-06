@@ -85,10 +85,16 @@ export default {
     this.loadPending()
   },
   methods: {
+    getAuthHeaders() {
+      const token = localStorage.getItem('token')
+      return token ? { token } : {}
+    },
     async loadPending() {
       this.loading = true
       try {
-        const res = await fetch('http://localhost:8080/api/contribute/pending')
+        const res = await fetch('http://localhost:8080/api/contribute/pending', {
+          headers: this.getAuthHeaders(),
+        })
         const data = await res.json()
         if (data.code === 200) {
           this.list = (data.data || []).map(item => ({ ...item, category: '', keywords: '' }))
@@ -116,7 +122,10 @@ export default {
       try {
         const res = await fetch(`http://localhost:8080/api/contribute/${item.id}/review`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.getAuthHeaders(),
+          },
           body: JSON.stringify({
             action: 'approve',
             category: item.category,
@@ -151,7 +160,10 @@ export default {
           `http://localhost:8080/api/contribute/${this.currentRejectItem.id}/review`,
           {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...this.getAuthHeaders(),
+            },
             body: JSON.stringify({
               action: 'reject',
               reason: this.rejectReason || '',
