@@ -13,4 +13,6 @@ public interface QuestionLogMapper {
     List<QuestionLog> findRecentByUserId(@Param("userId") Long userId, @Param("limit") int limit);
     List<String> findTopKeywords(@Param("limit") int limit);
     List<String> findRecentQuestions(@Param("limit") int limit);
+    List<QuestionLog> findUnprocessed(@Param("limit") int limit);
+    void markProcessed(@Param("id") Long id);
 }

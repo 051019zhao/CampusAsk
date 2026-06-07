@@ -36,4 +36,16 @@
                 LIMIT #{limit}
         </select>
 
+        <select id="findUnprocessed" resultType="com.campusask.campusask.entity.QuestionLog">
+            SELECT id, user_id, question, answer, source, created_at, processed
+            FROM question_log
+            WHERE processed = 0
+            ORDER BY created_at ASC
+            LIMIT #{limit}
+        </select>
+
+        <update id="markProcessed">
+            UPDATE question_log SET processed = 1 WHERE id = #{id}
+        </update>
+
 </mapper>

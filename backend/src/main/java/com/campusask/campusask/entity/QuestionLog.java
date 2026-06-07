@@ -8,6 +8,7 @@ public class QuestionLog {
     private String question;
     private String answer;
     private String source;
+    private Boolean processed;
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -24,6 +25,9 @@ public class QuestionLog {
 
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
+
+    public Boolean getProcessed() { return processed; }
+    public void setProcessed(Boolean processed) { this.processed = processed; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

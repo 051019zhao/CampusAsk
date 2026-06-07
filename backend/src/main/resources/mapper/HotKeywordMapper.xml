@@ -19,4 +19,11 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findTopKeywordNames" resultType="java.lang.String">
+        SELECT keyword
+        FROM hot_keyword
+        ORDER BY search_count DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>
