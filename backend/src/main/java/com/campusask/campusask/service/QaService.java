@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.entity.QuestionLog;
+import com.campusask.campusask.mapper.HotKeywordMapper;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 
 /**
@@ -48,6 +49,9 @@ public class QaService {
 
     @Autowired
     private com.campusask.campusask.mapper.QuestionLogMapper questionLogMapper;
+
+    @Autowired
+    private HotKeywordMapper hotKeywordMapper;
 
     @Autowired
     private HotspotService hotspotService;
@@ -255,7 +259,7 @@ public class QaService {
     }
 
     public List<String> getHotKeywords(int limit) {
-        return questionLogMapper.findTopKeywords(limit);
+        return hotKeywordMapper.findTopKeywordNames(limit);
     }
 
     public List<String> getRecentQuestions(Long userId, int limit) {

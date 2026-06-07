@@ -11,4 +11,5 @@ import com.campusask.campusask.entity.HotKeyword;
 public interface HotKeywordMapper {
     void upsertKeyword(@Param("keyword") String keyword);
     List<HotKeyword> findTopKeywords(@Param("limit") int limit);
+    List<String> findTopKeywordNames(@Param("limit") int limit);
 }
