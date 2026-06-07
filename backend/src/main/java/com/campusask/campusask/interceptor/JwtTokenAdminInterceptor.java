@@ -76,8 +76,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
             }
 
             if(requestUri.startsWith("/api/knowledge") 
-        || requestUri.startsWith("/api/contribute/pending") 
-        || requestUri.startsWith("/api/contribute/rejected") 
+        || requestUri.startsWith("/api/contribute/pending")  
         || requestUri.endsWith("/review")){
                 // 检查是否为管理员，系统中的角色值为 0/1
                 if (!"1".equals(role)) {
