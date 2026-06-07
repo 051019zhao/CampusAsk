@@ -1,18 +1,21 @@
 package com.campusask.campusask.service;
 
-import com.campusask.campusask.mapper.QuestionLogMapper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.campusask.campusask.mapper.QuestionLogMapper;
 
 @Service
 public class HotspotService {
 
-    private static final long TTL_MILLIS = 60 * 1000L;
+    // Cache TTL: 3 days (in milliseconds). 原来是 60s，调整为 3 天重置一次。
+    private static final long TTL_MILLIS = 3L * 24 * 60 * 60 * 1000; // 259200000L
     private static final int SAMPLE_LIMIT = 500;
 
     private final QuestionLogMapper questionLogMapper;
