@@ -1,14 +1,5 @@
 package com.campusask.campusask.service;
 
-import com.campusask.campusask.entity.Knowledge;
-import com.campusask.campusask.entity.QuestionLog;
-import com.campusask.campusask.mapper.KnowledgeMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,6 +9,16 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import com.campusask.campusask.entity.Knowledge;
+import com.campusask.campusask.entity.QuestionLog;
+import com.campusask.campusask.mapper.KnowledgeMapper;
 
 /**
  * 赵丹丹 - 问答核心 Service
@@ -241,17 +242,16 @@ public class QaService {
     }
 
     private void recordAsync(String keyword, String source) {
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                QuestionLog log = new QuestionLog();
-                log.setQuestion(keyword);
-                log.setSource(source);
-                questionLogMapper.insertLog(log);
-                hotspotService.invalidateCache();
-            } catch (Exception ex) {
-                QaService.log.warn("question_log 写入失败：{}", ex.getMessage());
-            }
-        });
+        // 改为同步写入并立即失效缓存，避免前端刷新时因异步延迟看不到最新热词。
+        try {
+            QuestionLog log = new QuestionLog();
+            log.setQuestion(keyword);
+            log.setSource(source);
+            questionLogMapper.insertLog(log);
+            hotspotService.invalidateCache();
+        } catch (Exception ex) {
+            QaService.log.warn("question_log 写入失败：{}", ex.getMessage());
+        }
     }
 
     public List<String> getHotKeywords(int limit) {
