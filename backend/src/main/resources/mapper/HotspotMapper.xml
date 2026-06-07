@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.campusask.campusask.mapper.HotspotMapper">
+
+    <select id="findTopKeywords" resultType="java.lang.String" parameterType="int">
+        SELECT question
+        FROM question_log
+        WHERE question IS NOT NULL
+            AND question &lt;&gt; ''
+        GROUP BY question
+        ORDER BY COUNT(*) DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
