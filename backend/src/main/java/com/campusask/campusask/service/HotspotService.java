@@ -1,5 +1,6 @@
 package com.campusask.campusask.service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -10,19 +11,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.campusask.campusask.mapper.HotKeywordMapper;
+import com.campusask.campusask.mapper.HotspotMapper;
 
 @Service
 public class HotspotService {
 
     // Cache TTL: 1 days (in milliseconds). 原来是 60s，调整为 1 天重置一次。
     private static final long TTL_MILLIS = 1L * 24 * 60 * 60 * 1000; // 86400000L
+    private final HotspotMapper hotspotMapper;
     private final HotKeywordMapper hotKeywordMapper;
     private final Object cacheLock = new Object();
     // cache map keyed by limit value
     private volatile Map<Integer, CacheEntry> cacheMap = new ConcurrentHashMap<>();
 
     @Autowired
-    public HotspotService(HotKeywordMapper hotKeywordMapper) {
+    public HotspotService(HotspotMapper hotspotMapper, HotKeywordMapper hotKeywordMapper) {
+        this.hotspotMapper = hotspotMapper;
         this.hotKeywordMapper = hotKeywordMapper;
     }
 
@@ -51,10 +55,20 @@ public class HotspotService {
     }
 
     private List<String> buildHotspots(int limit) {
-        // 热点榜直接读 hot_keyword，由异步处理器维护
-        List<String> list = hotKeywordMapper.findTopKeywordNames(limit);
+        // 从 question_log 聚合高频 question（热词）
+        List<String> list = hotspotMapper.findTopKeywords(limit);
         if (list == null || list.isEmpty()) return List.of();
-        return Collections.unmodifiableList(list);
+
+        // 同步写入 hot_keyword 表，让数据库表也有数据
+        for (String keyword : list) {
+            try {
+                hotKeywordMapper.upsertKeyword(keyword);
+            } catch (Exception e) {
+                // 写入失败不影响热点榜返回
+            }
+        }
+
+        return Collections.unmodifiableList(new ArrayList<>(list));
     }
 
     // normalization and heuristic grouping removed; aggregation now done in SQL
