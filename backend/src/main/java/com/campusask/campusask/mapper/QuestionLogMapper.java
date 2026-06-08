@@ -20,4 +20,6 @@ public interface QuestionLogMapper {
     int countByDate(@Param("date") String date);
     List<java.util.Map<String, Object>> countByDateRange(@Param("startDate") String startDate, @Param("endDate") String endDate);
     List<java.util.Map<String, Object>> countBySource();
+    List<String> findQuestionsByDate(@Param("date") String date);
+    List<String> findQuestionsByDateLimit(@Param("date") String date, @Param("limit") int limit);
 }

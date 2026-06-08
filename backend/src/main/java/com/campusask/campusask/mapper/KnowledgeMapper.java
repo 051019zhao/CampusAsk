@@ -43,4 +43,7 @@ public interface KnowledgeMapper {
 
     @Select("SELECT COUNT(*) FROM knowledge")
     int countAll();
+
+    @Select("SELECT category AS name, COUNT(*) AS value FROM knowledge WHERE category IS NOT NULL AND category != '' GROUP BY category ORDER BY value DESC")
+    List<java.util.Map<String, Object>> countByCategory();
 }

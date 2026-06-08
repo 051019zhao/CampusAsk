@@ -70,4 +70,16 @@
             ORDER BY value DESC
         </select>
 
+        <select id="findQuestionsByDate" resultType="java.lang.String">
+            SELECT question FROM question_log
+            WHERE DATE(created_at) = #{date} AND question IS NOT NULL AND question &lt;&gt; ''
+        </select>
+
+        <select id="findQuestionsByDateLimit" resultType="java.lang.String">
+            SELECT question FROM question_log
+            WHERE DATE(created_at) = #{date} AND question IS NOT NULL AND question &lt;&gt; ''
+            ORDER BY created_at DESC
+            LIMIT #{limit}
+        </select>
+
 </mapper>

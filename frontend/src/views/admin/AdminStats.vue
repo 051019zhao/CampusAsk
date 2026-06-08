@@ -29,12 +29,45 @@
       </div>
     </div>
 
-    <!-- 来源占比 -->
-    <div class="chart-section">
-      <h2>🥧 检索来源占比</h2>
-      <div class="chart-container half">
-        <canvas id="sourceChart" height="80"></canvas>
+    <!-- 来源占比 + 知识库分类 -->
+    <div style="display:flex; gap:24px; flex-wrap:wrap">
+      <div class="chart-section" style="flex:1; min-width:350px">
+        <h2>检索来源占比</h2>
+        <div class="chart-container half">
+          <canvas id="sourceChart" height="80"></canvas>
+        </div>
       </div>
+      <div class="chart-section" style="flex:1; min-width:350px">
+        <h2>知识库分类统计</h2>
+        <div v-if="!knowledgeCategories.length" class="empty-hint">暂无数据</div>
+        <div v-else class="bar-chart">
+          <div v-for="(item, i) in knowledgeCategories" :key="i" class="bar-row">
+            <span class="bar-label">{{ item.name || '未分类' }}</span>
+            <div class="bar-track"><div class="bar-fill" :style="{width: barWidth(item.value)}"></div></div>
+            <span class="bar-val">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 话题分布 -->
+    <div class="chart-section">
+      <h2>今日提问话题分布</h2>
+      <div v-if="!topics.length" class="empty-hint">今日暂无提问</div>
+      <div v-else class="bar-chart">
+        <div v-for="(item, i) in topics" :key="i" class="bar-row">
+          <span class="bar-label">{{ item.name }}</span>
+          <div class="bar-track"><div class="bar-fill" :style="{width: barWidth(item.value), background: topicColor(item.name)}"></div></div>
+          <span class="bar-val">{{ item.value }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 报告 -->
+    <div class="chart-section ai-report">
+      <h2>AI 每日报告</h2>
+      <p v-if="report" class="report-text">{{ report }}</p>
+      <p v-else class="empty-hint">加载中...</p>
     </div>
   </div>
 </template>
@@ -47,6 +80,9 @@ export default {
       overview: { todayCount: 0, userCount: 0, knowledgeCount: 0, date: "" },
       trend: [],
       source: [],
+      knowledgeCategories: [],
+      topics: [],
+      report: "",
     }
   },
   mounted() {
@@ -59,17 +95,22 @@ export default {
     },
     async loadData() {
       try {
-        const [overviewRes, trendRes, sourceRes] = await Promise.all([
+        const [overviewRes, trendRes, sourceRes, catRes, topicRes, reportRes] = await Promise.all([
           fetch("/api/admin/stats/overview", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/trend", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/source", { headers: this.getAuthHeaders() }),
+          fetch("/api/admin/stats/knowledge-categories", { headers: this.getAuthHeaders() }),
+          fetch("/api/admin/stats/topics", { headers: this.getAuthHeaders() }),
+          fetch("/api/admin/stats/report", { headers: this.getAuthHeaders() }),
         ])
-        const o = await overviewRes.json()
-        const t = await trendRes.json()
-        const s = await sourceRes.json()
+        const o = await overviewRes.json(); const t = await trendRes.json(); const s = await sourceRes.json()
+        const c = await catRes.json(); const tp = await topicRes.json(); const r = await reportRes.json()
         if (o.code === 200) this.overview = o.data
         if (t.code === 200) this.trend = t.data
         if (s.code === 200) this.source = s.data
+        if (c.code === 200) this.knowledgeCategories = c.data
+        if (tp.code === 200) this.topics = tp.data
+        if (r.code === 200) this.report = r.data
         this.$nextTick(() => {
           this.drawTrend()
           this.drawSource()
@@ -132,6 +173,14 @@ export default {
         ctx.fillText(d.count, x, y - 12)
       })
     },
+    barWidth(val) {
+      const max = Math.max(...[...this.knowledgeCategories, ...this.topics].map(d => d.value || 0), 1)
+      return Math.round((val / max) * 100) + '%'
+    },
+    topicColor(name) {
+      const map = { '餐饮':'#F56C6C', '宿舍':'#409EFF', '学习':'#67C23A', '交通':'#E6A23C', '校园服务':'#909399', '其他':'#C0C4CC' }
+      return map[name] || '#909399'
+    },
     drawSource() {
       const canvas = document.getElementById("sourceChart")
       if (!canvas || !this.source.length) return
@@ -179,4 +228,13 @@ h2 { color: #606266; margin-bottom: 12px; font-size: 16px; }
 .chart-section { background: white; border-radius: 10px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
 .chart-container canvas { width: 100%; }
 .chart-container.half { max-width: 450px; }
+.bar-chart { padding: 8px 0; }
+.bar-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.bar-label { width: 70px; text-align: right; font-size: 13px; color: #606266; flex-shrink: 0; }
+.bar-track { flex: 1; height: 22px; background: #f0f2f5; border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: #2E75B6; border-radius: 4px; transition: width 0.6s ease; min-width: 4px; }
+.bar-val { width: 30px; font-size: 13px; font-weight: 600; color: #303133; }
+.empty-hint { color: #C0C4CC; font-size: 14px; padding: 16px 0; }
+.ai-report { border-left: 4px solid #67C23A; }
+.report-text { font-size: 15px; color: #303133; line-height: 1.8; padding: 8px 0; }
 </style>
