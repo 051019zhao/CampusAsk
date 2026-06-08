@@ -11,6 +11,7 @@ import Profile from '@/components/Profile.vue'
 import AdminLayout from "../views/admin/AdminLayout.vue";
 import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
 import ContributionReview from "../views/admin/ContributionReview.vue";
+import AdminStats from "../views/admin/AdminStats.vue";
 
 const routes = [
     {
@@ -44,6 +45,11 @@ const routes = [
         path: "/admin",
         component: AdminLayout,
         children: [
+            {
+                path: "stats",
+                name: "AdminStats",
+                component: AdminStats,
+            },
             {
                 path: "knowledge-import",
                 name: "KnowledgeImport",

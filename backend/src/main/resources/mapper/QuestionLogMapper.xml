@@ -48,4 +48,26 @@
             UPDATE question_log SET processed = 1 WHERE id = #{id}
         </update>
 
+        <!-- 统计面板 SQL -->
+        <select id="countByDate" resultType="int">
+            SELECT COUNT(*) FROM question_log
+            WHERE DATE(created_at) = #{date}
+        </select>
+
+        <select id="countByDateRange" resultType="java.util.HashMap">
+            SELECT DATE(created_at) AS date, COUNT(*) AS count
+            FROM question_log
+            WHERE DATE(created_at) BETWEEN #{startDate} AND #{endDate}
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        </select>
+
+        <select id="countBySource" resultType="java.util.HashMap">
+            SELECT source AS name, COUNT(*) AS value
+            FROM question_log
+            WHERE source IS NOT NULL
+            GROUP BY source
+            ORDER BY value DESC
+        </select>
+
 </mapper>

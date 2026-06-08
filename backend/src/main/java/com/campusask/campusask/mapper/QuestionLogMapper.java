@@ -15,4 +15,9 @@ public interface QuestionLogMapper {
     List<String> findRecentQuestions(@Param("limit") int limit);
     List<QuestionLog> findUnprocessed(@Param("limit") int limit);
     void markProcessed(@Param("id") Long id);
+
+    // ===== 统计面板接口 =====
+    int countByDate(@Param("date") String date);
+    List<java.util.Map<String, Object>> countByDateRange(@Param("startDate") String startDate, @Param("endDate") String endDate);
+    List<java.util.Map<String, Object>> countBySource();
 }
