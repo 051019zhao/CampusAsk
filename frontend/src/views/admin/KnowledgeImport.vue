@@ -175,7 +175,7 @@ export default {
     async loadAllData() {
       this.loading = true;
       try {
-        const res = await fetch("http://localhost:8080/api/knowledge/listAll", {
+        const res = await fetch("/api/knowledge/listAll", {
           headers: this.getAuthHeaders(),
         });
         const data = await res.json();
@@ -201,7 +201,7 @@ export default {
       }
       this.loading = true;
       try {
-        const url = `http://localhost:8080/api/knowledge/search?keyword=${encodeURIComponent(
+        const url = `/api/knowledge/search?keyword=${encodeURIComponent(
           this.keyword,
         )}`;
         const res = await fetch(url, {
@@ -228,7 +228,7 @@ export default {
       form.append("file", file);
       try {
         const res = await fetch(
-          "http://localhost:8080/api/knowledge/importExcel",
+          "/api/knowledge/importExcel",
           {
             method: "POST",
             headers: this.getAuthHeaders(),
@@ -270,7 +270,7 @@ export default {
     // 保存编辑
     async saveEdit(id) {
       try {
-        const res = await fetch(`http://localhost:8080/api/knowledge/${id}`, {
+        const res = await fetch(`/api/knowledge/${id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -310,7 +310,7 @@ export default {
       if (!this.deleteItem) return;
       try {
         const res = await fetch(
-          `http://localhost:8080/api/knowledge/${this.deleteItem.id}`,
+          `/api/knowledge/${this.deleteItem.id}`,
           {
             method: "DELETE",
             headers: this.getAuthHeaders(),
