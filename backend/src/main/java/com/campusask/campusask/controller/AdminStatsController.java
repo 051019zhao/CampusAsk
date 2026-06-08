@@ -5,15 +5,8 @@ import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.mapper.QuestionLogMapper;
 import com.campusask.campusask.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -32,9 +25,6 @@ public class AdminStatsController {
 
     @Autowired
     private KnowledgeMapper knowledgeMapper;
-
-    @Value("${deepseek.api.key}")
-    private String apiKey;
 
     /**
      * 统计面板概览（三张卡片 + 今日查询量）
@@ -153,7 +143,7 @@ public class AdminStatsController {
     }
 
     /**
-     * AI 每日统计报告
+     * AI 每日统计报告（基于数据自动生成，不消耗 API token）
      * GET /api/admin/stats/report
      */
     @GetMapping("/report")
@@ -161,38 +151,35 @@ public class AdminStatsController {
         String today = LocalDate.now().toString();
         int todayCount = questionLogMapper.countByDate(today);
         List<Map<String, Object>> sourceData = questionLogMapper.countBySource();
-        List<String> topQs = questionLogMapper.findQuestionsByDateLimit(today, 3);
+        List<String> topQs = questionLogMapper.findQuestionsByDateLimit(today, 5);
+        int userCount = userMapper.countAll();
+        int knowledgeCount = knowledgeMapper.countAll();
 
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("你是校园数据助手，根据以下今日统计，用1-2句话简洁总结今日问答情况：\n");
-        prompt.append("今日查询量：").append(todayCount).append("次\n");
-        prompt.append("来源分布：");
-        for (Map<String, Object> s : sourceData) prompt.append(s.get("name")).append("(").append(s.get("value")).append("次) ");
-        prompt.append("\n热门问题：");
-        for (String q : topQs) prompt.append(q).append("；");
-        prompt.append("\n请用50字内总结。");
+        StringBuilder report = new StringBuilder();
+        report.append("📅 截至 ").append(today).append("，系统累计注册用户 ").append(userCount)
+             .append(" 人，知识库条目 ").append(knowledgeCount).append(" 条。");
+        report.append("今日共处理查询 ").append(todayCount).append(" 次，");
 
-        try {
-            String body = "{\"model\":\"deepseek-chat\",\"messages\":["
-                    + "{\"role\":\"user\",\"content\":\"" + esc(prompt.toString()) + "\"}],\"max_tokens\":100}";
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.deepseek.com/chat/completions"))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .timeout(Duration.ofSeconds(10))
-                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-            HttpResponse<String> resp = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
-                    .send(req, HttpResponse.BodyHandlers.ofString());
-            String text = resp.body();
-            int s = text.indexOf("\"content\":\"") + 11;
-            int e = text.indexOf("\"", s);
-            return Result.success(s > 10 && e > 0 ? text.substring(s, e).replace("\\n", "\n") : "今日暂无报告");
-        } catch (Exception ex) {
-            return Result.success("AI 报告生成失败：" + ex.getMessage());
+        long aiCount = 0, localCount = 0;
+        for (Map<String, Object> s : sourceData) {
+            String name = s.get("name").toString();
+            long val = ((Number)s.get("value")).longValue();
+            if (name.contains("ai") || name.contains("AI")) aiCount += val;
+            else if (!"rejected".equals(name)) localCount += val;
         }
-    }
+        if (aiCount > 0 && localCount > 0)
+            report.append("其中本地检索 ").append(localCount).append(" 次，AI 回答 ").append(aiCount).append(" 次。");
+        else if (localCount > 0)
+            report.append("主要通过本地知识库检索完成。");
+        else
+            report.append("今日暂无问答记录。");
 
-    private String esc(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        if (!topQs.isEmpty()) {
+            report.append("高频问题：");
+            for (int i = 0; i < Math.min(3, topQs.size()); i++)
+                report.append("「").append(topQs.get(i)).append("」");
+            report.append("。");
+        }
+        return Result.success(report.toString());
     }
 }
