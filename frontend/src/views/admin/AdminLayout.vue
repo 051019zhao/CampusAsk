@@ -5,6 +5,9 @@
       <h3>后台管理系统</h3>
       <ul>
         <li>
+          <router-link to="/admin/stats">数据统计</router-link>
+        </li>
+        <li>
           <router-link to="/admin/knowledge-import">知识导入</router-link>
         </li>
         <li>
