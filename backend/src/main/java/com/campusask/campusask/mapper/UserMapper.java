@@ -26,4 +26,7 @@ public interface UserMapper {
      * @param user
      */
     void updateUser(User user);
+
+    @Select("SELECT COUNT(*) FROM user")
+    int countAll();
 }

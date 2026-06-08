@@ -6,17 +6,17 @@
     <div class="card-row">
       <div class="card highlight">
         <div class="card-title">今日查询量</div>
-        <div class="card-value">{{ daily.count || 0 }}</div>
-        <div class="card-sub">{{ daily.date }}</div>
+        <div class="card-value">{{ overview.todayCount ?? 0 }}</div>
+        <div class="card-sub">{{ overview.date }}</div>
       </div>
       <div class="card">
         <div class="card-title">知识库条目</div>
-        <div class="card-value">-</div>
+        <div class="card-value">{{ overview.knowledgeCount ?? '-' }}</div>
         <div class="card-sub">总条目数</div>
       </div>
       <div class="card">
         <div class="card-title">用户总数</div>
-        <div class="card-value">-</div>
+        <div class="card-value">{{ overview.userCount ?? '-' }}</div>
         <div class="card-sub">注册用户</div>
       </div>
     </div>
@@ -44,7 +44,7 @@ export default {
   name: "AdminStats",
   data() {
     return {
-      daily: { date: "", count: 0 },
+      overview: { todayCount: 0, userCount: 0, knowledgeCount: 0, date: "" },
       trend: [],
       source: [],
     }
@@ -59,15 +59,15 @@ export default {
     },
     async loadData() {
       try {
-        const [dailyRes, trendRes, sourceRes] = await Promise.all([
-          fetch("/api/admin/stats/daily", { headers: this.getAuthHeaders() }),
+        const [overviewRes, trendRes, sourceRes] = await Promise.all([
+          fetch("/api/admin/stats/overview", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/trend", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/source", { headers: this.getAuthHeaders() }),
         ])
-        const d = await dailyRes.json()
+        const o = await overviewRes.json()
         const t = await trendRes.json()
         const s = await sourceRes.json()
-        if (d.code === 200) this.daily = d.data
+        if (o.code === 200) this.overview = o.data
         if (t.code === 200) this.trend = t.data
         if (s.code === 200) this.source = s.data
         this.$nextTick(() => {

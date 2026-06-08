@@ -1,7 +1,9 @@
 package com.campusask.campusask.controller;
 
 import com.campusask.campusask.dto.Result;
+import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.mapper.QuestionLogMapper;
+import com.campusask.campusask.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,27 @@ public class AdminStatsController {
 
     @Autowired
     private QuestionLogMapper questionLogMapper;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private KnowledgeMapper knowledgeMapper;
+
+    /**
+     * 统计面板概览（三张卡片 + 今日查询量）
+     * GET /api/admin/stats/overview
+     */
+    @GetMapping("/overview")
+    public Result<Map<String, Object>> overview() {
+        String today = LocalDate.now().toString();
+        Map<String, Object> data = new HashMap<>();
+        data.put("todayCount", questionLogMapper.countByDate(today));
+        data.put("userCount", userMapper.countAll());
+        data.put("knowledgeCount", knowledgeMapper.countAll());
+        data.put("date", today);
+        return Result.success(data);
+    }
 
     /**
      * 今日查询量

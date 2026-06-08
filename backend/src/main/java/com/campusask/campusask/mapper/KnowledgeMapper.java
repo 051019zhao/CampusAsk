@@ -40,4 +40,7 @@ public interface KnowledgeMapper {
     // 删除知识点
     @Delete("DELETE FROM knowledge WHERE id = #{id}")
     int deleteById(@Param("id") Long id);
+
+    @Select("SELECT COUNT(*) FROM knowledge")
+    int countAll();
 }
