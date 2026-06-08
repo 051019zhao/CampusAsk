@@ -26,6 +26,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 // 放行登录注册接口
                 .excludePathPatterns("/auth/login", "/auth/register")
                 // 放行静态资源
-                .excludePathPatterns("/static/**", "/favicon.ico");
+                .excludePathPatterns("/static/**", "/favicon.ico")
+                // 放行OSS测试接口
+                .excludePathPatterns("/test/**");
     }
 }
