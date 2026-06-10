@@ -10,11 +10,16 @@ import com.campusask.campusask.service.KnowledgeService;
 
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 知识库管理接口（管理员专用）
@@ -42,12 +47,63 @@ public class AdminKnowledgeController {
     }
 
     /**
+      * 分页查询知识点（支持关键词和分类筛选）
+     * GET /api/knowledge/list?keyword=&category=&page=&size=
+     */
+    @GetMapping("/list")
+    public Result<Map<String, Object>> list(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
+        int offset = (page - 1) * size;
+        List<Knowledge> list = knowledgeService.listByCondition(keyword, category, offset, size);
+        int total = knowledgeService.countByCondition(keyword, category);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", page);
+        result.put("size", size);
+        
+        return Result.success(result);
+    }
+ 
+    /**
+     * 获取所有分类列表
+     */
+    @GetMapping("/categories")
+    public Result<List<String>> getCategories() {
+        List<String> categories = knowledgeService.getAllCategories();
+        return Result.success(categories);
+    }
+ 
+    /**
+     * 新增知识点（单条添加）
+     */
+    @PostMapping("/")
+    public Result<String> add(@Validated @RequestBody Knowledge knowledge) {
+        try {
+            if (knowledge.getTitle() == null || knowledge.getTitle().trim().isEmpty()) {
+                return Result.error("标题不能为空");
+            }
+            if (knowledge.getContent() == null || knowledge.getContent().trim().isEmpty()) {
+                return Result.error("内容不能为空");
+            }
+            knowledgeService.add(knowledge);
+            return Result.success("添加成功");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+ 
+    /**
      * 根据关键词搜索知识点
     
      */
     @GetMapping("/search")
     @ResponseBody
-      public Result<List<Knowledge>> search(@RequestParam String keyword) {
+       public Result<List<Knowledge>> search(@RequestParam @NotBlank(message = "关键词不能为空") String keyword) {
         List<Knowledge> list = knowledgeMapper.searchByKeyword(keyword);
         return Result.success(list);
     }
@@ -66,7 +122,11 @@ public class AdminKnowledgeController {
      * Excel批量导入知识点
      */
     @PostMapping("/importExcel")
-    public Result<ImportResult> importExcel(@RequestParam("file") MultipartFile file) {
+   public Result<ImportResult> importExcel(@RequestParam("file") MultipartFile file) {
+        // 文件校验
+        if (file == null || file.isEmpty()) {
+            return Result.error("文件不能为空");
+        }
         try {
             ImportResult result = knowledgeService.importFromExcel(file);
             String message = "导入完成，成功：" + result.getSuccessCount() + "条，失败：" + result.getFailedCount() + "条";
@@ -84,7 +144,7 @@ public class AdminKnowledgeController {
      * 编辑知识点（更新）
      */
     @PutMapping("/{id}")
-    public Result<String> update(@PathVariable Long id, @RequestBody Knowledge knowledge) {
+    public Result<String> update(@PathVariable @Min(1) Long id, @Validated @RequestBody Knowledge knowledge) {
         try {
             // 检查知识点是否存在
             Knowledge existing = knowledgeService.getById(id);
@@ -109,7 +169,7 @@ public class AdminKnowledgeController {
      * 删除知识点
      */
     @DeleteMapping("/{id}")
-    public Result<String> delete(@PathVariable Long id) {
+    public Result<String> delete(@PathVariable @Min(1) Long id) {
         try {
             // 检查知识点是否存在
             Knowledge existing = knowledgeService.getById(id);

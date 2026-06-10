@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 
 public class Knowledge {
     private Long id;
-    private String title;
-    private String content;
+    private String title;      // 问题（原title）
+    private String content;   
     private String category;
     private String keywords;
     private Integer viewCount;
@@ -36,4 +36,5 @@ public class Knowledge {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+ 
 }

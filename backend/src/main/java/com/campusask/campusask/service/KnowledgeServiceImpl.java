@@ -24,13 +24,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public ImportResult importFromExcel(MultipartFile file) {
         List<Knowledge> validList = new ArrayList<>();
         List<String> errorRows = new ArrayList<>();
- 
+
         try (InputStream is = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(0);
             int totalRows = sheet.getLastRowNum();
             // 跳过表头，从第二行开始读
-             for (int i = 1; i <= totalRows; i++) {
+            for (int i = 1; i <= totalRows; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 try {
@@ -39,7 +39,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     String content = getCellStringValue(row.getCell(1));
                     String category = getCellStringValue(row.getCell(2));
                     String keywords = getCellStringValue(row.getCell(3));
- 
+
                     // 校验必填字段
                     if (isBlank(title)) {
                         errorRows.add("第" + (i + 1) + "行：标题为空");
@@ -49,11 +49,11 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                         errorRows.add("第" + (i + 1) + "行：内容为空");
                         continue;
                     }
-                     if (isBlank(category)) {
+                    if (isBlank(category)) {
                         errorRows.add("第" + (i + 1) + "行：分类为空");
                         continue;
                     }
-  // 检测乱码
+                    // 检测乱码
                     if (containsGarbled(title)) {
                         errorRows.add("第" + (i + 1) + "行：标题包含乱码");
                         continue;
@@ -66,40 +66,39 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                         errorRows.add("第" + (i + 1) + "行：分类包含乱码");
                         continue;
                     }
- 
+
                     Knowledge knowledge = new Knowledge();
                     knowledge.setTitle(title);
-                    
                     knowledge.setContent(content);
-                     knowledge.setCategory(category);
+                    knowledge.setCategory(category);
                     knowledge.setKeywords(isBlank(keywords) ? "" : keywords);
                     knowledge.setViewCount(0);
-                    knowledge.setCreatedBy(1L); // 这里可以改成实际的用户名
+                    knowledge.setCreatedBy(1L);
                     validList.add(knowledge);
- 
+
                 } catch (Exception e) {
                     errorRows.add("第" + (i + 1) + "行：解析错误 - " + e.getMessage());
                 }
             }
- 
+
             // 批量插入有效数据
             if (!validList.isEmpty()) {
                 knowledgeMapper.batchInsert(validList);
             }
- 
-             // 返回导入结果
+
+            // 返回导入结果
             ImportResult result = new ImportResult();
             result.setSuccessCount(validList.size());
             result.setFailedCount(errorRows.size());
             result.setErrorRows(errorRows);
             return result;
-            
-        } 
-        catch (Exception e) {
+
+        } catch (Exception e) {
             throw new RuntimeException("Excel导入失败：" + e.getMessage());
         }
     }
-/**
+
+    /**
      * 获取单元格的字符串值
      */
     private String getCellStringValue(Cell cell) {
@@ -126,33 +125,27 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 return "";
         }
     }
- 
+
     /**
      * 判断字符串是否为空
      */
     private boolean isBlank(String str) {
         return str == null || str.trim().isEmpty();
     }
-  /**
+
+    /**
      * 检测字符串是否包含乱码
-     * 检测规则：
-     * 1. 包含 Unicode 替换字符 \uFFFD（显示为 �）
-     * 2. 包含大量不可打印的控制字符
-     * 3. 包含连续的问号或特殊符号（常见乱码表现）
      */
     private boolean containsGarbled(String str) {
         if (str == null) {
             return false;
         }
-        // 检测 Unicode 替换字符（乱码的典型特征）
         if (str.contains("\uFFFD")) {
             return true;
         }
-        // 检测连续的问号（常见于编码错误）
         if (str.matches(".*\\?{3,}.*")) {
             return true;
         }
-        // 检测不可打印字符比例超过50%
         int controlCharCount = 0;
         for (char c : str.toCharArray()) {
             if (Character.isISOControl(c) && !Character.isWhitespace(c)) {
@@ -162,31 +155,53 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (str.length() > 0 && controlCharCount > str.length() / 2) {
             return true;
         }
-        // 检测是否包含非法 UTF-8 字节序列的迹象
         if (str.matches(".*[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F].*")) {
             return true;
         }
         return false;
     }
+
     @Override
     public List<Knowledge> listAll() {
         return knowledgeMapper.listAll();
     }
 
- @Override
+    @Override
     public Knowledge getById(Long id) {
         return knowledgeMapper.selectById(id);
     }
- 
+
     @Override
     @Transactional
     public void update(Knowledge knowledge) {
         knowledgeMapper.update(knowledge);
     }
- 
+
     @Override
     @Transactional
     public void deleteById(Long id) {
         knowledgeMapper.deleteById(id);
+    }
+
+    @Override
+    public List<Knowledge> listByCondition(String keyword, String category, int offset, int size) {
+        return knowledgeMapper.listByCondition(keyword, category, offset, size);
+    }
+
+    @Override
+    public int countByCondition(String keyword, String category) {
+        return knowledgeMapper.countByCondition(keyword, category);
+    }
+
+    @Override
+    public List<String> getAllCategories() {
+        return knowledgeMapper.getAllCategories();
+    }
+
+    @Override
+    @Transactional
+    public void add(Knowledge knowledge) {
+        knowledge.setViewCount(0);
+        knowledgeMapper.insert(knowledge);
     }
 }
