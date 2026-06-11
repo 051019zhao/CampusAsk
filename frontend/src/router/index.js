@@ -12,6 +12,7 @@ import AdminLayout from "../views/admin/AdminLayout.vue";
 import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
 import ContributionReview from "../views/admin/ContributionReview.vue";
 import AdminStats from "../views/admin/AdminStats.vue";
+import FeedbackReview from "../views/admin/FeedbackReview.vue";
 
 const routes = [
     {
@@ -54,6 +55,11 @@ const routes = [
                 path: "knowledge-import",
                 name: "KnowledgeImport",
                 component: KnowledgeImport,
+            },
+            {
+                path: "feedback",
+                name: "FeedbackReview",
+                component: FeedbackReview,
             },
             {
                 path: "contribution-review",
