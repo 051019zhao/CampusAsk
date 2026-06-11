@@ -14,6 +14,7 @@
             v-for="item in navItems"
             :key="item"
             class="nav-item"
+            @click="onNavClick(item)"
           >
             {{ item }}
           </button>
@@ -153,7 +154,7 @@ export default {
       loading: false,
       noResult: false,
       chatMessages: [],
-      navItems: ['首页', '校园服务', '我的收藏', '设置'],
+      navItems: ['首页', '校园服务', '我的收藏', '设置', '茶话会'],
       recentList: [],
       hotList: [],
       hotLoading: false,
@@ -256,6 +257,12 @@ export default {
       if (!item) return
       this.keyword = item
       this.search()
+    },
+    onNavClick(item) {
+      if (item === '茶话会') {
+        this.$router.push({ name: 'TeaTalkPage' })
+      }
+      // 其他导航项可按需扩展
     },
     goContribute() {
       this.$router.push({ name: 'ContributePage' })
