@@ -51,9 +51,16 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
             // 解析 Token
             Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
 
-            // 获取当前登录用户 ID
-            String username = claims.get("username").toString();
+            // 获取当前登录用户 ID（Integer 转 Long）
+            Object userIdObj = claims.get("userId");
+            if (userIdObj != null) {
+                Long userId = ((Number) userIdObj).longValue();
+                BaseContext.setCurrentId(userId);
+                log.info("当前登录用户 ID：{}", userId);
+            }
 
+            // 获取当前登录用户学号
+            String username = claims.get("username").toString();
             log.info("当前登录的校园系统用户学号 为：{}", username);
 
             // 获取用户角色
