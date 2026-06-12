@@ -76,11 +76,17 @@ public class ForumPostServiceImpl implements ForumPostService {
             post.setLiked(existing != null);
         }
 
-        List<ForumComment> comments = forumCommentMapper.selectByPostId(postId);
+        // 查询顶级评论
+        List<ForumComment> topComments = forumCommentMapper.selectTopLevelByPostId(postId);
+        // 为每条顶级评论加载子回复
+        for (ForumComment comment : topComments) {
+            List<ForumComment> replies = forumCommentMapper.selectRepliesByParentId(comment.getId());
+            comment.setReplies(replies);
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("post", post);
-        result.put("comments", comments);
+        result.put("comments", topComments);
         return result;
     }
 

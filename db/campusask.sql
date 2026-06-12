@@ -154,10 +154,13 @@ CREATE TABLE `forum_comment` (
   `post_id` bigint NOT NULL COMMENT '关联帖子ID',
   `user_id` bigint NOT NULL COMMENT '评论用户ID',
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论内容',
+  `parent_id` bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论',
+  `reply_to_user_id` bigint DEFAULT NULL COMMENT '被回复用户ID',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_post_id` (`post_id`) USING BTREE,
-  KEY `idx_user_id` (`user_id`) USING BTREE
+  KEY `idx_user_id` (`user_id`) USING BTREE,
+  KEY `idx_parent_id` (`parent_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -197,6 +200,10 @@ SET FOREIGN_KEY_CHECKS = 1;
 ALTER TABLE user ADD COLUMN nickname VARCHAR(20) DEFAULT NULL COMMENT '用户昵称';
 ALTER TABLE user ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像链接';
 ALTER TABLE user ADD COLUMN motto VARCHAR(255) DEFAULT NULL COMMENT '个人名言';
+
+-- 评论回复功能：添加 parent_id 和 reply_to_user_id
+ALTER TABLE forum_comment ADD COLUMN IF NOT EXISTS parent_id bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论';
+ALTER TABLE forum_comment ADD COLUMN IF NOT EXISTS reply_to_user_id bigint DEFAULT NULL COMMENT '被回复用户ID';
 
 CREATE TABLE IF NOT EXISTS feedback (
                                         id BIGINT AUTO_INCREMENT PRIMARY KEY,

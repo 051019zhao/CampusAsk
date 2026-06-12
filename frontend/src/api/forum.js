@@ -26,12 +26,15 @@ export function createForumPost(data) {
   })
 }
 
-/** 添加评论 */
-export function addForumComment(postId, content) {
+/** 添加评论或回复 */
+export function addForumComment(postId, content, parentId = null, replyToUserId = null) {
+  const data = { content }
+  if (parentId) data.parentId = parentId
+  if (replyToUserId) data.replyToUserId = replyToUserId
   return request({
     url: `/api/forum/posts/${postId}/comments`,
     method: 'post',
-    data: { content }
+    data
   })
 }
 
