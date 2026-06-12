@@ -270,7 +270,7 @@ public class UserServiceImpl implements UserService {
      * @return
      */
     @Override
-    public PageResult getForumPostHistory(Long username, Integer page, Integer size) {
+    public PageResult getForumPostHistory(String username, Integer page, Integer size) {
         if (username == null) {
             throw new IllegalArgumentException("学号不能为空");
         }
@@ -291,7 +291,7 @@ public class UserServiceImpl implements UserService {
      * @return
      */
     @Override
-    public List<Map<String, Object>> getUserLikeInteractions(Long username) {
+    public List<Map<String, Object>> getUserLikeInteractions(String username) {
         if (username == null) {
             throw new IllegalArgumentException("学号不能为空");
         }
@@ -305,7 +305,7 @@ public class UserServiceImpl implements UserService {
      * @return
      */
     @Override
-    public List<Map<String, Object>> getUserCommentInteractions(Long username) {
+    public List<Map<String, Object>> getUserCommentInteractions(String username) {
         if (username == null) {
             throw new IllegalArgumentException("学号不能为空");
         }

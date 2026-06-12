@@ -27,13 +27,13 @@ public class JwtUtil {
         Date exp = new Date(expMillis);
 
         // 设置jwt的body
-        JwtBuilder builder = Jwts.builder()
-                // 如果有私有声明，一定要先设置这个自己创建的私有的声明，这个是给builder的claim赋值，一旦写在标准的声明赋值之后，就是覆盖了那些标准的声明的
-                .setClaims(claims)
-                // 设置签名使用的签名算法和签名使用的秘钥
-                .signWith(signatureAlgorithm, secretKey.getBytes(StandardCharsets.UTF_8))
-                // 设置过期时间
-                .setExpiration(exp);
+        // ★ 用 .claim() 逐条设置，避免 .setClaims(Map) 将纯数字字符串转为 JSON Number
+        JwtBuilder builder = Jwts.builder();
+        for (Map.Entry<String, Object> entry : claims.entrySet()) {
+            builder.claim(entry.getKey(), entry.getValue());
+        }
+        builder.signWith(signatureAlgorithm, secretKey.getBytes(StandardCharsets.UTF_8))
+               .setExpiration(exp);
 
         return builder.compact();
     }

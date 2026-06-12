@@ -7,6 +7,6 @@ import java.time.LocalDateTime;
 public class ForumLike {
     private Long id;
     private Long postId;
-    private Long userId;
+    private String userId;
     private LocalDateTime createdAt;
 }

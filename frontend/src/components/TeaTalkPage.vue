@@ -307,8 +307,7 @@ export default {
   },
   computed: {
     currentUserId() {
-      const raw = localStorage.getItem('userId')
-      return raw ? Number.parseInt(raw, 10) : null
+      return localStorage.getItem('username') || null
     },
     totalCommentCount() {
       let count = 0

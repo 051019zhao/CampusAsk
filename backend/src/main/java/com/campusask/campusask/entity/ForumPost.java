@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 @Data
 public class ForumPost {
     private Long id;
-    private Long userId;
+    private String userId;
     private String title;
     private String content;
     private String images;

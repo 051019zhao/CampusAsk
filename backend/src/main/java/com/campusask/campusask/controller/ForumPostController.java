@@ -24,7 +24,7 @@ public class ForumPostController {
     public Result<Map<String, Object>> getPosts(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Long userId = BaseContext.getCurrentId();
+        String userId = BaseContext.getCurrentUsername();
         return Result.success(forumPostService.getPosts(page, size, userId));
     }
 
@@ -33,7 +33,7 @@ public class ForumPostController {
      */
     @GetMapping("/posts/{id}")
     public Result<Map<String, Object>> getPostDetail(@PathVariable Long id) {
-        Long userId = BaseContext.getCurrentId();
+        String userId = BaseContext.getCurrentUsername();
         Map<String, Object> data = forumPostService.getPostDetail(id, userId);
         if (data == null) {
             return Result.error("帖子不存在");
@@ -58,7 +58,7 @@ public class ForumPostController {
         }
 
         ForumPost post = new ForumPost();
-        post.setUserId(BaseContext.getCurrentId());
+        post.setUserId(BaseContext.getCurrentUsername());
         post.setTitle(title.trim());
         post.setContent(content.trim());
         post.setImages(images);
@@ -79,7 +79,7 @@ public class ForumPostController {
 
         ForumComment comment = new ForumComment();
         comment.setPostId(postId);
-        comment.setUserId(BaseContext.getCurrentId());
+        comment.setUserId(BaseContext.getCurrentUsername());
         comment.setContent(content.trim());
 
         // 回复功能：如果传了 parentId，则为子回复
@@ -89,7 +89,7 @@ public class ForumPostController {
         }
         String replyToUserIdStr = body.get("replyToUserId");
         if (replyToUserIdStr != null && !replyToUserIdStr.isEmpty()) {
-            comment.setReplyToUserId(Long.parseLong(replyToUserIdStr));
+            comment.setReplyToUserId(replyToUserIdStr);
         }
 
         Long id = forumPostService.addComment(comment);
@@ -101,7 +101,7 @@ public class ForumPostController {
      */
     @PostMapping("/posts/{id}/like")
     public Result<Map<String, Object>> likePost(@PathVariable Long id) {
-        Long userId = BaseContext.getCurrentId();
+        String userId = BaseContext.getCurrentUsername();
         boolean isLiked = forumPostService.likePost(id, userId);
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("liked", isLiked);
@@ -114,7 +114,7 @@ public class ForumPostController {
      */
     @DeleteMapping("/posts/{id}")
     public Result<String> deletePost(@PathVariable Long id) {
-        Long userId = BaseContext.getCurrentId();
+        String userId = BaseContext.getCurrentUsername();
         forumPostService.deletePost(id, userId);
         return Result.success("删除成功");
     }
