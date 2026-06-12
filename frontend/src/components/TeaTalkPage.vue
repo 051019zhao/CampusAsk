@@ -117,30 +117,86 @@
             >
               {{ currentPost.liked ? '❤️' : '🤍' }} {{ currentPost.likeCount }}
             </button>
-            <span>💬 {{ comments.length }}</span>
+            <span>💬 {{ totalCommentCount }}</span>
           </div>
         </article>
 
-        <!-- 评论列表 -->
+        <!-- 评论列表（支持回复） -->
         <div class="comments-section">
-          <h3 class="comments-title">全部评论 ({{ comments.length }})</h3>
+          <h3 class="comments-title">全部评论 ({{ totalCommentCount }})</h3>
 
           <div v-if="comments.length === 0" class="empty-comments">
             暂无评论，来说两句吧～
           </div>
 
-          <div v-for="comment in comments" :key="comment.id" class="comment-item">
-            <div class="comment-avatar">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</div>
-            <div class="comment-body">
-              <div class="comment-meta">
-                <span class="comment-author">{{ comment.nickname || '匿名用户' }}</span>
-                <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
+          <div v-for="comment in comments" :key="comment.id" class="comment-thread">
+            <!-- 顶级评论 -->
+            <div class="comment-item">
+              <div class="comment-avatar">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</div>
+              <div class="comment-body">
+                <div class="comment-meta">
+                  <span class="comment-author">{{ comment.nickname || '匿名用户' }}</span>
+                  <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
+                </div>
+                <p class="comment-text">{{ comment.content }}</p>
+                <div class="comment-actions">
+                  <button class="reply-toggle-btn" @click="startReply(comment)">
+                    💬 回复
+                  </button>
+                </div>
+                <!-- 内联回复框 -->
+                <div v-if="replyTarget && replyTarget.commentId === comment.id" class="inline-reply-box">
+                  <textarea
+                    v-model="replyText"
+                    :placeholder="'回复 @' + replyTarget.nickname + '...'"
+                    rows="2"
+                    @keyup.enter.exact.prevent="submitReply"
+                  ></textarea>
+                  <div class="inline-reply-actions">
+                    <button class="cancel-reply-btn" @click="cancelReply">取消</button>
+                    <button class="send-reply-btn" @click="submitReply">发送</button>
+                  </div>
+                </div>
               </div>
-              <p class="comment-text">{{ comment.content }}</p>
+            </div>
+
+            <!-- 子回复列表（嵌套显示） -->
+            <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
+              <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
+                <div class="comment-avatar small">{{ reply.nickname ? reply.nickname.charAt(0) : '?' }}</div>
+                <div class="comment-body">
+                  <div class="comment-meta">
+                    <span class="comment-author">{{ reply.nickname || '匿名用户' }}</span>
+                    <span v-if="reply.replyToNickname" class="reply-to">
+                      <span class="reply-arrow">▶</span> @{{ reply.replyToNickname }}
+                    </span>
+                    <span class="comment-time">{{ formatTime(reply.createdAt) }}</span>
+                  </div>
+                  <p class="comment-text">{{ reply.content }}</p>
+                  <div class="comment-actions">
+                    <button class="reply-toggle-btn" @click="startReply(reply)">
+                      💬 回复
+                    </button>
+                  </div>
+                  <!-- 内联回复框（对子回复的回复） -->
+                  <div v-if="replyTarget && replyTarget.commentId === reply.id" class="inline-reply-box">
+                    <textarea
+                      v-model="replyText"
+                      :placeholder="'回复 @' + replyTarget.nickname + '...'"
+                      rows="2"
+                      @keyup.enter.exact.prevent="submitReply"
+                    ></textarea>
+                    <div class="inline-reply-actions">
+                      <button class="cancel-reply-btn" @click="cancelReply">取消</button>
+                      <button class="send-reply-btn" @click="submitReply">发送</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- 评论输入框 -->
+          <!-- 顶级评论输入框 -->
           <div class="comment-composer">
             <textarea
               v-model="commentText"
@@ -234,6 +290,10 @@ export default {
       comments: [],
       commentText: '',
 
+      // 回复
+      replyTarget: null,   // { commentId, nickname, userId }
+      replyText: '',
+
       // 创建帖子
       showCreatePost: false,
       newPost: { title: '', content: '' },
@@ -249,6 +309,14 @@ export default {
     currentUserId() {
       const raw = localStorage.getItem('userId')
       return raw ? Number.parseInt(raw, 10) : null
+    },
+    totalCommentCount() {
+      let count = 0
+      for (const c of this.comments) {
+        count++
+        if (c.replies) count += c.replies.length
+      }
+      return count
     }
   },
   mounted() {
@@ -305,6 +373,8 @@ export default {
       this.currentPost = null
       this.comments = []
       this.commentText = ''
+      this.replyTarget = null
+      this.replyText = ''
     },
     async submitComment() {
       const text = this.commentText.trim()
@@ -312,19 +382,81 @@ export default {
       try {
         const res = await addForumComment(this.currentPost.id, text)
         if (res.code === 200) {
-          // 重新加载评论
-          const detail = await getForumPostDetail(this.currentPost.id)
-          if (detail.code === 200) {
-            this.comments = detail.data.comments || []
-            // 更新列表中的评论数
-            const found = this.postList.find(p => p.id === this.currentPost.id)
-            if (found) found.commentCount = (found.commentCount || 0) + 1
-            if (this.currentPost) this.currentPost.commentCount = (this.currentPost.commentCount || 0) + 1
-          }
+          await this.refreshComments()
           this.commentText = ''
         }
       } catch (e) {
         console.error('提交评论失败:', e)
+      }
+    },
+    /** 点击某条评论的"回复"按钮 */
+    startReply(comment) {
+      this.replyTarget = {
+        commentId: comment.id,
+        nickname: comment.nickname || '匿名用户',
+        userId: comment.userId
+      }
+      this.replyText = ''
+    },
+    /** 取消回复 */
+    cancelReply() {
+      this.replyTarget = null
+      this.replyText = ''
+    },
+    /** 提交子回复 */
+    async submitReply() {
+      const text = this.replyText.trim()
+      if (!text || !this.currentPost || !this.replyTarget) return
+      try {
+        // 确定父评论ID：如果当前回复目标本身就是顶级评论，parentId就是它；否则找它的parentId
+        const targetComment = this.findCommentById(this.replyTarget.commentId)
+        const parentId = targetComment && targetComment.parentId
+          ? targetComment.parentId
+          : this.replyTarget.commentId
+
+        const res = await addForumComment(
+          this.currentPost.id,
+          text,
+          parentId,
+          this.replyTarget.userId
+        )
+        if (res.code === 200) {
+          await this.refreshComments()
+          this.cancelReply()
+        }
+      } catch (e) {
+        console.error('提交回复失败:', e)
+      }
+    },
+    /** 在评论树中查找指定ID的评论 */
+    findCommentById(id) {
+      for (const c of this.comments) {
+        if (c.id === id) return c
+        if (c.replies) {
+          const found = c.replies.find(r => r.id === id)
+          if (found) return found
+        }
+      }
+      return null
+    },
+    /** 重新加载评论 */
+    async refreshComments() {
+      if (!this.currentPost) return
+      try {
+        const detail = await getForumPostDetail(this.currentPost.id)
+        if (detail.code === 200) {
+          this.comments = detail.data.comments || []
+          // 更新列表中的评论数
+          const found = this.postList.find(p => p.id === this.currentPost.id)
+          if (found) {
+            found.commentCount = this.totalCommentCount
+          }
+          if (this.currentPost) {
+            this.currentPost.commentCount = this.totalCommentCount
+          }
+        }
+      } catch (e) {
+        console.error('刷新评论失败:', e)
       }
     },
     async handleLike(postId) {
@@ -859,12 +991,7 @@ export default {
 .comment-item {
   display: flex;
   gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f2f5;
-}
-
-.comment-item:last-child {
-  border-bottom: none;
+  padding: 6px 0;
 }
 
 .comment-avatar {
@@ -949,6 +1076,139 @@ export default {
 
 .send-comment-btn:hover {
   background: #2b5569;
+}
+
+/* ===== 评论回复 ===== */
+.comment-thread {
+  border-bottom: 1px solid #f0f2f5;
+  padding: 12px 0;
+}
+
+.comment-thread:last-child {
+  border-bottom: none;
+}
+
+.comment-actions {
+  margin-top: 6px;
+}
+
+.reply-toggle-btn {
+  border: none;
+  background: transparent;
+  color: #8a9ba8;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.reply-toggle-btn:hover {
+  color: #3c6476;
+  background: #f0f4f8;
+}
+
+/* 内联回复框 */
+.inline-reply-box {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-reply-box textarea {
+  width: 100%;
+  border: 1px solid #d0d9e0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  background: #f8fafc;
+  box-sizing: border-box;
+  min-height: 36px;
+}
+
+.inline-reply-box textarea:focus {
+  border-color: #3c6476;
+  background: #fff;
+}
+
+.inline-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancel-reply-btn {
+  border: 1px solid #d0d9e0;
+  background: #fff;
+  color: #7a8b97;
+  border-radius: 8px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cancel-reply-btn:hover {
+  background: #f0f4f8;
+}
+
+.send-reply-btn {
+  border: none;
+  background: #3c6476;
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.send-reply-btn:hover {
+  background: #2b5569;
+}
+
+/* 子回复列表 */
+.replies-list {
+  margin-top: 4px;
+  margin-left: 44px;
+  padding-left: 14px;
+  border-left: 2px solid #e8ecf1;
+  background: #fafbfc;
+  border-radius: 0 10px 10px 0;
+  padding-top: 6px;
+  padding-bottom: 2px;
+}
+
+.reply-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.reply-item:last-child {
+  padding-bottom: 6px;
+}
+
+.comment-avatar.small {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.reply-to {
+  font-size: 12px;
+  color: #3c6476;
+  background: #eef4f8;
+  border-radius: 4px;
+  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.reply-arrow {
+  font-size: 10px;
 }
 
 /* ===== 创建帖子 ===== */

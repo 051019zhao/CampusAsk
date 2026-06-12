@@ -1,5 +1,6 @@
 <template>
   <div class="contribute-page">
+    <button class="back-float-btn" @click="$router.push({ name: 'QaPage' })">← 返回问答</button>
     <div class="contribute-card">
       <!-- 标签栏 -->
       <div class="tabs">
@@ -23,7 +24,7 @@
             v-model="question"
             placeholder="请输入你想贡献的问题。"
             rows="4"
-            @input="checkSensitive"
+            @input="onInputChange"
           ></textarea>
         </div>
 
@@ -33,12 +34,18 @@
             v-model="answer"
             placeholder="请输入该问题的答案，确保内容准确。"
             rows="6"
-            @input="checkSensitive"
+            @input="onInputChange"
           ></textarea>
         </div>
 
         <div v-if="sensitiveHint" class="hint warning">
           {{ sensitiveHint }}
+        </div>
+        <div v-if="aiCheckResult" class="hint error">
+          {{ aiCheckResult }}
+        </div>
+        <div v-if="sensitiveChecking" class="hint checking">
+          🔍 AI 正在审核中...
         </div>
         <div v-if="errorMessage" class="hint error">
           {{ errorMessage }}
@@ -48,8 +55,20 @@
         </div>
 
         <div class="action-row">
-          <button class="submit-btn" :disabled="submitting" @click="submitContribution">
-            {{ submitting ? '提交中...' : '提交审核' }}
+          <button
+            class="check-btn"
+            :disabled="aiChecking || !canCheck"
+            @click="runAiCheck"
+          >
+            {{ aiChecking ? '⏳ 审核中...' : aiChecked ? '✅ AI 审核通过' : 'AI 审核' }}
+          </button>
+          <button
+            class="submit-btn"
+            :class="{ 'submit-btn--ready': aiChecked }"
+            :disabled="submitting"
+            @click="submitContribution"
+          >
+            {{ submitting ? '提交中...' : ' 提交 ' }}
           </button>
         </div>
       </div>
@@ -91,7 +110,7 @@
 </template>
 
 <script>
-import { submitContribution, getSensitiveWords, getRejectedContributions } from '@/api/contribution'
+import { submitContribution, getRejectedContributions, checkSensitiveText, getSensitiveWords } from '@/api/contribution'
 
 export default {
   name: 'ContributePage',
@@ -103,33 +122,25 @@ export default {
       submitting: false,
       errorMessage: '',
       statusMessage: '',
-      foundWords: [],
-      sensitiveWords: [
-        '政治',
-        '色情',
-        '暴力',
-        '赌博',
-        '违规',
-        '违禁',
-        '敏感词',
-        '涉政',
-        '涉黄',
-        '谣言'
-      ],
+      // 本地数据库敏感词（实时匹配）
+      sensitiveWords: [],
+      sensitiveHint: '',
+      // AI 审核状态
+      aiChecked: false,
+      aiChecking: false,
+      aiCheckResult: '',
+      // 未通过投稿
       rejectedContributions: [],
       rejectedLoading: false
     }
   },
+  computed: {
+    canCheck() {
+      return this.question.trim().length > 0 && this.answer.trim().length > 0 && !this.aiChecked
+    }
+  },
   created() {
     this.loadSensitiveWords()
-  },
-  computed: {
-    sensitiveHint() {
-      if (!this.foundWords.length) {
-        return ''
-      }
-      return `检测到敏感词：${this.foundWords.join('，')}，请修改后再提交。`
-    }
   },
   methods: {
     getUserId() {
@@ -139,22 +150,72 @@ export default {
     },
     async loadSensitiveWords() {
       try {
-        const response = await getSensitiveWords()
-        if (response?.code === 200 && Array.isArray(response.data)) {
-          this.sensitiveWords = response.data.map((word) => String(word || '').toLowerCase())
+        const res = await getSensitiveWords()
+        if (res?.code === 200 && Array.isArray(res.data)) {
+          this.sensitiveWords = res.data.map(w => String(w || '').toLowerCase()).filter(Boolean)
         }
-      } catch (error) {
-        // 保持默认敏感词列表，后端仍会做最终校验
+      } catch (e) {
+        // 使用默认词库兜底
+        this.sensitiveWords = ['政治', '色情', '暴力', '赌博', '违规', '违禁', '敏感词', '涉政', '涉黄', '谣言']
       }
-    },
-    checkSensitive() {
-      const text = `${this.question}\n${this.answer}`.toLowerCase()
-      this.foundWords = this.sensitiveWords.filter((word) => word && text.includes(word))
     },
     resetForm() {
       this.question = ''
       this.answer = ''
-      this.foundWords = []
+      this.sensitiveHint = ''
+      this.aiChecked = false
+      this.aiChecking = false
+      this.aiCheckResult = ''
+      this.errorMessage = ''
+      // 注意：不重置 statusMessage，让成功提示保持显示
+    },
+    /** 输入时实时本地匹配数据库敏感词（免费、快速） */
+    onInputChange() {
+      this.errorMessage = ''
+      this.statusMessage = ''
+      // 内容变化后 AI 审核状态重置
+      this.aiChecked = false
+      this.aiCheckResult = ''
+
+      const text = `${this.question}\n${this.answer}`.toLowerCase()
+      if (text.trim().length < 2) {
+        this.sensitiveHint = ''
+        return
+      }
+      const found = this.sensitiveWords.filter(w => text.includes(w))
+      if (found.length) {
+        this.sensitiveHint = '⚠️ 检测到敏感词：' + found.join('、') + '，请修改后再提交。'
+      } else {
+        this.sensitiveHint = ''
+      }
+    },
+    /** 点击 AI 审核按钮，调用 DeepSeek 深度检测 */
+    async runAiCheck() {
+      if (!this.question.trim() || !this.answer.trim()) return
+      this.aiChecking = true
+      this.aiCheckResult = ''
+      this.errorMessage = ''
+      try {
+        const text = `${this.question.trim()}\n${this.answer.trim()}`
+        const res = await checkSensitiveText(text)
+        if (res?.code === 200 && res.data) {
+          if (res.data.sensitive) {
+            this.aiCheckResult = '❌ AI 审核未通过：' + (res.data.reason || '内容包含敏感信息，请修改')
+            this.aiChecked = false
+          } else {
+            this.aiChecked = true
+            this.aiCheckResult = ''
+          }
+        } else {
+          this.aiCheckResult = '⚠️ AI 审核服务异常，请稍后重试'
+          this.aiChecked = false
+        }
+      } catch (e) {
+        this.aiCheckResult = '⚠️ AI 审核请求失败，请检查网络'
+        this.aiChecked = false
+      } finally {
+        this.aiChecking = false
+      }
     },
     async switchToRejected() {
       this.activeTab = 'rejected'
@@ -185,18 +246,21 @@ export default {
     async submitContribution() {
       this.errorMessage = ''
       this.statusMessage = ''
-      this.checkSensitive()
 
-      if (this.foundWords.length) {
-        this.errorMessage = this.sensitiveHint
-        return
-      }
       if (!this.question.trim()) {
         this.errorMessage = '请填写投稿问题。'
         return
       }
       if (!this.answer.trim()) {
         this.errorMessage = '请填写投稿回答。'
+        return
+      }
+      if (this.sensitiveHint) {
+        this.errorMessage = this.sensitiveHint
+        return
+      }
+      if (!this.aiChecked) {
+        this.errorMessage = '请先点击"AI 审核"按钮完成内容检测'
         return
       }
 
@@ -233,6 +297,27 @@ export default {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  position: relative;
+}
+
+.back-float-btn {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  border: none;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #3c6476;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+}
+
+.back-float-btn:hover {
+  background: #f0f4f8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .contribute-card {
@@ -337,6 +422,12 @@ textarea {
   border: 1px solid #f1c96d;
 }
 
+.checking {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #a5b4fc;
+}
+
 .error {
   background: #fbeaea;
   color: #b91c1c;
@@ -352,24 +443,55 @@ textarea {
 .action-row {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
+}
+
+.check-btn {
+  background: #fff;
+  color: #4338ca;
+  border: 2px solid #4338ca;
+  border-radius: 14px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.check-btn:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.check-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .submit-btn {
-  background: #1d4ed8;
+  background: #9ca3af;
   color: white;
   border: none;
   padding: 12px 26px;
   font-size: 15px;
   border-radius: 12px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
 .submit-btn:hover {
+  background: #6b7280;
+}
+
+.submit-btn--ready {
+  background: #1d4ed8;
+}
+
+.submit-btn--ready:hover {
   background: #1e40af;
 }
 
 .submit-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
