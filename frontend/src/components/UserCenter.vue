@@ -3,6 +3,7 @@
     <header class="nav-header">
       <div class="nav-logo">CampusAsk 校园百事通</div>
       <div class="nav-links">
+        <span class="nav-item" @click="goToTeaTalk">茶话会</span>
         <span class="nav-item" @click="goToHome">首页问答</span>
         <span class="nav-item active">用户中心</span>
       </div>
@@ -265,6 +266,7 @@ const handleNativeUpload = async (event) => {
 
 const goToAdmin = () => { router.push('/admin') }
 const goToEditProfile = () => { router.push('/profile') }
+const goToTeaTalk = () => { router.push('/teatalk') }
 const goToHome = () => { router.push('/') }
 </script>
 
