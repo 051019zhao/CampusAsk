@@ -1,6 +1,9 @@
 package com.campusask.campusask.config;
 
 import com.campusask.campusask.dto.Result;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;  // 缺少这个导入
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -27,6 +30,23 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
+        Result<Map<String, String>> result = new Result<>();
+        result.setCode(400);
+        result.setMessage("参数校验失败");
+        result.setData(errors);
+        return result;
+    }
+ /**
+     * 处理请求参数校验异常（@Validated 注解 + @RequestParam/@PathVariable）
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public Result<Map<String, String>> handleConstraintViolationException(ConstraintViolationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            String fieldName = violation.getPropertyPath().toString();
+            String errorMessage = violation.getMessage();
+            errors.put(fieldName, errorMessage);
+        }
         Result<Map<String, String>> result = new Result<>();
         result.setCode(400);
         result.setMessage("参数校验失败");

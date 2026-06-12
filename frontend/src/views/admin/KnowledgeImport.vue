@@ -30,11 +30,11 @@
       </select>
       <button @click="searchData">搜索</button>
       <button @click="loadAllData">刷新全部</button>
-      <button @click="$refs.file.click()">导入Excel</button>
+      <button @click="$refs.file.click()">导入Excel/csv</button>
       <input
         ref="file"
         type="file"
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.csv"
         hidden
         @change="uploadExcel"
       />
@@ -146,10 +146,6 @@
         </div>
       </div>
     </div>
-    <!-- 提示消息 -->
-    <div v-if="message" :class="['message', messageType]">
-      {{ message }}
-    </div>
   </div>
 </template>
 
@@ -189,12 +185,12 @@ export default {
       // 添加新消息到队列
       this.messages.push({ text: msg, type: type });
 
-      // 5秒后自动移除
+      // 3秒后自动移除
       setTimeout(() => {
         if (this.messages.length > 0) {
           this.messages.shift();
         }
-      }, 5000);
+      }, 3000);
     },
     // 新增：手动关闭消息
     removeMessage(index) {
@@ -368,14 +364,6 @@ export default {
         this.deleteConfirmVisible = false;
         this.deleteItem = null;
       }
-    },
-    // 显示消息提示
-    showMessage(msg, type) {
-      this.message = msg;
-      this.messageType = type;
-      setTimeout(() => {
-        this.message = "";
-      }, 3000);
     },
   },
 };

@@ -214,3 +214,26 @@ CREATE TABLE IF NOT EXISTS feedback (
                                         helpful TINYINT(1) DEFAULT 1,
                                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+-- 更新为学术学习类
+UPDATE knowledge SET category = '学术学习' 
+WHERE category IN ('课程相关', '考试相关', '论文相关', '学习指导', '课程', '考试', '论文');
+
+-- 更新为校园生活类
+UPDATE knowledge SET category = '校园生活' 
+WHERE category IN ('宿舍相关', '食堂相关', '活动相关', '宿舍', '食堂', '活动', '校园活动');
+
+-- 更新为规章制度类
+UPDATE knowledge SET category = '规章制度' 
+WHERE category IN ('学籍相关', '奖惩相关', '日常管理', '学籍', '奖惩', '管理');
+
+-- 更新为就业指导类
+UPDATE knowledge SET category = '就业指导' 
+WHERE category IN ('实习相关', '招聘相关', '职业规划', '实习', '招聘', '就业');
+
+-- 更新为技术支持类
+UPDATE knowledge SET category = '技术支持' 
+WHERE category IN ('网络相关', '系统相关', '设备相关', '网络', '系统', '设备', '技术');
+
+-- 更新为其他服务类
+UPDATE knowledge SET category = '其他服务' 
+WHERE category IN ('医疗相关', '后勤相关', '综合咨询', '医疗', '后勤', '其他');
