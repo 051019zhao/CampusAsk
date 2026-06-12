@@ -45,13 +45,17 @@
           </div>
           <div class="info-item">
             <span class="info-label">账户角色</span>
-            <span class="info-value">{{ userInfo.role === 1 ? '系统管理员' : '普通学生' }}</span>
+            <span class="info-value">{{ userInfo.role == 1 ? '系统管理员' : '普通学生' }}</span>
           </div>
         </div>
 
         <div class="action-area">
           <button class="btn-primary" @click="goToEditProfile">
             修改个人信息（昵称/密码/名言）
+          </button>
+
+          <button v-if="userInfo.role == 1" class="btn-admin" @click="goToAdmin">
+            进入管理员中心
           </button>
         </div>
       </div>
@@ -62,13 +66,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUserProfile } from '../api/auth.js' // 复用你之前调通的获取信息接口
-import request from '../utils/request.js'
+import { getUserProfile } from '../api/auth.js' // 复用你调通的获取信息接口
+import request from '@/utils/request' // 引入带 token 请求拦截器的实例
 
 const router = useRouter()
 const fileInputRef = ref(null) // 用于绑定隐藏的 input 节点
 
-// 初始化用户信息载体（✨ 本周追加 avatarUrl 和 motto 默认字段）
+// 初始化用户信息载体
 const userInfo = ref({
   username: '',
   nickname: '',
@@ -79,7 +83,6 @@ const userInfo = ref({
 
 // 页面加载时实时从数据库拉取最新数据
 onMounted(async () => {
-  // 防御性策略：先看看本地有没有 Token
   const token = localStorage.getItem('token')
   if (!token) {
     alert('登录已过期，请重新登录')
@@ -88,13 +91,11 @@ onMounted(async () => {
   }
 
   try {
-    // 异步请求后端 GET /auth/profile 接口
     const res = await getUserProfile()
     if (res && res.data) {
       userInfo.value.username = res.data.username
       userInfo.value.nickname = res.data.nickname
-      userInfo.value.role = res.data.role
-      // ✨ 补丁 3：顺手接住后端返回的最新头像和名言，塞给响应式变量
+      userInfo.value.role = res.data.role // 核心权限凭证
       userInfo.value.avatarUrl = res.data.avatarUrl
       userInfo.value.motto = res.data.motto
     } else {
@@ -106,10 +107,9 @@ onMounted(async () => {
 })
 
 // ==========================================================================
-// 原生图片选择与上传核心逻辑（完全避开外部组件库）
+// ✨ 头像文件选择与当场落库保存逻辑
 // ==========================================================================
 const triggerFileSelect = () => {
-  // 模拟点击隐藏的 input 按钮
   fileInputRef.value.click()
 }
 
@@ -130,39 +130,32 @@ const handleNativeUpload = async (event) => {
   formData.append('file', file)
 
   try {
-    // 1. 发送请求把图片上传到 OSS
     const res = await request.put('/auth/avatar', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
 
-    console.log("上传成功，后端返回的数据：", res)
-
-    // 2. 上传 OSS 成功后进入核心落库逻辑
     if (res && res.code === 200) {
-      // 步骤 A：把完整的阿里云 URL 赋给变量，让页面上的头像瞬间回显
-      userInfo.value.avatarUrl = res.data
+      userInfo.value.avatarUrl = res.data // 实时回显
 
-      // 步骤 B：✨【当场写库补丁】直接调用更新资料接口，把新头像 URL 焊死在数据库里！
+      // 紧接着无感同步到数据库持久化
       try {
         const updateRes = await request.put('/auth/profile', {
-          nickname: userInfo.value.nickname, // 带着当前的昵称
-          motto: userInfo.value.motto,       // 带着当前的名言
-          avatarUrl: userInfo.value.avatarUrl // 带着刚刚热乎拿到的最新头像链接
+          nickname: userInfo.value.nickname,
+          motto: userInfo.value.motto,
+          avatarUrl: userInfo.value.avatarUrl
         })
 
         if (updateRes && (updateRes.code === 200 || updateRes.code === 1)) {
-          alert('头像已成功上传并保存！下次刷新也不会丢失啦~')
+          alert('头像已成功上传并保存！')
         } else {
-          alert('头像已传至云端，但同步到数据库失败：' + (updateRes.message || '未知错误'))
+          alert('头像已传至云端，但同步至数据库失败')
         }
       } catch (dbError) {
-        console.error('同步头像到数据库异常:', dbError)
-        alert('网络异常，头像持久化保存失败')
+        console.error('同步数据库异常:', dbError)
       }
     }
-
   } catch (error) {
     console.error('上传头像异常:', error)
     alert('网络异常，头像上传失败')
@@ -171,13 +164,18 @@ const handleNativeUpload = async (event) => {
   }
 }
 
-// 路由跳转：去往修改个人信息页面
+// ==========================================================================
+// ✨ 路由跳转逻辑
+// ==========================================================================
+// 新增：管理员中心大按钮点击直达 /admin
+const goToAdmin = () => {
+  router.push('/admin')
+}
+
 const goToEditProfile = () => {
-  // 💡 跳转时建议把当前已经回显出的新头像链接也传给修改页（或者在修改页重新读一次接口）
   router.push('/profile')
 }
 
-// 路由跳转：返回主页
 const goToHome = () => {
   router.push('/')
 }
@@ -185,7 +183,7 @@ const goToHome = () => {
 
 <style scoped>
 /* ==========================================================================
-   原有 CSS 全部完美保留，以下为针对新头像架构与名言追补的原生绿调样式
+   原生 CSS 绿调风格与追补的管理按钮样式
    ========================================================================== */
 .home-style-container {
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif;
@@ -195,7 +193,6 @@ const goToHome = () => {
   flex-direction: column;
 }
 
-/* 顶部导航栏样式 */
 .nav-header {
   background-color: #ffffff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
@@ -232,7 +229,6 @@ const goToHome = () => {
   font-weight: 500;
 }
 
-/* 主体布局架构 */
 .main-content {
   flex: 1;
   display: flex;
@@ -241,7 +237,6 @@ const goToHome = () => {
   padding: 40px 20px;
 }
 
-/* 资料展示卡片 */
 .profile-card {
   background-color: #ffffff;
   border-radius: 12px;
@@ -257,7 +252,6 @@ const goToHome = () => {
   margin-bottom: 20px;
 }
 
-/* ✨ 新增：头像容器特殊设计（支持悬浮和裁剪圆角） */
 .avatar-wrapper {
   position: relative;
   width: 80px;
@@ -274,7 +268,6 @@ const goToHome = () => {
   border-color: #11b980;
 }
 
-/* ✨ 新增：云端真实头像图片渲染 */
 .real-avatar {
   width: 100%;
   height: 100%;
@@ -282,7 +275,6 @@ const goToHome = () => {
   display: block;
 }
 
-/* ✨ 新增：保底默认图标 */
 .avatar-placeholder-icon {
   font-size: 40px;
   background-color: #e6f7f2;
@@ -292,7 +284,6 @@ const goToHome = () => {
   text-align: center;
 }
 
-/* ✨ 新增：原生滑过遮罩提示效果 */
 .avatar-hover-mask {
   position: absolute;
   top: 0;
@@ -331,7 +322,6 @@ h2 {
   margin: 20px 0;
 }
 
-/* 信息条目列表 */
 .info-list {
   display: flex;
   flex-direction: column;
@@ -349,7 +339,6 @@ h2 {
   border-left: 3px solid #11b980;
 }
 
-/* ✨ 新增：针对较长名言的特定自适应排列排版 */
 .motto-item {
   flex-direction: column;
   align-items: flex-start;
@@ -362,6 +351,7 @@ h2 {
   font-weight: normal !important;
   font-size: 14px !important;
   word-break: break-all;
+  text-align: left;
 }
 
 .info-label {
@@ -375,9 +365,11 @@ h2 {
   font-size: 15px;
 }
 
-/* 交互按钮区域 */
 .action-area {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* 让两个按钮之间有清爽的间距 */
 }
 
 .btn-primary {
@@ -395,5 +387,25 @@ h2 {
 
 .btn-primary:hover {
   background-color: #0fa26f;
+}
+
+/* --------------------------------------------------------------------------
+   ✨ 新增：手写专属管理员中心大按钮样式（亮橘调/金调，极具点击欲和区分度）
+   -------------------------------------------------------------------------- */
+.btn-admin {
+  background-color: #e6a23c;
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  font-size: 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.btn-admin:hover {
+  background-color: #cf8e2e;
 }
 </style>
