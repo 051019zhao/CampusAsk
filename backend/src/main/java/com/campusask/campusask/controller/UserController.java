@@ -9,11 +9,13 @@ import com.campusask.campusask.entity.User;
 import com.campusask.campusask.service.UserService;
 import com.campusask.campusask.utils.JwtUtil;
 import com.campusask.campusask.properties.JwtProperties;
+import com.campusask.campusask.utils.OssUtil;
 import com.campusask.campusask.vo.UserLoginVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +31,9 @@ public class UserController {
 
     @Autowired
     private JwtProperties jwtProperties;
+
+    @Autowired
+    private OssUtil ossUtil;
     /**
      * 用户注册接口
      */
@@ -109,5 +114,16 @@ public class UserController {
             user.setPassword(null);
         }
         return Result.success(user);
+    }
+
+    /**
+     * 单独的头像上传
+     */
+    @PutMapping("/auth/avatar")
+    public Result<String> uploadAvatar(MultipartFile file) {
+        // 调用你们团队写好的工具类，把图片扔到云端，拿到完整的 https://... 链接
+        String url = ossUtil.uploadAvatar(file);
+        // 直接把链接返给前端
+        return Result.success(url);
     }
 }

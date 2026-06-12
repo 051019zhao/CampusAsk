@@ -194,6 +194,20 @@ public class UserServiceImpl implements UserService {
             user.setPassword(encryptedNewPwd);
         }
 
+        // 如果前端传了 motto（哪怕是空字符串 ""，也代表用户想清空或修改名言），就允许覆盖
+        if (userUpdateDTO.getMotto() != null) {
+            // 可选：限制一下名言长度，防止数据库溢出，比如限制 100 字
+            if (userUpdateDTO.getMotto().length() > 100) {
+                throw new IllegalArgumentException("个性名言长度不能超过 100 个字符");
+            }
+            user.setMotto(userUpdateDTO.getMotto());
+        }
+
+        // 如果前端传了新的头像 URL，直接覆盖掉老头像
+        if (userUpdateDTO.getAvatarUrl() != null && !userUpdateDTO.getAvatarUrl().isEmpty()) {
+            user.setAvatarUrl(userUpdateDTO.getAvatarUrl());
+        }
+
         // 4. 更新数据库
         userMapper.updateUser(user);
     }

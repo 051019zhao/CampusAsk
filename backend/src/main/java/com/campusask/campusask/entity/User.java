@@ -18,4 +18,8 @@ public class User {
     private String role;//0学生1管理员
     //创建时间
     private LocalDateTime createAt;
+    //头像链接
+    private String avatarUrl;
+    //个人名言
+    private String motto;
 }

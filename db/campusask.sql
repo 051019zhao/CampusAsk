@@ -195,3 +195,14 @@ CREATE TABLE `user`  (
 SET FOREIGN_KEY_CHECKS = 1;
 
 ALTER TABLE user ADD COLUMN nickname VARCHAR(20) DEFAULT NULL COMMENT '用户昵称';
+ALTER TABLE user ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像链接';
+ALTER TABLE user ADD COLUMN motto VARCHAR(255) DEFAULT NULL COMMENT '个人名言';
+
+CREATE TABLE IF NOT EXISTS feedback (
+                                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                                        question VARCHAR(500),
+                                        answer TEXT,
+                                        source VARCHAR(50),
+                                        helpful TINYINT(1) DEFAULT 1,
+                                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
