@@ -4,11 +4,15 @@ import com.campusask.campusask.entity.Contribution;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.ContributionMapper;
 import com.campusask.campusask.mapper.KnowledgeMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ContributionService {
@@ -18,6 +22,32 @@ public class ContributionService {
 
     @Autowired
     private KnowledgeMapper knowledgeMapper;
+
+    @Autowired
+    private DeepSeekService deepSeekService;
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * 调用 DeepSeek 检测文本是否包含敏感内容。
+     * 返回 Map：{ "sensitive": true/false, "reason": "具体触发原因" }
+     */
+    public Map<String, Object> checkSensitive(String text) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String json = deepSeekService.checkSensitive(text);
+            JsonNode node = objectMapper.readTree(json);
+            boolean isSensitive = node.has("isSensitive") && node.get("isSensitive").asBoolean();
+            String reason = node.has("reason") ? node.get("reason").asText() : "";
+            result.put("sensitive", isSensitive);
+            result.put("reason", reason);
+        } catch (Exception e) {
+            // 解析失败时默认放行，避免误拦截
+            result.put("sensitive", false);
+            result.put("reason", "");
+        }
+        return result;
+    }
 
     public void submitContribution(Contribution contribution) {
         if (contribution.getStatus() == null || contribution.getStatus().isBlank()) {

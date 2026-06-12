@@ -12,10 +12,10 @@ public interface ForumPostService {
     /** 分页获取帖子列表（含当前用户点赞状态） */
     Map<String, Object> getPosts(int page, int size, Long currentUserId);
 
-    /** 获取帖子详情（含评论及当前用户点赞状态） */
+    /** 获取帖子详情（含评论及当前用户点赞状态，评论含层级回复） */
     Map<String, Object> getPostDetail(Long postId, Long currentUserId);
 
-    /** 添加评论 */
+    /** 添加评论或回复 */
     Long addComment(ForumComment comment);
 
     /** 点赞/取消点赞（基于数据库记录，防止重复点赞） */

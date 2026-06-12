@@ -21,6 +21,19 @@ public class ContributionController {
     @Autowired
     private SensitiveWordService sensitiveWordService;
 
+    /**
+     * 实时敏感内容检测（前端打字时防抖调用）
+     */
+    @PostMapping("/check-sensitive")
+    public Result<Map<String, Object>> checkSensitive(@RequestBody Map<String, String> body) {
+        String text = body.get("text");
+        if (text == null || text.isBlank()) {
+            return Result.success(Map.of("sensitive", false, "reason", ""));
+        }
+        Map<String, Object> result = contributionService.checkSensitive(text);
+        return Result.success(result);
+    }
+
     @PostMapping("/submit")
     public Result<String> submit(@RequestBody Map<String, String> body) {
         String question = body.get("question");
@@ -34,11 +47,13 @@ public class ContributionController {
             return Result.error("回答不能为空");
         }
 
+        // 使用 DeepSeek 进行智能敏感内容检测
         String combinedText = question.trim() + "\n" + answer.trim();
-        List<String> foundWords = sensitiveWordService.findMatchingWords(combinedText);
-        if (!foundWords.isEmpty()) {
-            String message = "检测到敏感词：" + String.join("，", foundWords) + "，请修改后再提交。";
-            return Result.error(message);
+        Map<String, Object> checkResult = contributionService.checkSensitive(combinedText);
+        boolean isSensitive = Boolean.TRUE.equals(checkResult.get("sensitive"));
+        if (isSensitive) {
+            String reason = String.valueOf(checkResult.getOrDefault("reason", "内容包含敏感信息"));
+            return Result.error("内容审核未通过：" + reason);
         }
 
         Contribution contribution = new Contribution();

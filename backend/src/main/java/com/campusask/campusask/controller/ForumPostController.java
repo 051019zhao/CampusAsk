@@ -68,7 +68,7 @@ public class ForumPostController {
     }
 
     /**
-     * 添加评论
+     * 添加评论或回复
      */
     @PostMapping("/posts/{postId}/comments")
     public Result<Long> addComment(@PathVariable Long postId, @RequestBody Map<String, String> body) {
@@ -81,6 +81,16 @@ public class ForumPostController {
         comment.setPostId(postId);
         comment.setUserId(BaseContext.getCurrentId());
         comment.setContent(content.trim());
+
+        // 回复功能：如果传了 parentId，则为子回复
+        String parentIdStr = body.get("parentId");
+        if (parentIdStr != null && !parentIdStr.isEmpty()) {
+            comment.setParentId(Long.parseLong(parentIdStr));
+        }
+        String replyToUserIdStr = body.get("replyToUserId");
+        if (replyToUserIdStr != null && !replyToUserIdStr.isEmpty()) {
+            comment.setReplyToUserId(Long.parseLong(replyToUserIdStr));
+        }
 
         Long id = forumPostService.addComment(comment);
         return Result.success(id);

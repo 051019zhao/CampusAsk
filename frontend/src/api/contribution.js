@@ -15,6 +15,15 @@ export function getSensitiveWords() {
   })
 }
 
+/** 实时敏感内容检测（DeepSeek） */
+export function checkSensitiveText(text) {
+  return request({
+    url: '/api/contribute/check-sensitive',
+    method: 'post',
+    data: { text }
+  })
+}
+
 export function getRejectedContributions() {
   return request({
     url: '/api/contribute/rejected',
