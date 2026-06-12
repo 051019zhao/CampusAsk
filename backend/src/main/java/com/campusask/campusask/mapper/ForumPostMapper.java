@@ -12,7 +12,7 @@ public interface ForumPostMapper {
     ForumPost selectById(@Param("id") Long id);
     List<ForumPost> selectAll(@Param("offset") int offset, @Param("size") int size);
     int countAll();
-    List<ForumPost> selectByUserId(@Param("userId") Long userId);
+    List<ForumPost> selectByUserId(@Param("userId") String userId);
     int updateViewCount(@Param("id") Long id);
     int updateLikeCount(@Param("id") Long id, @Param("delta") int delta);
     int deleteById(@Param("id") Long id);

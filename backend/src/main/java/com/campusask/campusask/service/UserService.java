@@ -52,19 +52,19 @@ public interface UserService {
      * @param size
      * @return
      */
-    PageResult getForumPostHistory(Long currentUsername, Integer page, Integer size);
+    PageResult getForumPostHistory(String currentUsername, Integer page, Integer size);
 
     /**
      * 获取茶话会点赞记录
      * @param currentUsername
      * @return
      */
-    List<Map<String, Object>> getUserLikeInteractions(Long currentUsername);
+    List<Map<String, Object>> getUserLikeInteractions(String currentUsername);
 
     /**
      * 获取茶话会评论记录
      * @param currentUsername
      * @return
      */
-    List<Map<String, Object>> getUserCommentInteractions(Long currentUsername);
+    List<Map<String, Object>> getUserCommentInteractions(String currentUsername);
 }

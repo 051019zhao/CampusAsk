@@ -8,10 +8,10 @@ import java.util.List;
 public class ForumComment {
     private Long id;
     private Long postId;
-    private Long userId;
+    private String userId;
     private String content;
     private Long parentId;
-    private Long replyToUserId;
+    private String replyToUserId;
     private LocalDateTime createdAt;
 
     // 非数据库字段

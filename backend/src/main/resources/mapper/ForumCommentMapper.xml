@@ -15,8 +15,8 @@
             u.nickname AS nickname,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
-        LEFT JOIN user u ON fc.user_id = u.id
-        LEFT JOIN user ru ON fc.reply_to_user_id = ru.id
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
         WHERE fc.post_id = #{postId}
         ORDER BY fc.created_at ASC
     </select>
@@ -27,8 +27,8 @@
             u.nickname AS nickname,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
-        LEFT JOIN user u ON fc.user_id = u.id
-        LEFT JOIN user ru ON fc.reply_to_user_id = ru.id
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
         WHERE fc.post_id = #{postId} AND fc.parent_id IS NULL
         ORDER BY fc.created_at ASC
     </select>
@@ -39,8 +39,8 @@
             u.nickname AS nickname,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
-        LEFT JOIN user u ON fc.user_id = u.id
-        LEFT JOIN user ru ON fc.reply_to_user_id = ru.id
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
         WHERE fc.parent_id = #{parentId}
         ORDER BY fc.created_at ASC
     </select>

@@ -47,19 +47,19 @@ public interface UserMapper {
      * @param username
      * @return
      */
-    List<ForumPost> getForumPostsByUsername(Long username);
+    List<ForumPost> getForumPostsByUsername(String username);
 
     /**
      * 查询点赞记录
      * @param username
      * @return
      */
-    List<Map<String, Object>> getUserLikeInteractions(Long username);
+    List<Map<String, Object>> getUserLikeInteractions(String username);
 
     /**
      * 查询评论记录
      * @param username
      * @return
      */
-    List<Map<String, Object>> getUserCommentInteractions(Long username);
+    List<Map<String, Object>> getUserCommentInteractions(String username);
 }

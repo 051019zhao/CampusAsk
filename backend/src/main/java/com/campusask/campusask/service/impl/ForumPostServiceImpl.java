@@ -36,7 +36,7 @@ public class ForumPostServiceImpl implements ForumPostService {
     }
 
     @Override
-    public Map<String, Object> getPosts(int page, int size, Long currentUserId) {
+    public Map<String, Object> getPosts(int page, int size, String currentUserId) {
         int offset = (page - 1) * size;
         List<ForumPost> list = forumPostMapper.selectAll(offset, size);
         int total = forumPostMapper.countAll();
@@ -61,7 +61,7 @@ public class ForumPostServiceImpl implements ForumPostService {
     }
 
     @Override
-    public Map<String, Object> getPostDetail(Long postId, Long currentUserId) {
+    public Map<String, Object> getPostDetail(Long postId, String currentUserId) {
         // 增加浏览量
         forumPostMapper.updateViewCount(postId);
 
@@ -98,7 +98,7 @@ public class ForumPostServiceImpl implements ForumPostService {
 
     @Override
     @Transactional
-    public boolean likePost(Long postId, Long userId) {
+    public boolean likePost(Long postId, String userId) {
         // 检查是否已点赞
         ForumLike existing = forumLikeMapper.selectByPostAndUser(postId, userId);
         if (existing != null) {
@@ -119,7 +119,7 @@ public class ForumPostServiceImpl implements ForumPostService {
 
     @Override
     @Transactional
-    public void deletePost(Long postId, Long userId) {
+    public void deletePost(Long postId, String userId) {
         ForumPost post = forumPostMapper.selectById(postId);
         if (post == null) {
             throw new RuntimeException("帖子不存在");

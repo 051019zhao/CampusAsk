@@ -132,7 +132,7 @@ CREATE TABLE `question_log`  (
 DROP TABLE IF EXISTS `forum_post`;
 CREATE TABLE `forum_post` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '发帖用户ID',
+  `user_id` varchar(50) NOT NULL COMMENT '发帖用户学号/工号',
   `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子标题',
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子内容',
   `images` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '图片URL列表，逗号分隔',
@@ -152,10 +152,10 @@ DROP TABLE IF EXISTS `forum_comment`;
 CREATE TABLE `forum_comment` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `post_id` bigint NOT NULL COMMENT '关联帖子ID',
-  `user_id` bigint NOT NULL COMMENT '评论用户ID',
+  `user_id` varchar(50) NOT NULL COMMENT '评论用户学号/工号',
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论内容',
   `parent_id` bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论',
-  `reply_to_user_id` bigint DEFAULT NULL COMMENT '被回复用户ID',
+  `reply_to_user_id` varchar(50) DEFAULT NULL COMMENT '被回复用户学号/工号',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_post_id` (`post_id`) USING BTREE,
@@ -170,7 +170,7 @@ DROP TABLE IF EXISTS `forum_like`;
 CREATE TABLE `forum_like` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `post_id` bigint NOT NULL COMMENT '帖子ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `user_id` varchar(50) NOT NULL COMMENT '用户学号/工号',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uk_post_user` (`post_id`, `user_id`) USING BTREE,
