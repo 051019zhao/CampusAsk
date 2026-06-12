@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -135,14 +136,66 @@ public class UserController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
 
-        // 使用用户 ID（Long）而非 username（String），因为 question_log.user_id 是 bigint
-        Long currentUserId = BaseContext.getCurrentId();
+        // 从安全 ThreadLocal 管道中抓出当前登录用户的学号/工号字符串
+        String usernameStr = BaseContext.getCurrentUsername();
+        // Long 类型转换
+        Long currentUsername = Long.valueOf(usernameStr);
 
-        if (currentUserId == null) {
+        if (currentUsername == null) {
             return Result.error("未登录或登录已过期");
         }
 
-        PageResult pageResult = userService.getQuestionHistory(currentUserId, page, size);
+        PageResult pageResult = userService.getQuestionHistory(currentUsername, page, size);
         return Result.success(pageResult);
+    }
+
+    /**
+     * 获取茶话会历史发帖记录
+     */
+    @GetMapping("/auth/forum-history")
+    public Result<PageResult> getForumHistory(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        // 从安全 ThreadLocal 管道中抓出当前登录用户的学号/工号字符串
+        String usernameStr = BaseContext.getCurrentUsername();
+        // Long 类型转换
+        Long currentUsername = Long.valueOf(usernameStr);
+
+        // 调用服务层拉取茶话会记录
+        PageResult pageResult = userService.getForumPostHistory(currentUsername, page, size);
+        return Result.success(pageResult);
+    }
+    /**
+     * 拉取茶话会点赞记录
+     */
+    @GetMapping("/auth/my-likes")
+    public Result<List<Map<String, Object>>> getMyLikes() {
+        // 1. 现有的安全上下文管道中捞出当前登录用户的学号/工号字符串
+        String usernameStr = BaseContext.getCurrentUsername();
+        Long currentUsername = Long.valueOf(usernameStr);
+
+        log.info("🚀 收到拉取点赞历史请求，当前登录用户学号: {}", currentUsername);
+
+        // 2.Service 层去查 forum_like 表（如果没有写复杂的业务，可以直接用统一的查询服务）
+        // 如果 userService 还没声明该方法，可以直接调用 mapper 或者先用下方我给的万能动态 SQL 查询
+        List<Map<String, Object>> likesList = userService.getUserLikeInteractions(currentUsername);
+
+        return Result.success(likesList);
+    }
+
+    /**
+     * 拉取历史评论
+     */
+    @GetMapping("/auth/my-comments")
+    public Result<List<Map<String, Object>>> getMyComments() {
+        String usernameStr = BaseContext.getCurrentUsername();
+        Long currentUsername = Long.valueOf(usernameStr);
+
+        log.info("🚀 收到拉取评论历史请求，当前登录用户学号: {}", currentUsername);
+
+        List<Map<String, Object>> commentsList = userService.getUserCommentInteractions(currentUsername);
+
+        return Result.success(commentsList);
     }
 }

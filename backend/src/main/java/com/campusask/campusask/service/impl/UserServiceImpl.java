@@ -3,6 +3,7 @@ package com.campusask.campusask.service.impl;
 import com.campusask.campusask.dto.PageResult;
 import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
+import com.campusask.campusask.entity.ForumPost;
 import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.entity.User;
 import com.campusask.campusask.mapper.UserMapper;
@@ -21,6 +22,7 @@ import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -258,5 +260,55 @@ public class UserServiceImpl implements UserService {
         Page<QuestionLog> p = (Page<QuestionLog>) list;
 
         return new PageResult(p.getTotal(), p.getResult());
+    }
+
+    /**
+     * 获取茶话会记录
+     * @param currentUsername
+     * @param page
+     * @param size
+     * @return
+     */
+    @Override
+    public PageResult getForumPostHistory(Long username, Integer page, Integer size) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+
+        // 启动 PageHelper 物理分页
+        PageHelper.startPage(page, size);
+
+        // 拿着学号去查发帖表
+        List<ForumPost> list = userMapper.getForumPostsByUsername(username);
+
+        com.github.pagehelper.Page<ForumPost> p = (com.github.pagehelper.Page<ForumPost>) list;
+        return new PageResult(p.getTotal(), p.getResult());
+    }
+
+    /**
+     * 获取点赞记录
+     * @param username
+     * @return
+     */
+    @Override
+    public List<Map<String, Object>> getUserLikeInteractions(Long username) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+        // 直接穿透调用 Mapper 层的多表联查
+        return userMapper.getUserLikeInteractions(username);
+    }
+
+    /**
+     * 获取评论记录
+     * @param username
+     * @return
+     */
+    @Override
+    public List<Map<String, Object>> getUserCommentInteractions(Long username) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+        return userMapper.getUserCommentInteractions(username);
     }
 }

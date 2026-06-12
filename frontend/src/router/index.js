@@ -8,6 +8,7 @@ import UserAuth from '../components/UserAuth.vue' // 你写的登录注册页
 import ContributePage from '../components/ContributePage.vue' // 你的贡献页
 import Profile from '@/components/Profile.vue'
 import TeaTalkPage from '@/components/TeaTalkPage.vue' // 茶话会页面
+import MyInteraction from '@/components/MyInteractions.vue'//点赞评论
 // 队友新增的后台管理组件
 import AdminLayout from "../views/admin/AdminLayout.vue";
 import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
@@ -35,6 +36,11 @@ const routes = [
         path: '/contribute',
         name: 'ContributePage',
         component: ContributePage
+    },
+    {
+        path: '/my-interactions',
+        name: 'MyInteractions',
+        component: MyInteraction
     },
     {
         path: '/login',    // 访问 /login

@@ -33,4 +33,42 @@
         where user_id = #{username}
         order by created_at desc
     </select>
+    <select id="getForumPostsByUsername" resultType="com.campusask.campusask.entity.ForumPost">
+        select
+            id,
+            user_id as userId,
+            title,
+            content,
+            images,
+            view_count as viewCount,
+            like_count as likeCount,
+            created_at as createdAt,
+            updated_at as updatedAt
+        from forum_post
+        where user_id = #{username}
+        order by created_at desc
+    </select>
+    <select id="getUserLikeInteractions" resultType="java.util.Map">
+        select
+            fl.id as id,
+            fl.post_id as postId,
+            fl.created_at as createdAt,
+            fp.title as postTitle
+        from forum_like fl
+                 left join forum_post fp on fl.post_id = fp.id
+        where fl.user_id = #{username}
+        order by fl.created_at desc
+    </select>
+    <select id="getUserCommentInteractions" parameterType="java.lang.Long" resultType="java.util.HashMap">
+        select
+            fc.id as id,
+            fc.post_id as postId,
+            fc.content as content,
+            fc.created_at as createdAt,
+            fp.title as postTitle
+        from forum_comment fc
+                 left join forum_post fp on fc.post_id = fp.id
+        where fc.user_id = #{username}
+        order by fc.created_at desc
+    </select>
 </mapper>

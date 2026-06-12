@@ -1,5 +1,6 @@
 package com.campusask.campusask.mapper;
 
+import com.campusask.campusask.entity.ForumPost;
 import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.entity.User;
 import org.apache.ibatis.annotations.Insert;
@@ -7,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface UserMapper {
@@ -39,4 +41,25 @@ public interface UserMapper {
      * @return
      */
     List<QuestionLog> getQuestionLogByUsername(Long id);
+
+    /**
+     * 获取茶话会发帖记录
+     * @param username
+     * @return
+     */
+    List<ForumPost> getForumPostsByUsername(Long username);
+
+    /**
+     * 查询点赞记录
+     * @param username
+     * @return
+     */
+    List<Map<String, Object>> getUserLikeInteractions(Long username);
+
+    /**
+     * 查询评论记录
+     * @param username
+     * @return
+     */
+    List<Map<String, Object>> getUserCommentInteractions(Long username);
 }

@@ -5,6 +5,9 @@ import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
 import com.campusask.campusask.entity.User;
 
+import java.util.List;
+import java.util.Map;
+
 public interface UserService {
 
     /**
@@ -41,4 +44,27 @@ public interface UserService {
      * @return
      */
     PageResult getQuestionHistory(Long currentUsername, Integer page, Integer size);
+
+    /**
+     * 获取茶话会记录
+     * @param currentUsername
+     * @param page
+     * @param size
+     * @return
+     */
+    PageResult getForumPostHistory(Long currentUsername, Integer page, Integer size);
+
+    /**
+     * 获取茶话会点赞记录
+     * @param currentUsername
+     * @return
+     */
+    List<Map<String, Object>> getUserLikeInteractions(Long currentUsername);
+
+    /**
+     * 获取茶话会评论记录
+     * @param currentUsername
+     * @return
+     */
+    List<Map<String, Object>> getUserCommentInteractions(Long currentUsername);
 }

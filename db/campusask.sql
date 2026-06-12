@@ -202,9 +202,10 @@ ALTER TABLE user ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像
 ALTER TABLE user ADD COLUMN motto VARCHAR(255) DEFAULT NULL COMMENT '个人名言';
 
 -- 评论回复功能：添加 parent_id 和 reply_to_user_id
-ALTER TABLE forum_comment ADD COLUMN IF NOT EXISTS parent_id bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论';
-ALTER TABLE forum_comment ADD COLUMN IF NOT EXISTS reply_to_user_id bigint DEFAULT NULL COMMENT '被回复用户ID';
+-- ALTER TABLE forum_comment ADD COLUMN  parent_id bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论';
+-- ALTER TABLE forum_comment ADD COLUMN  reply_to_user_id bigint DEFAULT NULL COMMENT '被回复用户ID';
 
+-- 反馈表
 CREATE TABLE IF NOT EXISTS feedback (
                                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
                                         question VARCHAR(500),
