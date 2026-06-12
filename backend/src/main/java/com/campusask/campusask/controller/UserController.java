@@ -12,7 +12,6 @@ import com.campusask.campusask.utils.JwtUtil;
 import com.campusask.campusask.properties.JwtProperties;
 import com.campusask.campusask.utils.OssUtil;
 import com.campusask.campusask.vo.UserLoginVO;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -75,7 +74,7 @@ public class UserController {
      * 修改个人信息接口
      */
     @PutMapping("/auth/profile")
-    public Result<String> updateProfile(@RequestBody UserUpdateDTO userUpdateDTO) { // HttpServletRequest 没用到可以顺便删掉
+    public Result<String> updateProfile(@RequestBody UserUpdateDTO userUpdateDTO) {
         // 1. 核心修复：改从 BaseContext 中获取当前登录用户的学号
         String currentUsername = BaseContext.getCurrentUsername();
 
@@ -134,16 +133,16 @@ public class UserController {
     @GetMapping("/auth/history")
     public Result<PageResult> getHistory(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size,
-            HttpServletRequest request) {
+            @RequestParam(defaultValue = "10") Integer size) {
 
-        // 1. 拿到当前登录用户的 username
-        String usernameStr = BaseContext.getCurrentUsername();
-        Long currentUsername = Long.valueOf(usernameStr);
+        // 使用用户 ID（Long）而非 username（String），因为 question_log.user_id 是 bigint
+        Long currentUserId = BaseContext.getCurrentId();
 
-        // 2. 调用 Service 层进行分页查询
-        PageResult pageResult = userService.getQuestionHistory(currentUsername, page, size);
+        if (currentUserId == null) {
+            return Result.error("未登录或登录已过期");
+        }
 
+        PageResult pageResult = userService.getQuestionHistory(currentUserId, page, size);
         return Result.success(pageResult);
     }
 }
