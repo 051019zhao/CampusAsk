@@ -23,4 +23,14 @@
         </set>
         WHERE username = #{username}
     </update>
+    <select id="getQuestionLogByUsername" parameterType="java.lang.Long" resultType="com.campusask.campusask.entity.QuestionLog">
+        select
+            id as id,
+            user_id as userId,
+            question as question,      answer as answer,
+            source as source,          processed as processed,
+            created_at as createTime   from question_log
+        where user_id = #{username}
+        order by created_at desc
+    </select>
 </mapper>

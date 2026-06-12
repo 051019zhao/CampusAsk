@@ -1,9 +1,12 @@
 package com.campusask.campusask.mapper;
 
+import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.entity.User;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 @Mapper
 public interface UserMapper {
@@ -29,4 +32,11 @@ public interface UserMapper {
 
     @Select("SELECT COUNT(*) FROM user")
     int countAll();
+
+    /**
+     * 获取提问历史记录
+     * @param id
+     * @return
+     */
+    List<QuestionLog> getQuestionLogByUsername(Long id);
 }

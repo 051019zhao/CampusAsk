@@ -1,10 +1,14 @@
 package com.campusask.campusask.service.impl;
 
+import com.campusask.campusask.dto.PageResult;
 import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
+import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.entity.User;
 import com.campusask.campusask.mapper.UserMapper;
 import com.campusask.campusask.service.UserService;
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
 import exception.AccountExistException;
 import exception.AccountFormatException;
 import exception.PasswordErrorException;
@@ -16,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -227,5 +232,31 @@ public class UserServiceImpl implements UserService {
         }
 
         return user;
+    }
+
+    /**
+     * 查询历史提问记录
+     * @param username
+     * @param page
+     * @param size
+     * @return
+     */
+    @Override
+    public PageResult getQuestionHistory(Long username, Integer page, Integer size) {
+
+        if (username == null) {
+            throw new IllegalArgumentException("查询失败：学号不能为空");
+        }
+
+        // 2. 开启 PageHelper 分页拦截器
+        PageHelper.startPage(page, size);
+
+        // 3. 调用 Mapper 查 question_log 表（PageHelper 会自动在 SQL 后面追加 limit ?, ? 并查出 total）
+        List<QuestionLog> list = userMapper.getQuestionLogByUsername(username);
+
+        // 4. 强转成 Page 对象获取总记录数
+        Page<QuestionLog> p = (Page<QuestionLog>) list;
+
+        return new PageResult(p.getTotal(), p.getResult());
     }
 }

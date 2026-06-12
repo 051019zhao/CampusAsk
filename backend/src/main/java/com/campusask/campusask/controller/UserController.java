@@ -2,6 +2,7 @@ package com.campusask.campusask.controller;
 
 import com.campusask.campusask.constant.JwtClaimsConstant;
 import com.campusask.campusask.context.BaseContext;
+import com.campusask.campusask.dto.PageResult;
 import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
@@ -125,5 +126,24 @@ public class UserController {
         String url = ossUtil.uploadAvatar(file);
         // 直接把链接返给前端
         return Result.success(url);
+    }
+
+    /**
+     * 获取当前登录用户的提问历史记录
+     */
+    @GetMapping("/auth/history")
+    public Result<PageResult> getHistory(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            HttpServletRequest request) {
+
+        // 1. 拿到当前登录用户的 username
+        String usernameStr = BaseContext.getCurrentUsername();
+        Long currentUsername = Long.valueOf(usernameStr);
+
+        // 2. 调用 Service 层进行分页查询
+        PageResult pageResult = userService.getQuestionHistory(currentUsername, page, size);
+
+        return Result.success(pageResult);
     }
 }
