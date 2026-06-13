@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.campusask.campusask.context.BaseContext;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.mapper.HotKeywordMapper;
@@ -331,6 +332,7 @@ public class QaService {
             QuestionLog log = new QuestionLog();
             log.setQuestion(keyword);
             log.setSource(source);
+            log.setUserId(BaseContext.getCurrentUsername()); // 已登录用户记录学号/工号
             questionLogMapper.insertLog(log);
             hotspotService.invalidateCache();
         } catch (Exception ex) {
@@ -342,7 +344,7 @@ public class QaService {
         return hotKeywordMapper.findTopKeywordNames(limit);
     }
 
-    public List<String> getRecentQuestions(Long userId, int limit) {
+    public List<String> getRecentQuestions(String userId, int limit) {
         if (userId == null) return List.of();
         return questionLogMapper.findRecentByUserId(userId, limit)
                 .stream()

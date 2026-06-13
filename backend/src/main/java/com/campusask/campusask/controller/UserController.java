@@ -136,14 +136,14 @@ public class UserController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
 
-        // question_log 表的 user_id 仍引用 user.id（数字），使用 getCurrentId()
-        Long currentUserId = BaseContext.getCurrentId();
+        // question_log 表的 user_id 现在存学号/工号字符串，使用 getCurrentUsername()
+        String currentUsername = BaseContext.getCurrentUsername();
 
-        if (currentUserId == null) {
+        if (currentUsername == null) {
             return Result.error("未登录或登录已过期");
         }
 
-        PageResult pageResult = userService.getQuestionHistory(currentUserId, page, size);
+        PageResult pageResult = userService.getQuestionHistory(currentUsername, page, size);
         return Result.success(pageResult);
     }
 

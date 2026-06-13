@@ -38,6 +38,20 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
         // ★★★ 核心修复：在这里直接对不需要登录的开放接口进行物理放行 ★★★
         if ("/api/hotspot/top10".equals(requestUri) || requestUri.startsWith("/api/qa/")) {
             log.info("【白名单放行】接口 {} 不需要 Token 验证，直接放行", requestUri);
+            // 尝试解析 Token：已登录用户则设置上下文，方便记录提问者
+            String token = request.getHeader(jwtProperties.getUserTokenName());
+            if (token != null && !token.isEmpty()) {
+                try {
+                    Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
+                    String username = claims.get("username", String.class);
+                    if (username != null) {
+                        BaseContext.setCurrentUsername(username);
+                        log.info("【白名单】已登录用户 {} 访问 QA 接口", username);
+                    }
+                } catch (Exception e) {
+                    // Token 无效或过期，忽略
+                }
+            }
             return true;
         }
 

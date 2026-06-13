@@ -182,9 +182,12 @@ export default {
       let source = ''
       let searchUrls = []
       try {
+        const token = localStorage.getItem('token')
+        const headers = { 'Content-Type': 'application/json' }
+        if (token) headers['token'] = token
         const res = await fetch('/api/qa/ask', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ keyword: question })
         })
         const data = await res.json()

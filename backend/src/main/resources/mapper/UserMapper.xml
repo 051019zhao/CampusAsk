@@ -30,7 +30,7 @@
             question as question,      answer as answer,
             source as source,          processed as processed,
             created_at as createTime   from question_log
-        where user_id = #{username}
+        where user_id = #{username, jdbcType=VARCHAR}
         order by created_at desc
     </select>
     <select id="getForumPostsByUsername" resultType="com.campusask.campusask.entity.ForumPost">

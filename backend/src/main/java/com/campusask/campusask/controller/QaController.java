@@ -33,7 +33,7 @@ public class QaController {
 
     @GetMapping("/history")
     public Result<java.util.List<String>> recentHistory(
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) String userId) {
         return Result.success(qaService.getRecentQuestions(userId, 6));
     }
 

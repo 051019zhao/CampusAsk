@@ -43,7 +43,7 @@ public interface UserService {
      * @param size
      * @return
      */
-    PageResult getQuestionHistory(Long currentUsername, Integer page, Integer size);
+    PageResult getQuestionHistory(String currentUsername, Integer page, Integer size);
 
     /**
      * 获取茶话会记录
