@@ -10,7 +10,7 @@ import com.campusask.campusask.entity.QuestionLog;
 @Mapper
 public interface QuestionLogMapper {
     void insertLog(QuestionLog log);
-    List<QuestionLog> findRecentByUserId(@Param("userId") Long userId, @Param("limit") int limit);
+    List<QuestionLog> findRecentByUserId(@Param("userId") String userId, @Param("limit") int limit);
     List<String> findTopKeywords(@Param("limit") int limit);
     List<String> findRecentQuestions(@Param("limit") int limit);
     List<QuestionLog> findUnprocessed(@Param("limit") int limit);

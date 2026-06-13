@@ -40,7 +40,7 @@ public interface UserMapper {
      * @param id
      * @return
      */
-    List<QuestionLog> getQuestionLogByUsername(Long id);
+    List<QuestionLog> getQuestionLogByUsername(String username);
 
     /**
      * 获取茶话会发帖记录

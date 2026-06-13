@@ -244,7 +244,7 @@ public class UserServiceImpl implements UserService {
      * @return
      */
     @Override
-    public PageResult getQuestionHistory(Long username, Integer page, Integer size) {
+    public PageResult getQuestionHistory(String username, Integer page, Integer size) {
 
         if (username == null) {
             throw new IllegalArgumentException("查询失败：学号不能为空");

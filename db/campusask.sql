@@ -113,7 +113,7 @@ INSERT INTO `knowledge` VALUES (4, '在哪里打印', '校内打印点在图书�
 DROP TABLE IF EXISTS `question_log`;
 CREATE TABLE `question_log`  (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NULL DEFAULT NULL,
+  `user_id` varchar(50) NULL DEFAULT NULL COMMENT '用户学号/工号',
   `question` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `answer` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `source` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'knowledge',
@@ -132,7 +132,7 @@ CREATE TABLE `question_log`  (
 DROP TABLE IF EXISTS `forum_post`;
 CREATE TABLE `forum_post` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` varchar(50) NOT NULL COMMENT '发帖用户学号/工号',
+  `user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '发帖用户学号/工号',
   `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子标题',
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子内容',
   `images` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '图片URL列表，逗号分隔',
