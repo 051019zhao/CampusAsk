@@ -41,16 +41,16 @@
         <div v-if="sensitiveHint" class="hint warning">
           {{ sensitiveHint }}
         </div>
-        <div v-if="aiCheckResult" class="hint error">
+        <div v-if="aiCheckResult" class="hint error ui-state ui-state-error">
           {{ aiCheckResult }}
         </div>
-        <div v-if="sensitiveChecking" class="hint checking">
+        <div v-if="sensitiveChecking" class="hint checking ui-state ui-state-loading">
           🔍 AI 正在审核中...
         </div>
-        <div v-if="errorMessage" class="hint error">
+        <div v-if="errorMessage" class="hint error ui-state ui-state-error">
           {{ errorMessage }}
         </div>
-        <div v-if="statusMessage" class="hint success">
+        <div v-if="statusMessage" class="hint success ui-state ui-state-empty">
           {{ statusMessage }}
         </div>
 
@@ -79,8 +79,8 @@
           <p>这些投稿因某些原因未通过审核。请查看驳回原因后重新编辑提交。</p>
         </div>
 
-        <div v-if="rejectedLoading" class="loading">加载中...</div>
-        <div v-else-if="rejectedContributions.length === 0" class="empty-state">
+        <div v-if="rejectedLoading" class="loading ui-state ui-state-loading">加载中...</div>
+        <div v-else-if="rejectedContributions.length === 0" class="empty-state ui-state ui-state-empty">
           暂无未通过投稿
         </div>
         <div v-else class="rejected-list">
@@ -598,5 +598,26 @@ textarea {
 .time-section {
   color: #9ca3af;
   font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .contribute-page {
+    padding: 12px;
+  }
+
+  .back-float-btn {
+    position: static;
+    margin-bottom: 12px;
+  }
+
+  .contribute-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

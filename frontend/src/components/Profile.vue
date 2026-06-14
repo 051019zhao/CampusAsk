@@ -78,6 +78,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getUserProfile, updateUserProfile } from '@/api/auth' // 同时平级引入两个接口
 import { useRouter } from 'vue-router'
+import { toastError, toastSuccess } from '@/utils/toast'
 
 const router = useRouter()
 
@@ -114,11 +115,11 @@ onMounted(async () => {
         localStorage.setItem('nickname', res.data.nickname)
       }
     } else {
-      alert(res.message || '获取个人信息失败，请重新登录')
+      toastError(res.message || '获取个人信息失败，请重新登录')
     }
   } catch (error) {
     console.error('从数据库读取用户信息失败:', error)
-    alert('网络异常，用户信息加载失败')
+    toastError('网络异常，用户信息加载失败')
   } finally {
     loading.value = false
   }
@@ -128,28 +129,28 @@ onMounted(async () => {
 const handleSubmit = async () => {
   // 严格执行 Week 3 规约的长度与友好备选流校验
   if (formData.nickname.trim().length === 0 || formData.nickname.length > 20) {
-    alert('昵称长度必须在 1 到 20 个字符之间！')
+    toastError('昵称长度必须在 1 到 20 个字符之间')
     return
   }
 
   // 对新追加的名言进行前端长度拦截，对齐后端写的 100 字限制
   if (formData.motto && formData.motto.length > 100) {
-    alert('个性名言长度不能超过 100 个字符！')
+    toastError('个性名言长度不能超过 100 个字符')
     return
   }
 
   // 如果填写了新密码，触发修改密码流校验
   if (formData.oldPassword || formData.newPassword || formData.confirmPassword) {
     if (!formData.oldPassword || !formData.newPassword || !formData.confirmPassword) {
-      alert('修改密码时，原密码、新密码和确认密码均不能为空！')
+      toastError('修改密码时，原密码、新密码和确认密码均不能为空')
       return
     }
     if (formData.newPassword.length < 6) {
-      alert('新密码长度不能少于 6 位！')
+      toastError('新密码长度不能少于 6 位')
       return
     }
     if (formData.newPassword !== formData.confirmPassword) {
-      alert('两次输入的新密码不一致！')
+      toastError('两次输入的新密码不一致')
       return
     }
   }
@@ -168,8 +169,24 @@ const handleSubmit = async () => {
     const res = await updateUserProfile(updateData)
 
     if (res.code === 200 || res.success) {
-      alert('个人信息更新成功！')
+      toastSuccess('个人信息更新成功')
       localStorage.setItem('nickname', formData.nickname)
+      if (formData.username) {
+        localStorage.setItem('userId', formData.username)
+        localStorage.setItem('username', formData.username)
+      }
+      if (formData.avatarUrl) {
+        localStorage.setItem('avatarUrl', formData.avatarUrl)
+      }
+
+      // 广播资料更新事件，通知其他页面即时刷新用户信息
+      window.dispatchEvent(new CustomEvent('profile-updated', {
+        detail: {
+          nickname: formData.nickname,
+          username: formData.username,
+          avatarUrl: formData.avatarUrl
+        }
+      }))
 
       // 置空密码框
       formData.oldPassword = ''
@@ -178,11 +195,11 @@ const handleSubmit = async () => {
 
       router.push('/user-center')
     } else {
-      alert(res.message || '更新失败，请检查输入')
+      toastError(res.message || '更新失败，请检查输入')
     }
   } catch (error) {
     console.error('修改个人信息失败', error)
-    alert('网络或系统异常，请稍后再试')
+    toastError('网络或系统异常，请稍后再试')
   } finally {
     loading.value = false
   }

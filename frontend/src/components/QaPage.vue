@@ -11,12 +11,14 @@
         </div>
         <nav class="side-nav">
           <button
-            v-for="item in navItems"
-            :key="item"
+            v-for="item in visibleNavItems"
+            :key="item.label"
             class="nav-item"
+            :class="{ 'nav-item-admin': item.admin }"
             @click="onNavClick(item)"
           >
-            {{ item }}
+            <span class="nav-icon">{{ item.icon }}</span>
+            {{ item.label }}
           </button>
         </nav>
         <div class="side-group">
@@ -113,28 +115,54 @@
       </main>
 
       <aside class="hot-panel">
-        <div class="hot-title">热门 TOP10</div>
+        <!-- 用户信息区：已登录显示头像+昵称，未登录显示登录按钮 -->
+        <div class="user-block">
+          <div v-if="isLoggedIn" class="user-info-wrap">
+            <div class="user-info" @click="$router.push('/user-center')">
+              <div class="user-avatar">
+                <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+                <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+              </div>
+              <div class="user-meta">
+                <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+                <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+              </div>
+            </div>
+            <button class="logout-btn" type="button" @click="logout">退出登录</button>
+          </div>
+          <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+        </div>
+
+        <div class="hot-title">
+          热门 TOP10
+          <div class="hot-tabs">
+            <button :class="{active: selectedRange==='today'}" @click="changeRange('today')">今日</button>
+            <button :class="{active: selectedRange==='7d'}" @click="changeRange('7d')">近7日</button>
+            <button :class="{active: selectedRange==='30d'}" @click="changeRange('30d')">近30日</button>
+          </div>
+        </div>
         <div class="hot-list">
-          <div v-if="hotLoading" class="hot-state">加载中...</div>
+          <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
           <button
             v-else-if="hotError"
-            class="hot-state is-error"
+            class="hot-state is-error ui-state ui-state-error"
             type="button"
-            @click="loadHotList"
+            @click="loadHotList(selectedRange)"
           >
             获取失败，点击重试
           </button>
-          <div v-else-if="hotList.length === 0" class="hot-state">暂无热词</div>
+          <div v-else-if="hotList.length === 0" class="hot-state ui-state ui-state-empty">暂无热词</div>
           <template v-else>
             <button
               v-for="(item, index) in hotList"
-              :key="item + '-' + index"
+              :key="item.keyword + '-' + index"
               class="hot-item"
               type="button"
-              @click="applyHot(item)"
+              @click="applyHot(item.keyword)"
             >
               <span class="hot-rank">{{ index + 1 }}</span>
-              <span class="hot-text">{{ item }}</span>
+              <span class="hot-text">{{ item.keyword }}</span>
+              <span class="hot-count">{{ item.freq }}</span>
             </button>
           </template>
         </div>
@@ -144,6 +172,9 @@
 </template>
 
 <script>
+import { clearAuthState } from '@/utils/request'
+import { toastError } from '@/utils/toast'
+
 export default {
   name: "QaPage",
   data() {
@@ -154,15 +185,62 @@ export default {
       loading: false,
       noResult: false,
       chatMessages: [],
-      navItems: ['首页', '校园服务', '我的收藏', '设置', '茶话会'],
+      navItems: [
+        { label: '首页',     icon: '🏠', route: '/' },
+        { label: '茶话会',   icon: '💬', route: '/teatalk' },
+        { label: '我要投稿', icon: '📝', route: '/contribute' },
+        { label: '我的动态', icon: '❤️', route: '/my-interactions' },
+        { label: '个人中心', icon: '👤', route: '/user-center' },
+      ],
+      userInfo: {
+        nickname: localStorage.getItem('nickname') || '',
+        avatarUrl: localStorage.getItem('avatarUrl') || '',
+        username: localStorage.getItem('userId') || localStorage.getItem('username') || '',
+        role: localStorage.getItem('role') || ''
+      },
       recentList: [],
       hotList: [],
       hotLoading: false,
-      hotError: ''
+      hotError: '',
+      selectedRange: '7d',
+      authExpiredHandler: null,
+      profileUpdatedHandler: null
+    }
+  },
+  computed: {
+    isLoggedIn() { return !!localStorage.getItem('token') },
+    isAdmin() { return String(this.userInfo.role) === '1' },
+    visibleNavItems() {
+      if (!this.isAdmin) return this.navItems
+      return [
+        ...this.navItems,
+        { label: '管理员统计', icon: '📊', route: '/admin/stats', admin: true }
+      ]
+    },
+    avatarInitial() {
+      const name = this.userInfo.nickname || this.userInfo.username || 'U'
+      return name.slice(0, 1).toUpperCase()
     }
   },
   mounted() {
+    this.authExpiredHandler = () => {
+      this.resetUserInfo()
+    }
+    this.profileUpdatedHandler = () => {
+      this.loadUserInfo()
+    }
+    window.addEventListener('auth-expired', this.authExpiredHandler)
+    window.addEventListener('profile-updated', this.profileUpdatedHandler)
     this.refreshMeta()
+    this.loadUserInfo()
+  },
+  beforeUnmount() {
+    if (this.authExpiredHandler) {
+      window.removeEventListener('auth-expired', this.authExpiredHandler)
+    }
+    if (this.profileUpdatedHandler) {
+      window.removeEventListener('profile-updated', this.profileUpdatedHandler)
+    }
   },
   methods: {
     async search() {
@@ -223,12 +301,12 @@ export default {
         }
         this.loading = false
       }
-      // 保存到本地最近搜索（去重，最多6条）
-      const local = JSON.parse(localStorage.getItem('recentSearches') || '[]')
+      // 保存到本地最近搜索（按账号隔离，去重，最多6条）
+      const local = JSON.parse(localStorage.getItem(this.getRecentSearchStorageKey()) || '[]')
       const idx = local.indexOf(question)
       if (idx >= 0) local.splice(idx, 1)
       local.unshift(question)
-      localStorage.setItem('recentSearches', JSON.stringify(local.slice(0, 6)))
+      localStorage.setItem(this.getRecentSearchStorageKey(), JSON.stringify(local.slice(0, 6)))
       this.keyword = ''
       this.refreshMeta()
     },
@@ -248,10 +326,16 @@ export default {
       if (this.noResult) return '暂无相关答案，请尝试其他关键词'
       return '暂无可用答案'
     },
+    getCurrentUsername() {
+      return localStorage.getItem('userId') || localStorage.getItem('username') || ''
+    },
+    getRecentSearchStorageKey() {
+      const username = this.getCurrentUsername()
+      return username ? `recentSearches:${username}` : 'recentSearches:guest'
+    },
     getUserId() {
-      const raw = localStorage.getItem('userId')
-      const parsed = Number.parseInt(raw || '', 10)
-      return Number.isFinite(parsed) ? parsed : null
+      const userId = this.getCurrentUsername()
+      return userId || null
     },
     async refreshMeta() {
       await Promise.all([this.loadHotList(), this.loadHistory()])
@@ -261,14 +345,71 @@ export default {
       this.keyword = item
       this.search()
     },
-    onNavClick(item) {
-      if (item === '茶话会') {
-        this.$router.push({ name: 'TeaTalkPage' })
+    resetUserInfo() {
+      this.userInfo.nickname = ''
+      this.userInfo.avatarUrl = ''
+      this.userInfo.username = ''
+      this.userInfo.role = ''
+    },
+    loadUserInfo() {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        this.resetUserInfo()
+        return
       }
-      // 其他导航项可按需扩展
+      this.userInfo.nickname = localStorage.getItem('nickname') || ''
+      this.userInfo.avatarUrl = localStorage.getItem('avatarUrl') || ''
+      this.userInfo.username = localStorage.getItem('userId') || localStorage.getItem('username') || ''
+      this.userInfo.role = localStorage.getItem('role') || ''
+      // 后台静默刷新，保证头像昵称是最新的
+      fetch('/api/auth/profile', { headers: { token } })
+        .then(async (r) => {
+          if (r.status === 401) {
+            clearAuthState()
+            this.resetUserInfo()
+            toastError('登录已过期，请重新登录')
+            if (this.$route.path !== '/login') {
+              this.$router.replace('/login')
+            }
+            return null
+          }
+          return r.json()
+        })
+        .then(data => {
+          if (!data) return
+          if (data.code === 200 && data.data) {
+            const p = data.data
+            if (p.nickname) { this.userInfo.nickname = p.nickname; localStorage.setItem('nickname', p.nickname) }
+            if (p.avatarUrl) { this.userInfo.avatarUrl = p.avatarUrl; localStorage.setItem('avatarUrl', p.avatarUrl) }
+            if (p.username) {
+              this.userInfo.username = p.username
+              localStorage.setItem('userId', p.username)
+              localStorage.setItem('username', p.username)
+            }
+            if (p.role !== undefined && p.role !== null) {
+              this.userInfo.role = String(p.role)
+              localStorage.setItem('role', String(p.role))
+            }
+          }
+        })
+        .catch(() => {
+          // 网络失败不强制登出，保留本地已登录态等待后续请求校验
+        })
+    },
+    onNavClick(item) {
+      if (item.route) {
+        this.$router.push(item.route)
+      }
     },
     goContribute() {
       this.$router.push({ name: 'ContributePage' })
+    },
+    logout() {
+      clearAuthState()
+      this.resetUserInfo()
+      this.recentList = []
+      window.dispatchEvent(new CustomEvent('auth-expired'))
+      this.$router.replace('/login')
     },
     async sendFeedback(message, helpful) {
       try {
@@ -283,8 +424,8 @@ export default {
           })
         })
         if (res.ok) { message.rated = helpful ? 'up' : 'down' }
-        else { alert('反馈提交失败，请稍后重试') }
-      } catch (e) { alert('反馈提交失败：' + e.message) }
+        else { toastError('反馈提交失败，请稍后重试') }
+      } catch (e) { toastError('反馈提交失败：' + e.message) }
     },
     urlHost(url) {
       try { return new URL(url).hostname } catch { return url }
@@ -301,14 +442,25 @@ export default {
       }
       return map[source] || source
     },
-    async loadHotList() {
+    async loadHotList(range = '7d') {
       this.hotLoading = true
       this.hotError = ''
       try {
-        const res = await fetch('/api/hotspot/top10')
+        const res = await fetch(`/api/hotspot/top10?range=${range}`)
         const data = await res.json()
         if (data.code === 200 && Array.isArray(data.data)) {
-          this.hotList = data.data
+          // 后端返回格式： ["keyword (freq)", ...] or formatted maps
+          const parsed = data.data.map(item => {
+            if (typeof item === 'string') {
+              // 解析 "keyword (n)"
+              const m = item.match(/^(.*)\s*\((\d+)\)\s*$/)
+              if (m) return { keyword: m[1].trim(), freq: Number(m[2]) }
+              return { keyword: item, freq: null }
+            }
+            // 如果后端返回 map-like objects
+            return { keyword: item.keyword || item.name || String(item), freq: item.freq || null }
+          })
+          this.hotList = parsed
         } else {
           this.hotList = []
           this.hotError = 'error'
@@ -320,9 +472,13 @@ export default {
         this.hotLoading = false
       }
     },
+    changeRange(range) {
+      this.selectedRange = range
+      this.loadHotList(range)
+    },
     async loadHistory() {
-      // 先从本地取（已登录和游客都能用）
-      const local = JSON.parse(localStorage.getItem('recentSearches') || '[]')
+      // 先从本地取（按账号隔离）
+      const local = JSON.parse(localStorage.getItem(this.getRecentSearchStorageKey()) || '[]')
       this.recentList = local.slice(0, 6)
       // 如果有 userId，再尝试从后端补充历史
       const userId = this.getUserId()
@@ -856,4 +1012,144 @@ export default {
 .fb-btn.active { border-color: #2E75B6; color: #2E75B6; }
 .fb-btn:disabled { opacity: 0.5; cursor: default; }
 .fb-done { font-size: 11px; color: #67C23A; }
+
+/* ===== 用户信息区（热词面板顶部） ===== */
+.user-block {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+}
+.user-info-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #48b6b5, #5494b9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initial {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.user-role-tag {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.logout-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8f5fb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #e8f5fb;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ===== 热词 Tab 切换 ===== */
+.hot-title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.hot-tabs {
+  display: flex;
+  gap: 4px;
+}
+.hot-tabs button {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 0;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #c8e4f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.hot-tabs button.active {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-weight: 600;
+}
+.hot-tabs button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ===== 热词频次徽章 ===== */
+.hot-count {
+  margin-left: auto;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: #c8e4f0;
+  flex-shrink: 0;
+}
+
+/* ===== 侧边栏导航图标 & 管理员 ===== */
+.nav-icon {
+  margin-right: 4px;
+}
+.nav-item-admin {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde68a;
+}
+.nav-item-admin:hover {
+  background: rgba(251, 191, 36, 0.35);
+}
 </style>
