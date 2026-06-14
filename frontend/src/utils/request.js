@@ -1,4 +1,23 @@
 import axios from 'axios'
+import { toastError } from '@/utils/toast'
+
+export function clearAuthState() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('username')
+    localStorage.removeItem('nickname')
+    localStorage.removeItem('avatarUrl')
+}
+
+function handleAuthExpired(message = '登录已过期，请重新登录') {
+    clearAuthState()
+    window.dispatchEvent(new CustomEvent('auth-expired'))
+    toastError(message)
+    if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+    }
+}
 
 // 1. 创建一个名为 request 的自定义 Axios 实例（统一 baseURL）
 const request = axios.create({
@@ -34,13 +53,22 @@ request.interceptors.response.use(
             return res; // ★ 核心修复：直接返回里面的 data 核心数据！
         }
 
+        if (res.code === 401) {
+            handleAuthExpired(res.message)
+            return Promise.reject(new Error(res.message || 'Unauthorized'))
+        }
+
         // 2. 如果后端返回的是错误（比如未登录、无权限等）
-        alert(res.message || '系统错误');
+        toastError(res.message || '系统错误')
         return Promise.reject(new Error(res.message || 'Error'));
     },
     error => {
+        if (error.response?.status === 401) {
+            handleAuthExpired(error.response?.data?.message)
+            return Promise.reject(error)
+        }
         // 捕获网络、403、500 等 HTTP 异常错误
-        alert(error.response?.data?.message || '网络请求错误');
+        toastError(error.response?.data?.message || '网络请求错误')
         return Promise.reject(error);
     }
 )

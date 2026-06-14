@@ -14,4 +14,23 @@
         LIMIT #{limit}
     </select>
 
+        <select id="findTopKeywordsByRange" resultType="java.util.HashMap">
+                SELECT question AS keyword, COUNT(*) AS freq
+                FROM question_log
+                WHERE question IS NOT NULL
+                    AND question &lt;&gt; ''
+                    AND (source IS NULL OR source &lt;&gt; 'rejected')
+                    AND CHAR_LENGTH(question) &gt; 1
+                    AND question NOT REGEXP '^[0-9]+$'
+                    <if test="startDate != null and startDate != ''">
+                        AND DATE(created_at) &gt;= #{startDate}
+                    </if>
+                    <if test="endDate != null and endDate != ''">
+                        AND DATE(created_at) &lt;= #{endDate}
+                    </if>
+                GROUP BY question
+                ORDER BY freq DESC
+                LIMIT #{limit}
+        </select>
+
 </mapper>
