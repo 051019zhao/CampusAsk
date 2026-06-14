@@ -21,7 +21,7 @@
               </div>
               <input type="file" ref="fileInputRef" style="display: none;" accept="image/jpeg,image/png" @change="handleNativeUpload"/>
               <h2>个人资料中心</h2>
-              <p class="welcome-text">欢迎回来，CampusAsk 用户</p>
+              <p class="welcome-text">欢迎回来，{{ userInfo.nickname || userInfo.username || 'CampusAsk 用户' }}</p>
             </div>
 
             <hr class="divider" />
@@ -152,6 +152,17 @@ onMounted(async () => {
       userInfo.value.avatarUrl = res.data.avatarUrl
       userInfo.value.motto = res.data.motto
 
+      // 同步到本地缓存，保证主页右上角昵称/头像立即一致
+      if (res.data.username) {
+        localStorage.setItem('userId', res.data.username)
+        localStorage.setItem('username', res.data.username)
+      }
+      if (res.data.nickname) localStorage.setItem('nickname', res.data.nickname)
+      if (res.data.avatarUrl) localStorage.setItem('avatarUrl', res.data.avatarUrl)
+      if (res.data.role !== undefined && res.data.role !== null) {
+        localStorage.setItem('role', String(res.data.role))
+      }
+
       // ✨✨✨【核心修正：解决时有时无的时差漏洞】
       // 拿到真实数据后，直接把当前获取到的热学号以参数形式强制注入接口，杜绝请求裸奔退出
       fetchHistoryData()
@@ -252,6 +263,7 @@ const handleNativeUpload = async (event) => {
       })
 
       userInfo.value.avatarUrl = newAvatarUrl
+      localStorage.setItem('avatarUrl', newAvatarUrl)
       alert('头像已成功更换并保存！')
     }
   } catch (error) {

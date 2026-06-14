@@ -59,6 +59,15 @@
           <div class="empty-text">还没有帖子，快来发布第一条吧！</div>
         </div>
 
+        <button
+          v-else-if="postError"
+          class="ui-state ui-state-error retry-btn"
+          type="button"
+          @click="loadPosts"
+        >
+          {{ postError }}（点击重试）
+        </button>
+
         <transition-group v-else name="list" tag="div" class="post-list">
           <article
             v-for="post in postList"
@@ -247,8 +256,18 @@
     <aside class="hot-panel">
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
-        <div v-if="hotPosts.length === 0" class="hot-state">暂无数据</div>
+        <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
         <button
+          v-else-if="hotError"
+          class="hot-state ui-state ui-state-error"
+          type="button"
+          @click="loadHotPosts"
+        >
+          {{ hotError }}（点击重试）
+        </button>
+        <div v-else-if="hotPosts.length === 0" class="hot-state ui-state ui-state-empty">暂无数据</div>
+        <button
+          v-else
           v-for="(post, index) in hotPosts"
           :key="post.id"
           class="hot-item"
@@ -271,6 +290,7 @@ import {
   likeForumPost,
   deleteForumPost
 } from '@/api/forum'
+import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
   name: 'TeaTalkPage',
@@ -283,6 +303,7 @@ export default {
       pageSize: 10,
       hasMore: false,
       loading: false,
+      postError: '',
 
       // 详情
       showDetail: false,
@@ -301,6 +322,8 @@ export default {
 
       // 右侧热门
       hotPosts: [],
+      hotLoading: false,
+      hotError: '',
 
       hotTags: ['校园生活', '学习交流', '情感树洞', '二手交易', '社团活动', '求助']
     }
@@ -325,15 +348,19 @@ export default {
   methods: {
     async loadPosts() {
       this.loading = true
+      this.postError = ''
       try {
         const res = await getForumPosts(this.currentPage, this.pageSize)
         if (res.code === 200) {
           this.postList = res.data.list || []
           this.totalPosts = res.data.total || 0
           this.hasMore = this.currentPage < (res.data.totalPages || 1)
+        } else {
+          this.postError = '帖子加载失败'
         }
       } catch (e) {
         console.error('加载帖子失败:', e)
+        this.postError = '帖子加载失败'
       } finally {
         this.loading = false
       }
@@ -493,7 +520,7 @@ export default {
     },
     async publishPost() {
       if (!this.newPost.title.trim() || !this.newPost.content.trim()) {
-        alert('标题和内容不能为空')
+        toastError('标题和内容不能为空')
         return
       }
       this.submitting = true
@@ -503,6 +530,7 @@ export default {
           content: this.newPost.content.trim()
         })
         if (res.code === 200) {
+          toastSuccess('发布成功')
           this.newPost = { title: '', content: '' }
           this.showCreatePost = false
           this.currentPage = 1
@@ -510,25 +538,34 @@ export default {
         }
       } catch (e) {
         console.error('发布失败:', e)
-        alert('发布失败，请检查登录状态')
+        toastError('发布失败，请检查登录状态')
       } finally {
         this.submitting = false
       }
     },
     async loadHotPosts() {
+      this.hotLoading = true
+      this.hotError = ''
       try {
         const res = await getForumPosts(1, 5)
         if (res.code === 200) {
           const list = res.data.list || []
           this.hotPosts = [...list].sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0)).slice(0, 5)
+        } else {
+          this.hotPosts = []
+          this.hotError = '热门加载失败'
         }
       } catch (e) {
         console.error('加载热门失败:', e)
+        this.hotPosts = []
+        this.hotError = '热门加载失败'
+      } finally {
+        this.hotLoading = false
       }
     },
     searchTag(tag) {
       // 后续可扩展为按标签搜索
-      alert('搜索标签：' + tag + '（功能开发中）')
+      toastInfo('搜索标签：' + tag + '（功能开发中）')
     },
     goHome() {
       this.$router.push({ name: 'QaPage' })
@@ -1347,6 +1384,11 @@ export default {
   text-align: center;
 }
 
+.retry-btn {
+  border: none;
+  cursor: pointer;
+}
+
 .hot-rank {
   font-weight: 700;
   font-size: 14px;
@@ -1368,5 +1410,41 @@ export default {
 .list-enter-from {
   opacity: 0;
   transform: translateY(20px);
+}
+
+@media (max-width: 1100px) {
+  .teatalk-page {
+    grid-template-columns: 200px 1fr;
+  }
+
+  .hot-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .teatalk-page {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .side-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .side-group {
+    flex: 1 1 100%;
+  }
+
+  .comment-composer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .send-comment-btn {
+    width: 100%;
+  }
 }
 </style>
