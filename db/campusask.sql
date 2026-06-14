@@ -113,10 +113,11 @@ INSERT INTO `knowledge` VALUES (4, '在哪里打印', '校内打印点在图书�
 DROP TABLE IF EXISTS `question_log`;
 CREATE TABLE `question_log`  (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NULL DEFAULT NULL,
+  `user_id` varchar(50) NULL DEFAULT NULL COMMENT '用户学号/工号',
   `question` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `answer` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `source` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'knowledge',
+  `processed` tinyint(1) NULL DEFAULT 0,
   `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
@@ -124,6 +125,57 @@ CREATE TABLE `question_log`  (
 -- ----------------------------
 -- Records of question_log
 -- ----------------------------
+
+-- ----------------------------
+-- Table structure for forum_post（茶话会帖子）
+-- ----------------------------
+DROP TABLE IF EXISTS `forum_post`;
+CREATE TABLE `forum_post` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '发帖用户学号/工号',
+  `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子标题',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子内容',
+  `images` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '图片URL列表，逗号分隔',
+  `view_count` int DEFAULT 0 COMMENT '浏览量',
+  `like_count` int DEFAULT 0 COMMENT '点赞数',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_user_id` (`user_id`) USING BTREE,
+  KEY `idx_created_at` (`created_at`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for forum_comment（茶话会评论）
+-- ----------------------------
+DROP TABLE IF EXISTS `forum_comment`;
+CREATE TABLE `forum_comment` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `post_id` bigint NOT NULL COMMENT '关联帖子ID',
+  `user_id` varchar(50) NOT NULL COMMENT '评论用户学号/工号',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论内容',
+  `parent_id` bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论',
+  `reply_to_user_id` varchar(50) DEFAULT NULL COMMENT '被回复用户学号/工号',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_post_id` (`post_id`) USING BTREE,
+  KEY `idx_user_id` (`user_id`) USING BTREE,
+  KEY `idx_parent_id` (`parent_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for forum_like（茶话会点赞记录）
+-- ----------------------------
+DROP TABLE IF EXISTS `forum_like`;
+CREATE TABLE `forum_like` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `post_id` bigint NOT NULL COMMENT '帖子ID',
+  `user_id` varchar(50) NOT NULL COMMENT '用户学号/工号',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_post_user` (`post_id`, `user_id`) USING BTREE,
+  KEY `idx_user_id` (`user_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for user
@@ -146,3 +198,42 @@ CREATE TABLE `user`  (
 SET FOREIGN_KEY_CHECKS = 1;
 
 ALTER TABLE user ADD COLUMN nickname VARCHAR(20) DEFAULT NULL COMMENT '用户昵称';
+ALTER TABLE user ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL COMMENT '头像链接';
+ALTER TABLE user ADD COLUMN motto VARCHAR(255) DEFAULT NULL COMMENT '个人名言';
+
+-- 评论回复功能：添加 parent_id 和 reply_to_user_id
+-- ALTER TABLE forum_comment ADD COLUMN  parent_id bigint DEFAULT NULL COMMENT '父评论ID，NULL表示顶级评论';
+-- ALTER TABLE forum_comment ADD COLUMN  reply_to_user_id bigint DEFAULT NULL COMMENT '被回复用户ID';
+
+-- 反馈表
+CREATE TABLE IF NOT EXISTS feedback (
+                                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                                        question VARCHAR(500),
+                                        answer TEXT,
+                                        source VARCHAR(50),
+                                        helpful TINYINT(1) DEFAULT 1,
+                                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+-- 更新为学术学习类
+UPDATE knowledge SET category = '学术学习' 
+WHERE category IN ('课程相关', '考试相关', '论文相关', '学习指导', '课程', '考试', '论文');
+
+-- 更新为校园生活类
+UPDATE knowledge SET category = '校园生活' 
+WHERE category IN ('宿舍相关', '食堂相关', '活动相关', '宿舍', '食堂', '活动', '校园活动');
+
+-- 更新为规章制度类
+UPDATE knowledge SET category = '规章制度' 
+WHERE category IN ('学籍相关', '奖惩相关', '日常管理', '学籍', '奖惩', '管理');
+
+-- 更新为就业指导类
+UPDATE knowledge SET category = '就业指导' 
+WHERE category IN ('实习相关', '招聘相关', '职业规划', '实习', '招聘', '就业');
+
+-- 更新为技术支持类
+UPDATE knowledge SET category = '技术支持' 
+WHERE category IN ('网络相关', '系统相关', '设备相关', '网络', '系统', '设备', '技术');
+
+-- 更新为其他服务类
+UPDATE knowledge SET category = '其他服务' 
+WHERE category IN ('医疗相关', '后勤相关', '综合咨询', '医疗', '后勤', '其他');

@@ -92,7 +92,7 @@ export default {
     async loadPending() {
       this.loading = true
       try {
-        const res = await fetch('http://localhost:8080/api/contribute/pending', {
+        const res = await fetch('/api/contribute/pending', {
           headers: this.getAuthHeaders(),
         })
         const data = await res.json()
@@ -120,7 +120,7 @@ export default {
         return
       }
       try {
-        const res = await fetch(`http://localhost:8080/api/contribute/${item.id}/review`, {
+        const res = await fetch(`/api/contribute/${item.id}/review`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -157,7 +157,7 @@ export default {
       if (!this.currentRejectItem) return
       try {
         const res = await fetch(
-          `http://localhost:8080/api/contribute/${this.currentRejectItem.id}/review`,
+          `/api/contribute/${this.currentRejectItem.id}/review`,
           {
             method: 'PUT',
             headers: {

@@ -1,7 +1,7 @@
 // src/utils/request.js
 import axios from 'axios'
 
-axios.defaults.baseURL = 'http://localhost:8080'
+axios.defaults.baseURL = ''  // 使用相对路径
 
 // 请求拦截器：自动携带 Token
 axios.interceptors.request.use(

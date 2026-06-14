@@ -21,4 +21,32 @@
             (#{item.title}, #{item.content}, #{item.category}, #{item.keywords}, #{item.viewCount}, #{item.createdBy}, NOW())
         </foreach>
     </insert>
-    </mapper>
+    <!-- 分页查询知识点（支持关键词和分类筛选）-->
+    <select id="listByCondition" resultType="com.campusask.campusask.entity.Knowledge">
+        SELECT * FROM knowledge
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%') OR keywords LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+ 
+    <!-- 统计符合条件的知识点数量 -->
+    <select id="countByCondition" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM knowledge
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%') OR keywords LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+        </where>
+    </select>
+ 
+</mapper>

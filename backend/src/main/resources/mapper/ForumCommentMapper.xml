@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.campusask.campusask.mapper.ForumCommentMapper">
+
+    <insert id="insertComment" parameterType="com.campusask.campusask.entity.ForumComment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO forum_comment (post_id, user_id, content, parent_id, reply_to_user_id)
+        VALUES (#{postId}, #{userId}, #{content}, #{parentId}, #{replyToUserId})
+    </insert>
+
+    <select id="selectByPostId" parameterType="long" resultMap="commentWithUser">
+        SELECT
+            fc.*,
+            u.nickname AS nickname,
+            ru.nickname AS reply_to_nickname
+        FROM forum_comment fc
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
+        WHERE fc.post_id = #{postId}
+        ORDER BY fc.created_at ASC
+    </select>
+
+    <select id="selectTopLevelByPostId" parameterType="long" resultMap="commentWithUser">
+        SELECT
+            fc.*,
+            u.nickname AS nickname,
+            ru.nickname AS reply_to_nickname
+        FROM forum_comment fc
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
+        WHERE fc.post_id = #{postId} AND fc.parent_id IS NULL
+        ORDER BY fc.created_at ASC
+    </select>
+
+    <select id="selectRepliesByParentId" parameterType="long" resultMap="commentWithUser">
+        SELECT
+            fc.*,
+            u.nickname AS nickname,
+            ru.nickname AS reply_to_nickname
+        FROM forum_comment fc
+        LEFT JOIN user u ON fc.user_id = u.username
+        LEFT JOIN user ru ON fc.reply_to_user_id = ru.username
+        WHERE fc.parent_id = #{parentId}
+        ORDER BY fc.created_at ASC
+    </select>
+
+    <select id="countByPostId" parameterType="long" resultType="int">
+        SELECT COUNT(*) FROM forum_comment WHERE post_id = #{postId}
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM forum_comment WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByPostId" parameterType="long">
+        DELETE FROM forum_comment WHERE post_id = #{postId}
+    </delete>
+
+    <resultMap id="commentWithUser" type="com.campusask.campusask.entity.ForumComment" autoMapping="true">
+        <id property="id" column="id"/>
+        <result property="nickname" column="nickname"/>
+        <result property="replyToNickname" column="reply_to_nickname"/>
+    </resultMap>
+
+</mapper>

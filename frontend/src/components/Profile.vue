@@ -25,6 +25,16 @@
           />
         </div>
 
+        <div class="form-item">
+          <label>个性名言</label>
+          <textarea
+              v-model="formData.motto"
+              placeholder="写下一句你的人生格言吧...（选填，最多100字）"
+              class="motto-textarea"
+              rows="3"
+          ></textarea>
+        </div>
+
         <div class="password-divider">
           <span>安全设置（如需修改密码请填写）</span>
         </div>
@@ -67,13 +77,18 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { getUserProfile, updateUserProfile } from '@/api/auth' // 同时平级引入两个接口
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const loading = ref(false)
 
-// 表单数据绑定
+// 表单数据绑定（：在这里补上 motto 和 avatarUrl 字段）
 const formData = reactive({
   username: '',      // 初始留空，由数据库实时读取后填充
   nickname: '',      // 初始留空
+  motto: '',         // 新增个性名言绑定
+  avatarUrl: '',     // 新增头像 URL 暂存绑定（用于配合主页上传后的无缝持久化）
   oldPassword: '',
   newPassword: '',
   confirmPassword: ''
@@ -89,6 +104,10 @@ onMounted(async () => {
       // 将数据库里的学号、昵称真实渲染到对应的输入框中
       formData.username = res.data.username
       formData.nickname = res.data.nickname || '新用户'
+
+      // 同步回显数据库中已有的个性名言和头像链接
+      formData.motto = res.data.motto || ''
+      formData.avatarUrl = res.data.avatarUrl || ''
 
       // 同步刷新一下本地缓存中的昵称，确保导航栏欢迎语同步
       if (res.data.nickname) {
@@ -113,6 +132,12 @@ const handleSubmit = async () => {
     return
   }
 
+  // 对新追加的名言进行前端长度拦截，对齐后端写的 100 字限制
+  if (formData.motto && formData.motto.length > 100) {
+    alert('个性名言长度不能超过 100 个字符！')
+    return
+  }
+
   // 如果填写了新密码，触发修改密码流校验
   if (formData.oldPassword || formData.newPassword || formData.confirmPassword) {
     if (!formData.oldPassword || !formData.newPassword || !formData.confirmPassword) {
@@ -131,9 +156,11 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    // 组装传输数据
+    // 组装传输数据（✨ 补丁 5：把名言和头像 URL 打包带过去送给 /auth/profile 接口）
     const updateData = {
       nickname: formData.nickname,
+      motto: formData.motto,          // 带着新名言
+      avatarUrl: formData.avatarUrl,  // 带着当前最新的头像链接
       oldPassword: formData.oldPassword || null,
       newPassword: formData.newPassword || null
     }
@@ -148,6 +175,8 @@ const handleSubmit = async () => {
       formData.oldPassword = ''
       formData.newPassword = ''
       formData.confirmPassword = ''
+
+      router.push('/user-center')
     } else {
       alert(res.message || '更新失败，请检查输入')
     }
@@ -161,9 +190,8 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
-/* 🎯 保持原本的纯手写 CSS 绿调风格，不做任何修改 */
+/* 🎯 原有 CSS 全部完美保留，下面仅追补原生文本域的绿调视觉反馈样式 */
 
-/* 基础容器 */
 .auth-container {
   display: flex;
   flex-direction: column;
@@ -174,7 +202,6 @@ const handleSubmit = async () => {
   padding: 20px;
 }
 
-/* 核心登录框外壳 */
 .auth-box {
   width: 100%;
   max-width: 400px;
@@ -226,20 +253,34 @@ h2 {
   transition: all 0.25s ease;
 }
 
-/* 聚焦时变为专属绿色 */
 .form-item input:focus {
   border-color: #42b883;
   box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
 }
 
-/* 只读输入框特定优雅样式 */
+/* ✨ 新增：手写多行文本输入域样式（完美融合原生绿调） */
+.motto-textarea {
+  padding: 12px;
+  font-size: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  outline: none;
+  resize: none; /* 禁止拖动破坏表单布局 */
+  font-family: inherit;
+  transition: all 0.25s ease;
+}
+
+.motto-textarea:focus {
+  border-color: #42b883;
+  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
+}
+
 .disabled-input {
   background-color: #f9f9f9;
   color: #aaa;
   cursor: not-allowed;
 }
 
-/* 完美融合的 CSS 分割线样式 */
 .password-divider {
   display: flex;
   align-items: center;
@@ -260,7 +301,6 @@ h2 {
   padding: 0 10px;
 }
 
-/* 统一宽体的 `#42b883` 绿色提交按钮 */
 .submit-btn {
   width: 100%;
   padding: 12px;

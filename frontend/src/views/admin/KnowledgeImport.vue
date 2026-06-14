@@ -22,13 +22,19 @@
         placeholder="输入关键词搜索知识点"
         @keyup.enter="searchData"
       />
+      <select v-model="selectedCategory">
+        <option value="">全部分类</option>
+        <option v-for="cat in categories" :key="cat" :value="cat">
+          {{ cat }}
+        </option>
+      </select>
       <button @click="searchData">搜索</button>
       <button @click="loadAllData">刷新全部</button>
-      <button @click="$refs.file.click()">导入Excel</button>
+      <button @click="$refs.file.click()">导入Excel/csv</button>
       <input
         ref="file"
         type="file"
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.csv"
         hidden
         @change="uploadExcel"
       />
@@ -117,10 +123,28 @@
         </div>
       </div>
     </div>
-
-    <!-- 提示消息 -->
-    <div v-if="message" :class="['message', messageType]">
-      {{ message }}
+    <!-- 导入错误详情弹窗 -->
+    <div v-if="errorModalVisible" class="modal-overlay">
+      <div class="modal error-modal">
+        <h3>⚠️ 导入错误详情</h3>
+        <p class="error-count">
+          共 {{ errorRows.length }} 行数据导入失败，请修改后重新导入
+        </p>
+        <div class="error-list">
+          <div
+            v-for="(error, index) in errorRows"
+            :key="index"
+            class="error-item"
+          >
+            {{ error }}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-success" @click="errorModalVisible = false">
+            我知道了，修改后重新导入
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -132,6 +156,8 @@ export default {
     return {
       messages: [], // 新增：消息队列
       keyword: "",
+      selectedCategory: "", // 新增：选中的分类
+      categories: [], // 新增：分类列表
       list: [],
       loading: false,
       editingId: null,
@@ -143,12 +169,15 @@ export default {
       },
       deleteConfirmVisible: false,
       deleteItem: null,
+      errorModalVisible: false, // 新增：错误弹窗可见性
+      errorRows: [], // 新增：错误行列表
       // 删除：message: "",
       // 删除：messageType: "success",
     };
   },
   mounted() {
     this.loadAllData();
+    this.loadCategories();
   },
   methods: {
     // 新增：消息提示方法
@@ -156,16 +185,31 @@ export default {
       // 添加新消息到队列
       this.messages.push({ text: msg, type: type });
 
-      // 5秒后自动移除
+      // 3秒后自动移除
       setTimeout(() => {
         if (this.messages.length > 0) {
           this.messages.shift();
         }
-      }, 5000);
+      }, 3000);
     },
     // 新增：手动关闭消息
     removeMessage(index) {
       this.messages.splice(index, 1);
+    },
+    async loadCategories() {
+      this.loading = true;
+      try {
+        const res = await fetch("/api/knowledge/categories", {
+          headers: this.getAuthHeaders(),
+        });
+        const data = await res.json();
+
+        if (data.code === 200) {
+          this.categories = data.data;
+        }
+      } catch (err) {
+        console.error("获取分类列表失败:", err);
+      }
     },
     getAuthHeaders() {
       const token = localStorage.getItem("token");
@@ -173,45 +217,36 @@ export default {
     },
 
     async loadAllData() {
-      this.loading = true;
-      try {
-        const res = await fetch("http://localhost:8080/api/knowledge/listAll", {
-          headers: this.getAuthHeaders(),
-        });
-        const data = await res.json();
-        console.log("响应数据:", data); // 添加日志
-        if (data.code === 200) {
-          this.list = data.data;
-          this.message = "";
-        } else {
-          this.list = [];
-          this.showMessage(data.message || "获取知识点失败", "error");
-        }
-      } catch (err) {
-        console.error("加载失败:", err);
-        this.list = [];
-      } finally {
-        this.loading = false;
-      }
+      // 重置筛选条件
+      this.keyword = "";
+      this.selectedCategory = "";
+      await this.searchData();
     },
     async searchData() {
-      if (!this.keyword.trim()) {
-        this.loadAllData();
-        return;
-      }
       this.loading = true;
       try {
-        const url = `http://localhost:8080/api/knowledge/search?keyword=${encodeURIComponent(
-          this.keyword,
-        )}`;
+        // 构建查询参数
+        const params = new URLSearchParams();
+        if (this.keyword.trim()) {
+          params.append("keyword", this.keyword.trim());
+        }
+        if (this.selectedCategory) {
+          params.append("category", this.selectedCategory);
+        }
+        params.append("page", "1");
+        params.append("size", "100"); // 每页显示100条
+
+        const url = `/api/knowledge/list?${params.toString()}`;
         const res = await fetch(url, {
           headers: this.getAuthHeaders(),
         });
         const data = await res.json();
+        console.log("响应数据:", data);
         if (data.code === 200) {
-          this.list = data.data;
+          this.list = data.data?.list || [];
         } else {
           this.list = [];
+          this.showMessage(data.message || "获取知识点失败", "error");
         }
       } catch (err) {
         console.error("搜索失败:", err);
@@ -227,25 +262,22 @@ export default {
       const form = new FormData();
       form.append("file", file);
       try {
-        const res = await fetch(
-          "http://localhost:8080/api/knowledge/importExcel",
-          {
-            method: "POST",
-            headers: this.getAuthHeaders(),
-            body: form,
-          },
-        );
+        const res = await fetch("/api/knowledge/importExcel", {
+          method: "POST",
+          headers: this.getAuthHeaders(),
+          body: form,
+        });
         const data = await res.json();
         console.log("导入响应:", data);
         if (data.code === 200) {
           this.showMessage(data.message, "success");
-          // 如果有错误行，显示详细错误信息
+          // 如果有错误行，显示详细错误弹窗
           if (
             data.data &&
             data.data.errorRows &&
             data.data.errorRows.length > 0
           ) {
-            alert("错误行详情:\n" + data.data.errorRows.join("\n"));
+            this.showErrorModal(data.data.errorRows);
           }
         } else {
           this.showMessage(data.message, "error");
@@ -257,6 +289,11 @@ export default {
       // 清空文件，防止重复选同一个不触发change
       this.$refs.file.value = "";
     },
+    // 显示错误详情弹窗
+    showErrorModal(errorRows) {
+      this.errorRows = errorRows;
+      this.errorModalVisible = true;
+    },
     // 开始编辑
     startEdit(item) {
       this.editingId = item.id;
@@ -267,10 +304,11 @@ export default {
         keywords: item.keywords,
       };
     },
+
     // 保存编辑
     async saveEdit(id) {
       try {
-        const res = await fetch(`http://localhost:8080/api/knowledge/${id}`, {
+        const res = await fetch(`/api/knowledge/${id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -309,13 +347,10 @@ export default {
     async confirmDelete() {
       if (!this.deleteItem) return;
       try {
-        const res = await fetch(
-          `http://localhost:8080/api/knowledge/${this.deleteItem.id}`,
-          {
-            method: "DELETE",
-            headers: this.getAuthHeaders(),
-          },
-        );
+        const res = await fetch(`/api/knowledge/${this.deleteItem.id}`, {
+          method: "DELETE",
+          headers: this.getAuthHeaders(),
+        });
         const data = await res.json();
         if (data.code === 200) {
           this.showMessage(data.message, "success");
@@ -329,14 +364,6 @@ export default {
         this.deleteConfirmVisible = false;
         this.deleteItem = null;
       }
-    },
-    // 显示消息提示
-    showMessage(msg, type) {
-      this.message = msg;
-      this.messageType = type;
-      setTimeout(() => {
-        this.message = "";
-      }, 3000);
     },
   },
 };
@@ -364,6 +391,13 @@ h1 {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   font-size: 14px;
+}
+.search-bar select {
+  padding: 8px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 120px;
 }
 .btn {
   padding: 8px 16px;
@@ -462,6 +496,32 @@ th {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+/* 错误弹窗样式 */
+.error-modal {
+  max-width: 600px;
+  max-height: 70vh;
+  overflow: hidden;
+}
+.error-count {
+  color: #f56c6c;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+.error-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #f5f7fa;
+  border-radius: 4px;
+  padding: 10px;
+}
+.error-item {
+  padding: 8px 12px;
+  margin-bottom: 5px;
+  background: #fef0f0;
+  color: #f56c6c;
+  border-radius: 4px;
+  font-size: 14px;
 }
 /* 消息提示样式 */
 .message-container {

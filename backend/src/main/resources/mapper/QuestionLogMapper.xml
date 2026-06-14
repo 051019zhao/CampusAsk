@@ -6,13 +6,13 @@
 
     <insert id="insertLog" parameterType="com.campusask.campusask.entity.QuestionLog">
         INSERT INTO question_log (user_id, question, answer, source)
-        VALUES (#{userId}, #{question}, #{answer}, #{source})
+        VALUES (#{userId, jdbcType=VARCHAR}, #{question}, #{answer}, #{source})
     </insert>
 
     <select id="findRecentByUserId" resultType="com.campusask.campusask.entity.QuestionLog">
         SELECT id, user_id, question, answer, source, created_at
         FROM question_log
-        WHERE user_id = #{userId}
+        WHERE user_id = #{userId, jdbcType=VARCHAR}
         ORDER BY created_at DESC
         LIMIT #{limit}
     </select>
@@ -34,6 +34,52 @@
                     AND question &lt;&gt; ''
                 ORDER BY created_at DESC
                 LIMIT #{limit}
+        </select>
+
+        <select id="findUnprocessed" resultType="com.campusask.campusask.entity.QuestionLog">
+            SELECT id, user_id, question, answer, source, created_at, processed
+            FROM question_log
+            WHERE processed = 0
+            ORDER BY created_at ASC
+            LIMIT #{limit}
+        </select>
+
+        <update id="markProcessed">
+            UPDATE question_log SET processed = 1 WHERE id = #{id}
+        </update>
+
+        <!-- 统计面板 SQL -->
+        <select id="countByDate" resultType="int">
+            SELECT COUNT(*) FROM question_log
+            WHERE DATE(created_at) = #{date}
+        </select>
+
+        <select id="countByDateRange" resultType="java.util.HashMap">
+            SELECT DATE(created_at) AS date, COUNT(*) AS count
+            FROM question_log
+            WHERE DATE(created_at) BETWEEN #{startDate} AND #{endDate}
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        </select>
+
+        <select id="countBySource" resultType="java.util.HashMap">
+            SELECT source AS name, COUNT(*) AS value
+            FROM question_log
+            WHERE source IS NOT NULL
+            GROUP BY source
+            ORDER BY value DESC
+        </select>
+
+        <select id="findQuestionsByDate" resultType="java.lang.String">
+            SELECT question FROM question_log
+            WHERE DATE(created_at) = #{date} AND question IS NOT NULL AND question &lt;&gt; ''
+        </select>
+
+        <select id="findQuestionsByDateLimit" resultType="java.lang.String">
+            SELECT question FROM question_log
+            WHERE DATE(created_at) = #{date} AND question IS NOT NULL AND question &lt;&gt; ''
+            ORDER BY created_at DESC
+            LIMIT #{limit}
         </select>
 
 </mapper>

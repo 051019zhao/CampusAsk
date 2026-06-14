@@ -14,6 +14,7 @@
             v-for="item in navItems"
             :key="item"
             class="nav-item"
+            @click="onNavClick(item)"
           >
             {{ item }}
           </button>
@@ -21,7 +22,7 @@
         <div class="side-group">
           <div class="side-title">最近搜索</div>
           <div class="side-list">
-            <div v-for="item in recentList" :key="item" class="side-chip">
+            <div v-for="item in recentList" :key="item" class="side-chip" @click="applyHot(item)">
               {{ item }}
             </div>
           </div>
@@ -62,6 +63,31 @@
                 {{ sourceLabel(message.source) }}
               </span>
               <div class="chat-text">{{ message.text }}</div>
+              <div v-if="message.role === 'bot'" class="feedback-row">
+                <button
+                  class="fb-btn"
+                  :class="{ active: message.rated === 'up' }"
+                  :disabled="!!message.rated"
+                  @click="sendFeedback(message, true)"
+                >👍 有帮助</button>
+                <button
+                  class="fb-btn"
+                  :class="{ active: message.rated === 'down' }"
+                  :disabled="!!message.rated"
+                  @click="sendFeedback(message, false)"
+                >👎 没帮助</button>
+                <span v-if="message.rated" class="fb-done">已反馈</span>
+              </div>
+              <div v-if="message.urls && message.urls.length" class="source-links">
+                <span class="source-links-title">📎 参考来源</span>
+                <a
+                  v-for="(u, i) in message.urls.slice(0,3)"
+                  :key="i"
+                  :href="u"
+                  target="_blank"
+                  class="source-link"
+                >{{ urlHost(u) }}</a>
+              </div>
             </div>
             <div v-if="loading" class="chat-bubble bot loading-bubble">
               正在查询...
@@ -128,7 +154,7 @@ export default {
       loading: false,
       noResult: false,
       chatMessages: [],
-      navItems: ['首页', '校园服务', '我的收藏', '设置'],
+      navItems: ['首页', '校园服务', '我的收藏', '设置', '茶话会'],
       recentList: [],
       hotList: [],
       hotLoading: false,
@@ -154,15 +180,20 @@ export default {
       this.aiAnswer = ''
       let replyText = ''
       let source = ''
+      let searchUrls = []
       try {
+        const token = localStorage.getItem('token')
+        const headers = { 'Content-Type': 'application/json' }
+        if (token) headers['token'] = token
         const res = await fetch('/api/qa/ask', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ keyword: question })
         })
         const data = await res.json()
         if (data.code === 200 && data.data) {
           source = data.data.source || ''
+          searchUrls = data.data.searchUrls || []
           const ans = data.data.answer
           if (Array.isArray(ans)) {
             this.results = ans
@@ -185,20 +216,34 @@ export default {
             id: `${Date.now()}-bot`,
             role: 'bot',
             text: replyText,
-            source: source
+            source: source,
+            urls: searchUrls,
+            question: question  // 绑定对应的问题
           })
         }
         this.loading = false
       }
+      // 保存到本地最近搜索（去重，最多6条）
+      const local = JSON.parse(localStorage.getItem('recentSearches') || '[]')
+      const idx = local.indexOf(question)
+      if (idx >= 0) local.splice(idx, 1)
+      local.unshift(question)
+      localStorage.setItem('recentSearches', JSON.stringify(local.slice(0, 6)))
       this.keyword = ''
       this.refreshMeta()
     },
     buildAnswerText() {
-      if (this.aiAnswer) return this.aiAnswer
+      if (this.aiAnswer) {
+        // 清理来源标记和多余空白，这些信息已在标签中展示
+        return this.aiAnswer
+          .replace(/\[来源:.*?\]/g, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim()
+      }
       if (Array.isArray(this.results) && this.results.length > 0) {
         return this.results
-          .map((item) => `${item.title}：${item.content}`)
-          .join('\n')
+          .map((item) => `📌 ${item.title}\n${item.content}`)
+          .join('\n\n')
       }
       if (this.noResult) return '暂无相关答案，请尝试其他关键词'
       return '暂无可用答案'
@@ -216,8 +261,33 @@ export default {
       this.keyword = item
       this.search()
     },
+    onNavClick(item) {
+      if (item === '茶话会') {
+        this.$router.push({ name: 'TeaTalkPage' })
+      }
+      // 其他导航项可按需扩展
+    },
     goContribute() {
       this.$router.push({ name: 'ContributePage' })
+    },
+    async sendFeedback(message, helpful) {
+      try {
+        const res = await fetch('/api/qa/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: message.question || '',
+            answer: message.text,
+            source: message.source || '',
+            helpful: helpful
+          })
+        })
+        if (res.ok) { message.rated = helpful ? 'up' : 'down' }
+        else { alert('反馈提交失败，请稍后重试') }
+      } catch (e) { alert('反馈提交失败：' + e.message) }
+    },
+    urlHost(url) {
+      try { return new URL(url).hostname } catch { return url }
     },
     sourceLabel(source) {
       const map = {
@@ -251,20 +321,21 @@ export default {
       }
     },
     async loadHistory() {
+      // 先从本地取（已登录和游客都能用）
+      const local = JSON.parse(localStorage.getItem('recentSearches') || '[]')
+      this.recentList = local.slice(0, 6)
+      // 如果有 userId，再尝试从后端补充历史
       const userId = this.getUserId()
-      if (!userId) {
-        this.recentList = []
-        return
-      }
+      if (!userId) return
       try {
         const res = await fetch(`/api/qa/history?userId=${userId}`)
         const data = await res.json()
-        if (data.code === 200 && Array.isArray(data.data)) {
-          this.recentList = data.data
+        if (data.code === 200 && Array.isArray(data.data) && data.data.length > 0) {
+          // 合并去重
+          const merged = [...new Set([...data.data, ...this.recentList])]
+          this.recentList = merged.slice(0, 6)
         }
-      } catch (e) {
-        this.recentList = []
-      }
+      } catch (e) { /* 后端不可用时用本地数据兜底 */ }
     }
   }
 }
@@ -516,7 +587,8 @@ export default {
   border-radius: 16px;
   font-size: 13px;
   line-height: 1.6;
-  white-space: pre-line;
+  white-space: pre-wrap;
+  word-break: break-word;
   box-shadow: 0 8px 16px rgba(41, 59, 69, 0.08);
 }
 
@@ -737,4 +809,51 @@ export default {
   background: #fee2e2;
   color: #991b1b;
 }
+.source-links {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #dee6eb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.source-links-title {
+  font-size: 11px;
+  color: #6b8290;
+  margin-right: 4px;
+}
+.source-link {
+  font-size: 11px;
+  color: #2E75B6;
+  text-decoration: none;
+  background: #e8f0f5;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.source-link:hover {
+  text-decoration: underline;
+  background: #d0dde5;
+}
+.feedback-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.fb-btn {
+  border: 1px solid #d5dce3;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #6b8290;
+}
+.fb-btn:hover:not(:disabled) {
+  background: #f0f4f7;
+}
+.fb-btn.active { border-color: #2E75B6; color: #2E75B6; }
+.fb-btn:disabled { opacity: 0.5; cursor: default; }
+.fb-done { font-size: 11px; color: #67C23A; }
 </style>

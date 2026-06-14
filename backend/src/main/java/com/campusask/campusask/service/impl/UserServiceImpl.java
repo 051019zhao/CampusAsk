@@ -1,10 +1,15 @@
 package com.campusask.campusask.service.impl;
 
+import com.campusask.campusask.dto.PageResult;
 import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
+import com.campusask.campusask.entity.ForumPost;
+import com.campusask.campusask.entity.QuestionLog;
 import com.campusask.campusask.entity.User;
 import com.campusask.campusask.mapper.UserMapper;
 import com.campusask.campusask.service.UserService;
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
 import exception.AccountExistException;
 import exception.AccountFormatException;
 import exception.PasswordErrorException;
@@ -16,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -194,6 +201,20 @@ public class UserServiceImpl implements UserService {
             user.setPassword(encryptedNewPwd);
         }
 
+        // 如果前端传了 motto（哪怕是空字符串 ""，也代表用户想清空或修改名言），就允许覆盖
+        if (userUpdateDTO.getMotto() != null) {
+            // 可选：限制一下名言长度，防止数据库溢出，比如限制 100 字
+            if (userUpdateDTO.getMotto().length() > 100) {
+                throw new IllegalArgumentException("个性名言长度不能超过 100 个字符");
+            }
+            user.setMotto(userUpdateDTO.getMotto());
+        }
+
+        // 如果前端传了新的头像 URL，直接覆盖掉老头像
+        if (userUpdateDTO.getAvatarUrl() != null && !userUpdateDTO.getAvatarUrl().isEmpty()) {
+            user.setAvatarUrl(userUpdateDTO.getAvatarUrl());
+        }
+
         // 4. 更新数据库
         userMapper.updateUser(user);
     }
@@ -213,5 +234,81 @@ public class UserServiceImpl implements UserService {
         }
 
         return user;
+    }
+
+    /**
+     * 查询历史提问记录
+     * @param username
+     * @param page
+     * @param size
+     * @return
+     */
+    @Override
+    public PageResult getQuestionHistory(String username, Integer page, Integer size) {
+
+        if (username == null) {
+            throw new IllegalArgumentException("查询失败：学号不能为空");
+        }
+
+        // 2. 开启 PageHelper 分页拦截器
+        PageHelper.startPage(page, size);
+
+        // 3. 调用 Mapper 查 question_log 表（PageHelper 会自动在 SQL 后面追加 limit ?, ? 并查出 total）
+        List<QuestionLog> list = userMapper.getQuestionLogByUsername(username);
+
+        // 4. 强转成 Page 对象获取总记录数
+        Page<QuestionLog> p = (Page<QuestionLog>) list;
+
+        return new PageResult(p.getTotal(), p.getResult());
+    }
+
+    /**
+     * 获取茶话会记录
+     * @param currentUsername
+     * @param page
+     * @param size
+     * @return
+     */
+    @Override
+    public PageResult getForumPostHistory(String username, Integer page, Integer size) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+
+        // 启动 PageHelper 物理分页
+        PageHelper.startPage(page, size);
+
+        // 拿着学号去查发帖表
+        List<ForumPost> list = userMapper.getForumPostsByUsername(username);
+
+        com.github.pagehelper.Page<ForumPost> p = (com.github.pagehelper.Page<ForumPost>) list;
+        return new PageResult(p.getTotal(), p.getResult());
+    }
+
+    /**
+     * 获取点赞记录
+     * @param username
+     * @return
+     */
+    @Override
+    public List<Map<String, Object>> getUserLikeInteractions(String username) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+        // 直接穿透调用 Mapper 层的多表联查
+        return userMapper.getUserLikeInteractions(username);
+    }
+
+    /**
+     * 获取评论记录
+     * @param username
+     * @return
+     */
+    @Override
+    public List<Map<String, Object>> getUserCommentInteractions(String username) {
+        if (username == null) {
+            throw new IllegalArgumentException("学号不能为空");
+        }
+        return userMapper.getUserCommentInteractions(username);
     }
 }

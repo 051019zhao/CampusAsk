@@ -7,10 +7,14 @@ import QaPage from '../components/QaPage.vue' // 假设这是你队友写的首�
 import UserAuth from '../components/UserAuth.vue' // 你写的登录注册页
 import ContributePage from '../components/ContributePage.vue' // 你的贡献页
 import Profile from '@/components/Profile.vue'
+import TeaTalkPage from '@/components/TeaTalkPage.vue' // 茶话会页面
+import MyInteraction from '@/components/MyInteractions.vue'//点赞评论
 // 队友新增的后台管理组件
 import AdminLayout from "../views/admin/AdminLayout.vue";
 import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
 import ContributionReview from "../views/admin/ContributionReview.vue";
+import AdminStats from "../views/admin/AdminStats.vue";
+import FeedbackReview from "../views/admin/FeedbackReview.vue";
 
 const routes = [
     {
@@ -24,9 +28,19 @@ const routes = [
         component: UserCenter
     },
     {
+        path: '/teatalk',
+        name: 'TeaTalkPage',
+        component: TeaTalkPage
+    },
+    {
         path: '/contribute',
         name: 'ContributePage',
         component: ContributePage
+    },
+    {
+        path: '/my-interactions',
+        name: 'MyInteractions',
+        component: MyInteraction
     },
     {
         path: '/login',    // 访问 /login
@@ -45,9 +59,19 @@ const routes = [
         component: AdminLayout,
         children: [
             {
+                path: "stats",
+                name: "AdminStats",
+                component: AdminStats,
+            },
+            {
                 path: "knowledge-import",
                 name: "KnowledgeImport",
                 component: KnowledgeImport,
+            },
+            {
+                path: "feedback",
+                name: "FeedbackReview",
+                component: FeedbackReview,
             },
             {
                 path: "contribution-review",

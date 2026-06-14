@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 1. 创建一个名为 request 的自定义 Axios 实例（统一 baseURL）
 const request = axios.create({
-    baseURL: 'http://localhost:8080',
+    baseURL: '',  // 使用相对路径，本地 devServer 代理和 Nginx 转发都能用
     timeout: 5000 // 建议加个 5 秒超时，防止请求死等
 })
 
