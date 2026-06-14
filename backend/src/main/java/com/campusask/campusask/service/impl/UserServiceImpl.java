@@ -264,7 +264,7 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 获取茶话会记录
-     * @param currentUsername
+
      * @param page
      * @param size
      * @return
