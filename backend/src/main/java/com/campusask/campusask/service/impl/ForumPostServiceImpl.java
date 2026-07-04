@@ -150,6 +150,9 @@ public class ForumPostServiceImpl implements ForumPostService {
     }
 
     @Override
+    public ForumPost getPostById(Long id) { return forumPostMapper.selectById(id); }
+
+    @Override
     public Map<String, Object> searchPosts(String keyword, int page, int size) {
         int offset = (page - 1) * size;
         List<ForumPost> list = forumPostMapper.searchPosts(keyword, offset, size);

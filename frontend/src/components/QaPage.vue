@@ -147,7 +147,17 @@
             </div>
             <button class="logout-btn" type="button" @click="logout">退出登录</button>
           </div>
+          <!-- V4: 通知铃铛 -->
+          <div v-if="isLoggedIn" class="notif-bell" @click="showNotifs=!showNotifs" title="通知">
+            🔔<span v-if="unreadCount>0" class="notif-badge">{{ unreadCount }}</span>
+          </div>
           <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+        </div>
+
+        <!-- V4: 通知下拉 -->
+        <div v-if="showNotifs" class="notif-dropdown">
+          <div v-if="notifications.length===0" class="notif-empty">暂无通知</div>
+          <div v-for="n in notifications" :key="n.id" class="notif-item" :class="{unread:!n.is_read}" @click="readNotif(n)">{{ n.content }}<span class="notif-time">{{ formatNotifTime(n.created_at) }}</span></div>
         </div>
 
         <div class="hot-title">
@@ -213,6 +223,9 @@ export default {
       suggestedQuestions: [],  // V3: 相关问题推荐
       qaImageUrl: '',          // V4: 问答图片
       qaUploading: false,      // V4: 图片上传中
+      showNotifs: false,       // V4: 通知面板
+      notifications: [],       // V4: 通知列表
+      unreadCount: 0,          // V4: 未读数
       // V3: 首页快捷提问卡片（默认兜底）
       quickQuestions: [
         '食堂几点开门？',
@@ -405,7 +418,7 @@ export default {
       return userId || null
     },
     async refreshMeta() {
-      await Promise.all([this.loadHotData(), this.loadHistory()])
+      await Promise.all([this.loadHotData(), this.loadHistory(), this.loadNotifications()])
     },
     async loadHotData(range = '7d') {
       await Promise.all([this.loadHotList(range), this.loadQuestionRanking(range)])
@@ -617,6 +630,12 @@ export default {
       this.aiAnswer = ''
       this.noResult = false
     },
+    async loadNotifications() {
+      try { const r = await fetch('/api/notifications', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.notifications = d.data || [] } catch (e) { }
+      try { const r = await fetch('/api/notifications/unread-count', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.unreadCount = d.data?.count || 0 } catch (e) { }
+    },
+    async readNotif(n) { if (!n.is_read) { try { await fetch(`/api/notifications/${n.id}/read`, { method: 'PUT', headers: { token: localStorage.getItem('token') || '' } }); n.is_read = 1; this.unreadCount = Math.max(0, this.unreadCount - 1) } catch (e) { } } },
+    formatNotifTime(t) { if (!t) return ''; const d = new Date(t); const now = new Date(); const diff = now - d; if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'; if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'; return d.toLocaleDateString() },
     async loadHistory() {
       // 先从本地取（按账号隔离）
       const local = JSON.parse(localStorage.getItem(this.getRecentSearchStorageKey()) || '[]')
@@ -1325,9 +1344,17 @@ export default {
   cursor: pointer;
   text-align: center;
 }
-.login-btn:hover {
-  background: rgba(255, 255, 255, 0.28);
-}
+.login-btn:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* V4: 通知 */
+.notif-bell { position: relative; cursor: pointer; font-size: 18px; padding: 4px; }
+.notif-badge { position: absolute; top: -4px; right: -4px; background: #f56c6c; color: #fff; font-size: 10px; border-radius: 10px; padding: 1px 5px; min-width: 16px; text-align: center; }
+.notif-dropdown { position: absolute; top: 100%; right: 0; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); z-index: 100; width: 280px; max-height: 360px; overflow-y: auto; margin-top: 8px; }
+.notif-empty { text-align: center; padding: 20px; color: #C0C4CC; font-size: 13px; }
+.notif-item { padding: 10px 14px; border-bottom: 1px solid #f5f7fa; font-size: 12px; color: #606266; cursor: pointer; }
+.notif-item.unread { background: #e6f7ff; font-weight: 600; }
+.notif-item:hover { background: #f5f7fa; }
+.notif-time { display: block; font-size: 10px; color: #C0C4CC; margin-top: 3px; }
 
 /* ===== 热词 Tab 切换 ===== */
 .hot-title {

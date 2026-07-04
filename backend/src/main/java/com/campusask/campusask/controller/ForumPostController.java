@@ -6,6 +6,7 @@ import com.campusask.campusask.entity.ForumComment;
 import com.campusask.campusask.entity.ForumPost;
 import com.campusask.campusask.service.ForumPostService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -51,6 +52,9 @@ public class ForumPostController {
 
     @Autowired
     private com.campusask.campusask.utils.OssUtil ossUtil;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     /** V4: 上传帖子图片到 OSS */
     @PostMapping("/upload-image")
@@ -141,8 +145,19 @@ public class ForumPostController {
         }
 
         Long id = forumPostService.addComment(comment);
+        // V4: 通知帖子作者
+        ForumPost post = forumPostService.getPostById(postId);
+        String myUid = BaseContext.getCurrentUsername();
+        String notifyTarget = body.get("replyToUserId");
+        if (notifyTarget == null || notifyTarget.isEmpty()) notifyTarget = post != null ? post.getUserId() : null;
+        if (notifyTarget != null && !notifyTarget.equals(myUid)) {
+            try { jdbc.update("INSERT INTO notification(user_id,type,content,post_id) VALUES(?,'comment',?,?)", notifyTarget, (myUid!=null?myUid:"匿名")+" 评论了你的帖子", postId); } catch(Exception e){}
+        }
         return Result.success(id);
     }
+
+    /** V4: 获取帖子作者（内部用） */
+    public ForumPost getPostById(Long id) { return forumPostService.getPostById(id); }
 
     /**
      * 点赞/取消点赞（基于数据库记录，自动切换，防止重复点赞）
@@ -165,5 +180,30 @@ public class ForumPostController {
         String userId = BaseContext.getCurrentUsername();
         forumPostService.deletePost(id, userId);
         return Result.success("删除成功");
+    }
+
+    /** V4: 收藏帖子 */
+    @PostMapping("/posts/{id}/favorite")
+    public Result<Map<String,Object>> favoritePost(@PathVariable Long id) {
+        String uid = BaseContext.getCurrentUsername();
+        int c = jdbc.queryForObject("SELECT COUNT(*) FROM forum_favorite WHERE user_id=? AND post_id=?", Integer.class, uid, id);
+        if (c > 0) { jdbc.update("DELETE FROM forum_favorite WHERE user_id=? AND post_id=?", uid, id); return Result.success(Map.of("favorited",false)); }
+        else { jdbc.update("INSERT INTO forum_favorite(user_id,post_id) VALUES(?,?)", uid, id); return Result.success(Map.of("favorited",true)); }
+    }
+
+    /** V4: 评论点赞 */
+    @PostMapping("/comments/{id}/like")
+    public Result<Map<String,Object>> likeComment(@PathVariable Long id) {
+        String uid = BaseContext.getCurrentUsername();
+        int c = jdbc.queryForObject("SELECT COUNT(*) FROM forum_comment_like WHERE comment_id=? AND user_id=?", Integer.class, id, uid);
+        if (c > 0) {
+            jdbc.update("DELETE FROM forum_comment_like WHERE comment_id=? AND user_id=?", id, uid);
+            jdbc.update("UPDATE forum_comment SET like_count = GREATEST(like_count-1, 0) WHERE id=?", id);
+            return Result.success(Map.of("liked",false));
+        } else {
+            jdbc.update("INSERT INTO forum_comment_like(comment_id,user_id) VALUES(?,?)", id, uid);
+            jdbc.update("UPDATE forum_comment SET like_count = like_count+1 WHERE id=?", id);
+            return Result.success(Map.of("liked",true));
+        }
     }
 }

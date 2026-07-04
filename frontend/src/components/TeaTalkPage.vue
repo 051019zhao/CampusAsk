@@ -140,6 +140,7 @@
               {{ currentPost.liked ? '❤️' : '🤍' }} {{ currentPost.likeCount }}
             </button>
             <span>💬 {{ totalCommentCount }}</span>
+            <button class="favorite-btn" :class="{faved:currentPost.favorited}" @click="handleFavorite(currentPost.id)">{{ currentPost.favorited ? '⭐' : '☆' }} 收藏</button>
           </div>
         </article>
 
@@ -165,9 +166,8 @@
                 </div>
                 <p class="comment-text">{{ comment.content }}</p>
                 <div class="comment-actions">
-                  <button class="reply-toggle-btn" @click="startReply(comment)">
-                    💬 回复
-                  </button>
+                  <button class="reply-toggle-btn" @click="startReply(comment)">💬 回复</button>
+                  <button class="reply-toggle-btn" @click="handleCommentLike(comment)">{{ comment.liked ? '❤️' : '🤍' }} {{ comment.like_count||0 }}</button>
                 </div>
                 <!-- 内联回复框 -->
                 <div v-if="replyTarget && replyTarget.commentId === comment.id" class="inline-reply-box">
@@ -684,6 +684,23 @@ export default {
       this.currentPage = 1
       this.loadPosts()
     },
+    async handleFavorite(postId) {
+      try {
+        const r = await fetch(`/api/forum/posts/${postId}/favorite`, { method: 'POST', headers: { token: localStorage.getItem('token') || '' } })
+        const d = await r.json()
+        if (d.code === 200 && this.currentPost) this.currentPost.favorited = d.data.favorited
+        if (d.data.favorited) toastSuccess('已收藏'); else toastInfo('已取消收藏')
+      } catch (e) { }
+    },
+    async handleCommentLike(comment) {
+      const commentId = comment.id
+      const wasLiked = comment.liked
+      comment.liked = !wasLiked
+      comment.like_count = (comment.like_count||0) + (wasLiked ? -1 : 1)
+      try {
+        await fetch(`/api/forum/comments/${commentId}/like`, { method: 'POST', headers: { token: localStorage.getItem('token') || '' } })
+      } catch (e) { comment.liked = wasLiked; comment.like_count = (comment.like_count||0) + (wasLiked ? 1 : -1) }
+    },
     openImage(url) { window.open(url, '_blank') },
     goHome() {
       this.$router.push({ name: 'QaPage' })
@@ -1153,6 +1170,9 @@ export default {
   white-space: pre-wrap;
 }
 .detail-image { max-width: 100%; max-height: 400px; border-radius: 12px; cursor: pointer; margin-bottom: 16px; }
+.favorite-btn { border: none; background: transparent; font-size: 13px; cursor: pointer; color: #909399; padding: 4px 8px; border-radius: 6px; }
+.favorite-btn:hover { background: #fef3e2; color: #e6a23c; }
+.favorite-btn.faved { color: #e6a23c; }
 
 .detail-stats {
   display: flex;
