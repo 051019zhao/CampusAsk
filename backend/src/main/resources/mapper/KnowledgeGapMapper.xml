@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusask.campusask.mapper.KnowledgeGapMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="gapMap" type="com.campusask.campusask.entity.KnowledgeGap">
+        <id column="id" property="id"/>
+        <result column="question" property="question"/>
+        <result column="answer" property="answer"/>
+        <result column="source" property="source"/>
+        <result column="urls" property="urls"/>
+        <result column="search_count" property="searchCount"/>
+        <result column="status" property="status"/>
+        <result column="category" property="category"/>
+        <result column="keywords" property="keywords"/>
+        <result column="reviewed_by" property="reviewedBy"/>
+        <result column="review_time" property="reviewTime"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 插入或更新：同一问题合并 -->
+    <insert id="upsertGap">
+        INSERT INTO knowledge_gap (question, answer, source, urls, search_count, status)
+        VALUES (#{question}, #{answer}, #{source}, #{urls}, 1, 'pending')
+        ON DUPLICATE KEY UPDATE
+            search_count = search_count + 1,
+            answer = VALUES(answer),
+            source = VALUES(source),
+            urls = VALUES(urls)
+    </insert>
+
+    <!-- 分页查询待审核 -->
+    <select id="selectPending" resultMap="gapMap">
+        SELECT * FROM knowledge_gap
+        WHERE status = 'pending'
+        ORDER BY search_count DESC, created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPending" resultType="int">
+        SELECT COUNT(*) FROM knowledge_gap WHERE status = 'pending'
+    </select>
+
+    <!-- 分页查询已忽略 -->
+    <select id="selectIgnored" resultMap="gapMap">
+        SELECT * FROM knowledge_gap
+        WHERE status = 'ignored'
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countIgnored" resultType="int">
+        SELECT COUNT(*) FROM knowledge_gap WHERE status = 'ignored'
+    </select>
+
+    <!-- 按来源统计 -->
+    <select id="countBySource" resultType="java.util.HashMap">
+        SELECT source AS name, COUNT(*) AS value
+        FROM knowledge_gap
+        WHERE status = 'pending'
+        GROUP BY source
+    </select>
+
+    <!-- 按 ID 查询 -->
+    <select id="selectById" resultMap="gapMap">
+        SELECT * FROM knowledge_gap WHERE id = #{id}
+    </select>
+
+    <!-- 根据问题模糊匹配 -->
+    <select id="selectByQuestion" resultMap="gapMap">
+        SELECT * FROM knowledge_gap WHERE question = #{question} LIMIT 1
+    </select>
+
+    <!-- 更新状态 -->
+    <update id="updateStatus">
+        UPDATE knowledge_gap
+        SET status = #{status},
+            category = #{category},
+            keywords = #{keywords},
+            reviewed_by = #{reviewedBy},
+            review_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

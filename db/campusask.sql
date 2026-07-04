@@ -235,5 +235,26 @@ UPDATE knowledge SET category = '技术支持'
 WHERE category IN ('网络相关', '系统相关', '设备相关', '网络', '系统', '设备', '技术');
 
 -- 更新为其他服务类
-UPDATE knowledge SET category = '其他服务' 
+UPDATE knowledge SET category = '其他服务'
 WHERE category IN ('医疗相关', '后勤相关', '综合咨询', '医疗', '后勤', '其他');
+
+-- ----------------------------
+-- Table structure for knowledge_gap（知识缺口：AI/联网搜索回答的问题，待管理员审核入库）
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_gap`;
+CREATE TABLE `knowledge_gap` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `question` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户原始问题',
+  `answer` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'AI回答内容',
+  `source` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '来源：ai_search/ai_web/fallback',
+  `search_count` int DEFAULT 1 COMMENT '同一问题被问次数',
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending' COMMENT '状态：pending/approved/ignored',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审核时指定的分类',
+  `keywords` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审核时指定的关键词',
+  `reviewed_by` bigint DEFAULT NULL COMMENT '审核人ID',
+  `review_time` datetime DEFAULT NULL COMMENT '审核时间',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_question` (`question`(200)) USING BTREE,
+  KEY `idx_status` (`status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;

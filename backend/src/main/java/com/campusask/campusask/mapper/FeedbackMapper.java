@@ -37,4 +37,8 @@ public interface FeedbackMapper {
             "COUNT(*) AS total " +
             "FROM feedback GROUP BY source ORDER BY total DESC")
     List<Map<String, Object>> groupBySource();
+
+    /** V3: 统计某个问题的差评数 */
+    @Select("SELECT COUNT(*) FROM feedback WHERE question = #{question} AND helpful = 0")
+    int countNegativeByQuestion(@Param("question") String question);
 }

@@ -84,22 +84,13 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
             // 存入 ThreadLocal 上下文
             BaseContext.setCurrentUsername(username);
 
-           
-            if (requestUri.startsWith("/api/knowledge")) {
-                // 检查是否为管理员，系统中的角色值为 0/1
-                if (!"1".equals(role)) {
-                    log.warn("用户无管理员权限，拒绝访问管理员接口，当前role={}", role);
-                    response.setStatus(403);
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"code\": 403, \"message\": \"无管理员权限\"}");
-                    return false;
-                }
-            }
 
-            if(requestUri.startsWith("/api/knowledge") 
-        || requestUri.startsWith("/api/contribute/pending")  
-        || requestUri.endsWith("/review")){
-                // 检查是否为管理员，系统中的角色值为 0/1
+            // 管理员接口权限统一校验（V3 新增 /api/admin/ 路径）
+            boolean isAdminApi = requestUri.startsWith("/api/knowledge")
+                    || requestUri.startsWith("/api/admin/")
+                    || requestUri.startsWith("/api/contribute/pending")
+                    || requestUri.endsWith("/review");
+            if (isAdminApi) {
                 if (!"1".equals(role)) {
                     log.warn("用户无管理员权限，拒绝访问管理员接口，当前role={}", role);
                     response.setStatus(403);

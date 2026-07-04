@@ -15,6 +15,7 @@ import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
 import ContributionReview from "../views/admin/ContributionReview.vue";
 import AdminStats from "../views/admin/AdminStats.vue";
 import FeedbackReview from "../views/admin/FeedbackReview.vue";
+import GapReview from "../views/admin/GapReview.vue";
 
 const routes = [
     {
@@ -77,6 +78,11 @@ const routes = [
                 path: "contribution-review",
                 name: "ContributionReview",
                 component: ContributionReview,
+            },
+            {
+                path: "gap-review",
+                name: "GapReview",
+                component: GapReview,
             },
         ],
     },

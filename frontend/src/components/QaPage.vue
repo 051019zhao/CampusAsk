@@ -38,18 +38,16 @@
           <div class="hero-desc">输入问题，系统会匹配校园知识与 AI 建议</div>
         </div>
 
-        <div v-if="chatMessages.length === 0" class="card guide-card">
-          <div class="guide-row">
-            <div class="guide-dot"></div>
-            <div>
-              <div class="guide-title">热门板块</div>
-              <div class="guide-desc">食堂 / 宿舍 / 课程 / 生活服务</div>
-            </div>
-          </div>
+        <!-- V3: 首页快捷提问卡片 -->
+        <div v-if="chatMessages.length === 0" class="quick-cards">
+          <button v-for="q in quickQuestions" :key="q" class="quick-card" @click="applyHot(q)">{{ q }}</button>
         </div>
 
         <div class="chat-panel">
-          <div class="chat-title">对话</div>
+          <div class="chat-header">
+            <div class="chat-title">对话</div>
+            <button v-if="chatMessages.length > 0" class="new-topic-btn" @click="newTopic" title="开启新话题">＋ 新话题</button>
+          </div>
           <div class="chat-list">
             <div
               v-for="message in chatMessages"
@@ -64,7 +62,12 @@
               >
                 {{ sourceLabel(message.source) }}
               </span>
-              <div class="chat-text">{{ message.text }}</div>
+              <!-- V3: bot 回答用 Markdown 渲染，user 消息纯文本 -->
+              <div v-if="message.role === 'bot'" class="chat-text" v-html="renderMd(message.text)"></div>
+              <div v-else class="chat-text">{{ message.text }}</div>
+              <div v-if="message.role === 'bot'" class="msg-actions">
+                <button class="copy-btn" @click="copyText(message.text)" title="复制回答">📋</button>
+              </div>
               <div v-if="message.role === 'bot'" class="feedback-row">
                 <button
                   class="fb-btn"
@@ -89,6 +92,18 @@
                   target="_blank"
                   class="source-link"
                 >{{ urlHost(u) }}</a>
+              </div>
+              <!-- V3: 相关问题推荐（在最后一条 bot 消息内展示） -->
+              <div v-if="message.role === 'bot' && suggestedQuestions.length > 0 && message.id === lastBotId" class="suggestions-box">
+                <div class="suggestions-label">💡 你可能还想问：</div>
+                <div class="suggestions-list">
+                  <button
+                    v-for="(sq, i) in suggestedQuestions"
+                    :key="'sq-' + i"
+                    class="suggestion-chip"
+                    @click="applyHot(sq)"
+                  >{{ sq }}</button>
+                </div>
               </div>
             </div>
             <div v-if="loading" class="chat-bubble bot loading-bubble">
@@ -174,6 +189,10 @@
 <script>
 import { clearAuthState } from '@/utils/request'
 import { toastError } from '@/utils/toast'
+import { marked } from 'marked'
+
+// 配置 marked 安全渲染
+marked.setOptions({ breaks: true, gfm: true })
 
 export default {
   name: "QaPage",
@@ -185,6 +204,17 @@ export default {
       loading: false,
       noResult: false,
       chatMessages: [],
+      sessionId: '',           // V3: 多轮对话会话ID
+      suggestedQuestions: [],  // V3: 相关问题推荐
+      // V3: 首页快捷提问卡片
+      quickQuestions: [
+        '食堂几点开门？',
+        '图书馆在哪里？',
+        '校车时刻表',
+        '宿舍门禁是几点？',
+        '一卡通怎么补办？',
+        '怎么选课？'
+      ],
       navItems: [
         { label: '茶话会',   icon: '💬', route: '/teatalk' },
         { label: '校园问答', icon: '🏠', route: '/' },
@@ -218,6 +248,11 @@ export default {
     avatarInitial() {
       const name = this.userInfo.nickname || this.userInfo.username || 'U'
       return name.slice(0, 1).toUpperCase()
+    },
+    // V3: 最后一条 bot 消息的 ID，用于定位推荐问题展示位置
+    lastBotId() {
+      const bots = this.chatMessages.filter(m => m.role === 'bot')
+      return bots.length > 0 ? bots[bots.length - 1].id : null
     }
   },
   mounted() {
@@ -245,6 +280,12 @@ export default {
       if (this.loading) return
       const question = this.keyword.trim()
       if (!question) return
+
+      // V3: 初始化 sessionId（首次提问时生成）
+      if (!this.sessionId) {
+        this.sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      }
+
       this.chatMessages.push({
         id: `${Date.now()}-user`,
         role: 'user',
@@ -254,6 +295,7 @@ export default {
       this.noResult = false
       this.results = []
       this.aiAnswer = ''
+      this.suggestedQuestions = []
       let replyText = ''
       let source = ''
       let searchUrls = []
@@ -261,15 +303,20 @@ export default {
         const token = localStorage.getItem('token')
         const headers = { 'Content-Type': 'application/json' }
         if (token) headers['token'] = token
+        // V3: 传递 sessionId 支持多轮对话
         const res = await fetch('/api/qa/ask', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ keyword: question })
+          body: JSON.stringify({ keyword: question, sessionId: this.sessionId })
         })
         const data = await res.json()
         if (data.code === 200 && data.data) {
           source = data.data.source || ''
           searchUrls = data.data.searchUrls || []
+          // V3: 接收推荐问题
+          if (data.data.suggestions && Array.isArray(data.data.suggestions)) {
+            this.suggestedQuestions = data.data.suggestions
+          }
           const ans = data.data.answer
           if (Array.isArray(ans)) {
             this.results = ans
@@ -428,6 +475,30 @@ export default {
     urlHost(url) {
       try { return new URL(url).hostname } catch { return url }
     },
+    // V3: Markdown 渲染
+    renderMd(text) {
+      if (!text) return ''
+      // 先清理来源标记（已在标签展示）
+      const cleaned = text.replace(/\[来源:.*?\]/g, '').trim()
+      return marked.parse(cleaned)
+    },
+    // V3: 一键复制
+    async copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text)
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: '已复制到剪贴板', type: 'success' } }))
+      } catch {
+        // fallback for older browsers
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'; ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: '已复制到剪贴板', type: 'success' } }))
+      }
+    },
     sourceLabel(source) {
       const map = {
         knowledge:    '📚 数据库关键词检索',
@@ -473,6 +544,15 @@ export default {
     changeRange(range) {
       this.selectedRange = range
       this.loadHotList(range)
+    },
+    // V3: 开启新话题，清除会话上下文
+    newTopic() {
+      this.sessionId = ''
+      this.suggestedQuestions = []
+      this.chatMessages = []
+      this.results = []
+      this.aiAnswer = ''
+      this.noResult = false
     },
     async loadHistory() {
       // 先从本地取（按账号隔离）
@@ -637,33 +717,63 @@ export default {
   font-size: 13px;
 }
 
-.guide-card {
-  background: #d4e0e6;
-  padding-top: 10px;
-  padding-bottom: 10px;
+/* V3: 首页快捷提问卡片 */
+.quick-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.quick-card {
+  border: 1px solid #dce5ea;
+  border-radius: 12px;
+  padding: 12px 10px;
+  background: #fff;
+  font-size: 13px;
+  color: #2b5569;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+.quick-card:hover {
+  background: #eaf1f4;
+  border-color: #2b5569;
+  box-shadow: 0 4px 12px rgba(43,85,105,.12);
 }
 
-.guide-row {
+/* V3: 复制按钮 */
+.msg-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 2px;
 }
-
-.guide-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #6b8b99;
-}
-
-.guide-title {
-  font-weight: 600;
-}
-
-.guide-desc {
+.copy-btn {
+  border: 1px solid #d5dce3;
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: #fff;
   font-size: 12px;
-  color: #526a77;
+  cursor: pointer;
+  color: #6b8290;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
+.chat-bubble:hover .copy-btn {
+  opacity: 1;
+}
+.copy-btn:hover {
+  background: #f0f4f7;
+  color: #2b5569;
+}
+
+/* V3: Markdown 渲染样式 */
+.chat-text :deep(p) { margin: 0 0 6px; }
+.chat-text :deep(ul), .chat-text :deep(ol) { margin: 4px 0; padding-left: 18px; }
+.chat-text :deep(li) { margin: 2px 0; }
+.chat-text :deep(a) { color: #2E75B6; }
+.chat-text :deep(code) { background: #edf2f7; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.chat-text :deep(pre) { background: #edf2f7; padding: 8px; border-radius: 8px; overflow-x: auto; }
+.chat-text :deep(strong) { font-weight: 600; }
+.chat-text :deep(blockquote) { border-left: 3px solid #c5d4dc; padding-left: 10px; margin: 6px 0; color: #6b8290; }
 
 .results {
   display: grid;
@@ -721,10 +831,32 @@ export default {
   min-height: 280px;
 }
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .chat-title {
   font-size: 14px;
   font-weight: 600;
   color: #3c5461;
+}
+
+.new-topic-btn {
+  border: 1px solid #c5d4dc;
+  border-radius: 8px;
+  padding: 4px 12px;
+  background: #fff;
+  color: #5b7686;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.new-topic-btn:hover {
+  background: #f0f4f7;
+  border-color: #2b5569;
+  color: #2b5569;
 }
 
 .chat-list {
@@ -1149,5 +1281,39 @@ export default {
 }
 .nav-item-admin:hover {
   background: rgba(251, 191, 36, 0.35);
+}
+
+/* ===== V3: 相关问题推荐 ===== */
+.suggestions-box {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 10px 14px;
+  background: #f7f9fb;
+  border-radius: 12px;
+  border: 1px dashed #d5dce3;
+}
+.suggestions-label {
+  font-size: 12px;
+  color: #6b8290;
+  margin-bottom: 8px;
+}
+.suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.suggestion-chip {
+  border: 1px solid #c5d4dc;
+  border-radius: 999px;
+  padding: 5px 14px;
+  background: #fff;
+  color: #2b5569;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.suggestion-chip:hover {
+  background: #eaf1f4;
+  border-color: #2b5569;
 }
 </style>

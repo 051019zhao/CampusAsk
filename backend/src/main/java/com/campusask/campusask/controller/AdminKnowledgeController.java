@@ -5,6 +5,7 @@ import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.service.KnowledgeService;
+import com.campusask.campusask.service.QaService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,6 +33,9 @@ public class AdminKnowledgeController {
 
     @Autowired
     private KnowledgeMapper knowledgeMapper;
+
+    @Autowired
+    private QaService qaService;
 
     /**
      * 获取所有知识点列表
@@ -81,6 +85,7 @@ public class AdminKnowledgeController {
     @PostMapping("/")
     public Result<String> add(@Valid @RequestBody Knowledge knowledge) {  // 使用 @Valid 校验请求体
         knowledgeService.add(knowledge);
+        qaService.invalidateRelatedCache(knowledge.getTitle()); // V3: 清除相关缓存
         return Result.success("添加成功");
     }
 
@@ -115,6 +120,7 @@ public class AdminKnowledgeController {
             return Result.error("文件不能为空");
         }
         ImportResult result = knowledgeService.importFromExcel(file);
+        qaService.invalidateRelatedCache(null); // V3: 批量导入后清除全部缓存
         String message = "导入完成，成功：" + result.getSuccessCount() + "条，失败：" + result.getFailedCount() + "条";
         Result<ImportResult> response = Result.success(result);
         response.setMessage(message);
@@ -139,6 +145,7 @@ public class AdminKnowledgeController {
         knowledge.setViewCount(existing.getViewCount());
         
         knowledgeService.update(knowledge);
+        qaService.invalidateRelatedCache(knowledge.getTitle()); // V3: 清除相关缓存
         return Result.success("更新成功");
     }
 
@@ -153,6 +160,7 @@ public class AdminKnowledgeController {
             return Result.error("知识点不存在");
         }
         knowledgeService.deleteById(id);
+        qaService.invalidateRelatedCache(null); // V3: 清除全部缓存
         return Result.success("删除成功");
     }
 }
