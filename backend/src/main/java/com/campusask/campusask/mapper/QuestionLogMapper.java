@@ -25,4 +25,5 @@ public interface QuestionLogMapper {
     List<String> findQuestionsByDateLimit(@Param("date") String date, @Param("limit") int limit);
     List<java.util.Map<String, Object>> findRecentQuestionsWithSource(@Param("limit") int limit);  // V4
     List<java.util.Map<String, Object>> findTopQuestions(@Param("limit") int limit);  // V4
+    List<java.util.Map<String, Object>> findTopQuestionsByRange(@Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);  // V4
 }

@@ -5,8 +5,8 @@
 <mapper namespace="com.campusask.campusask.mapper.ForumPostMapper">
 
     <insert id="insertPost" parameterType="com.campusask.campusask.entity.ForumPost" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO forum_post (user_id, title, content, images)
-        VALUES (#{userId}, #{title}, #{content}, #{images})
+        INSERT INTO forum_post (user_id, title, content, images, tags)
+        VALUES (#{userId}, #{title}, #{content}, #{images}, #{tags})
     </insert>
 
     <select id="selectById" parameterType="long" resultMap="postWithExtra">
@@ -57,10 +57,54 @@
         DELETE FROM forum_post WHERE id = #{id}
     </delete>
 
+    <!-- V4: 按标签搜索 -->
+    <select id="selectByTag" resultMap="postWithExtra">
+        SELECT fp.*, u.nickname AS nickname,
+            (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
+        FROM forum_post fp
+        LEFT JOIN user u ON fp.user_id = u.username
+        WHERE fp.tags LIKE CONCAT('%', #{tag}, '%')
+        ORDER BY fp.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByTag" resultType="int">
+        SELECT COUNT(*) FROM forum_post WHERE tags LIKE CONCAT('%', #{tag}, '%')
+    </select>
+
+    <!-- V4: 热门标签排行 -->
+    <select id="selectHotTags" resultType="java.util.HashMap">
+        SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(tags, ',', n.n), ',', -1)) AS name,
+               COUNT(*) AS value
+        FROM forum_post
+        JOIN (SELECT 1 n UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) n
+          ON CHAR_LENGTH(tags) - CHAR_LENGTH(REPLACE(tags, ',', '')) >= n.n - 1
+        WHERE tags IS NOT NULL AND tags != ''
+        GROUP BY name
+        ORDER BY value DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- V4: 热门帖子排行榜（热度 = 0.4*浏览 + 0.3*评论 + 0.2*点赞 + 0.1*收藏） -->
+    <select id="selectHotPosts" resultMap="postWithExtra">
+        SELECT
+            fp.*,
+            u.nickname AS nickname,
+            (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count,
+            (fp.view_count * 0.4 + (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) * 0.3
+             + fp.like_count * 0.2 + COALESCE(fp.favorite_count, 0) * 0.1) AS hot_score
+        FROM forum_post fp
+        LEFT JOIN user u ON fp.user_id = u.username
+        ORDER BY hot_score DESC
+        LIMIT #{limit}
+    </select>
+
     <resultMap id="postWithExtra" type="com.campusask.campusask.entity.ForumPost" autoMapping="true">
         <id property="id" column="id"/>
         <result property="nickname" column="nickname"/>
         <result property="commentCount" column="comment_count"/>
+        <result property="favoriteCount" column="favorite_count"/>
+        <result property="hotScore" column="hot_score"/>
     </resultMap>
 
 </mapper>

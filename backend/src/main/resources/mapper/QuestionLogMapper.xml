@@ -106,4 +106,15 @@
             LIMIT #{limit}
         </select>
 
+        <!-- V4: 按时间范围的高频问题排行榜 -->
+        <select id="findTopQuestionsByRange" resultType="java.util.HashMap">
+            SELECT question AS name, COUNT(*) AS value
+            FROM question_log
+            WHERE question IS NOT NULL AND question &lt;&gt; ''
+              AND DATE(created_at) BETWEEN #{startDate} AND #{endDate}
+            GROUP BY question
+            ORDER BY value DESC
+            LIMIT #{limit}
+        </select>
+
 </mapper>

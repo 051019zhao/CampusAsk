@@ -53,3 +53,30 @@ export function deleteForumPost(postId) {
     method: 'delete'
   })
 }
+
+/** V4: 获取热门帖子排行榜 */
+export function getHotForumPosts(limit = 10) {
+  return request({
+    url: '/api/forum/hot',
+    method: 'get',
+    params: { limit }
+  })
+}
+
+/** V4: 按标签搜索帖子 */
+export function getPostsByTag(tag, page = 1, size = 10) {
+  return request({
+    url: '/api/forum/posts/by-tag',
+    method: 'get',
+    params: { tag, page, size }
+  })
+}
+
+/** V4: 获取热门标签 */
+export function getHotForumTags(limit = 10) {
+  return request({
+    url: '/api/forum/tags',
+    method: 'get',
+    params: { limit }
+  })
+}

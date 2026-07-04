@@ -16,4 +16,8 @@ public interface ForumPostMapper {
     int updateViewCount(@Param("id") Long id);
     int updateLikeCount(@Param("id") Long id, @Param("delta") int delta);
     int deleteById(@Param("id") Long id);
+    List<ForumPost> selectHotPosts(@Param("limit") int limit);  // V4
+    List<ForumPost> selectByTag(@Param("tag") String tag, @Param("offset") int offset, @Param("size") int size);
+    int countByTag(@Param("tag") String tag);
+    List<java.util.Map<String, Object>> selectHotTags(@Param("limit") int limit);
 }

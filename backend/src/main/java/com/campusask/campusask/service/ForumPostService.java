@@ -23,4 +23,13 @@ public interface ForumPostService {
 
     /** 删除帖子（仅作者） */
     void deletePost(Long postId, String userId);
+
+    /** V4: 获取热门帖子排行榜 */
+    java.util.List<ForumPost> getHotPosts(int limit);
+
+    /** V4: 按标签搜索帖子 */
+    Map<String, Object> getPostsByTag(String tag, int page, int size);
+
+    /** V4: 获取热门标签 */
+    java.util.List<Map<String, Object>> getHotTags(int limit);
 }

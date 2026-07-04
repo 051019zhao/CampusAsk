@@ -10,13 +10,16 @@ public class ForumPost {
     private String title;
     private String content;
     private String images;
+    private String tags;       // V4: 标签，逗号分隔
     private Integer viewCount;
     private Integer likeCount;
+    private Integer favoriteCount;  // V4: 收藏数
+    private Integer commentCount;   // V4: 评论数冗余
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     // 非数据库字段
     private String nickname;
-    private Integer commentCount;
     private Boolean liked;
+    private Double hotScore;  // V4: 热度分数
 }

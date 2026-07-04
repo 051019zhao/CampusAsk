@@ -230,13 +230,21 @@ public class QaService {
             }
         }
 
-        // 第 0 步：非校园问题直接拒绝（有会话上下文时跳过，让 AI 用上下文理解）
+        // 第 0 步：非校园问题直接拒绝（先做拼写纠错，可能是打字错误）
         if (!hasSessionHistory && !isCampusRelated(trimmed)) {
-            resp.put("source", "rejected");
-            resp.put("sourceLabel", "🚫 超出服务范围");
-            resp.put("answer", "抱歉，我只能回答华南理工大学校园相关的问题哦～ 比如食堂、宿舍、图书馆、课程、考试等，欢迎继续提问！");
-            addSuggestedQuestions(resp, trimmed);
-            return resp;
+            // V4: 可能是拼写错误，尝试纠错后再判断
+            String corrected = fuzzyCorrect(trimmed, knowledgeMapper.listAll());
+            if (corrected != null && isCampusRelated(corrected)) {
+                // 纠错后是校园问题，放行到 Step 1 用纠错后的词搜索
+                log.info("拼写纠错放行：{} → {}", trimmed, corrected);
+                trimmed = corrected;  // 用纠错后的词继续后续流程
+            } else {
+                resp.put("source", "rejected");
+                resp.put("sourceLabel", "🚫 超出服务范围");
+                resp.put("answer", "抱歉，我只能回答华南理工大学校园相关的问题哦～ 比如食堂、宿舍、图书馆、课程、考试等，欢迎继续提问！");
+                addSuggestedQuestions(resp, trimmed);
+                return resp;
+            }
         }
 
         // 第 1 步：数据库关键词 LIKE 检索（有会话上下文时跳过，直奔 RAG 用上下文理解指代）
@@ -252,6 +260,26 @@ public class QaService {
                 addSuggestedQuestions(resp, trimmed);
                 updateSession(sessionId, trimmed, localHits.get(0).getTitle() + "：" + localHits.get(0).getContent());
                 return resp;
+            }
+
+            // V4: 拼写纠错 —— LIKE 无结果时尝试编辑距离纠错
+            if (localHits == null || localHits.isEmpty()) {
+                List<Knowledge> allK = knowledgeMapper.listAll();
+                String corrected = fuzzyCorrect(searchKeyword, allK);
+                if (corrected != null && !corrected.equals(searchKeyword)) {
+                    List<Knowledge> correctedHits = knowledgeMapper.searchByKeyword(corrected);
+                    if (correctedHits != null && !correctedHits.isEmpty()) {
+                        resp.put("source", "knowledge");
+                        resp.put("sourceLabel", "📚 数据库关键词检索（拼写纠错）");
+                        resp.put("didYouMean", corrected);  // 提示用户"您是不是想找"
+                        resp.put("answer", correctedHits);
+                        putInCache(cacheKey, resp);
+                        recordAsync(trimmed, "knowledge");
+                        addSuggestedQuestions(resp, trimmed);
+                        updateSession(sessionId, trimmed, correctedHits.get(0).getTitle() + "：" + correctedHits.get(0).getContent());
+                        return resp;
+                    }
+                }
             }
         }
 
@@ -769,20 +797,62 @@ public class QaService {
      */
     private void addSuggestedQuestions(Map<String, Object> resp, String question) {
         try {
-            List<Knowledge> all = knowledgeMapper.listAll();
-            if (all == null || all.isEmpty()) return;
-
+            List<String> suggestions = new ArrayList<>();
             String normalizedQ = normalizeSynonym(question);
 
-            List<String> suggestions = all.stream()
+            // 策略1: 从知识库同分类中找相关问题
+            Object answerObj = resp.get("answer");
+            if (answerObj instanceof List) {
+                // 数据库返回了多条结果，取第一条的分类找同类问题
+                @SuppressWarnings("unchecked")
+                List<Knowledge> hits = (List<Knowledge>) answerObj;
+                if (!hits.isEmpty()) {
+                    String category = hits.get(0).getCategory();
+                    if (category != null) {
+                        List<Knowledge> sameCategory = knowledgeMapper.listAll().stream()
+                                .filter(k -> category.equals(k.getCategory())
+                                        && !hits.get(0).getTitle().equals(k.getTitle()))
+                                .limit(3)
+                                .collect(Collectors.toList());
+                        for (Knowledge k : sameCategory) {
+                            if (suggestions.size() >= 3) break;
+                            if (!suggestions.contains(k.getTitle())) {
+                                suggestions.add(k.getTitle());
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 策略2: 用热词补充（大家都在问什么）
+            if (suggestions.size() < 3) {
+                List<String> hotKws = hotKeywordMapper.findTopKeywordNames(10);
+                for (String kw : hotKws) {
+                    if (suggestions.size() >= 3) break;
+                    if (kw == null || kw.isBlank()) continue;
+                    // 排除与当前问题相同的关键词
+                    if (kw.equals(normalizedQ) || kw.equals(question)) continue;
+                    if (!suggestions.contains(kw)) {
+                        suggestions.add(kw);
+                    }
+                }
+            }
+
+            // 策略3: Jaccard 相似度兜底
+            if (suggestions.size() < 3) {
+                List<Knowledge> all = knowledgeMapper.listAll();
+                all.stream()
                     .map(k -> new AbstractMap.SimpleEntry<>(k.getTitle(),
                             textSimilarity(normalizedQ, k.getTitle() + " " +
                                     (k.getContent() != null ? k.getContent() : ""))))
-                    .filter(e -> e.getValue() >= 0.05) // 最低相关性阈值
+                    .filter(e -> e.getValue() >= 0.08)
+                    .filter(e -> !e.getKey().equals(question))
                     .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
-                    .limit(3)
+                    .limit(3 - suggestions.size())
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .filter(t -> !suggestions.contains(t))
+                    .forEach(suggestions::add);
+            }
 
             if (!suggestions.isEmpty()) {
                 resp.put("suggestions", suggestions);
@@ -850,6 +920,57 @@ public class QaService {
         if (LOCATION_TOKENS.stream().anyMatch(lq::contains)) return "location";
         if (PROCESS_TOKENS.stream().anyMatch(lq::contains)) return "process";
         return "fact";
+    }
+
+    // ===== V4: 拼写纠错（Levenshtein 编辑距离）=====
+
+    /** 编辑距离 */
+    private int levenshtein(String a, String b) {
+        int[][] dp = new int[a.length() + 1][b.length() + 1];
+        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
+        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            for (int j = 1; j <= b.length(); j++) {
+                dp[i][j] = Math.min(dp[i - 1][j] + 1,
+                        Math.min(dp[i][j - 1] + 1,
+                                dp[i - 1][j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1)));
+            }
+        }
+        return dp[a.length()][b.length()];
+    }
+
+    /**
+     * 从知识库标题中找最接近的匹配。
+     * 规则：编辑距离 ≤2 且目标长度 ≥2，取最短的编辑距离。
+     */
+    private String fuzzyCorrect(String keyword, List<Knowledge> allKnowledge) {
+        if (keyword == null || keyword.length() < 2 || allKnowledge == null) return null;
+        String best = null;
+        int bestDist = Integer.MAX_VALUE;
+
+        String lowerKeyword = keyword.toLowerCase();
+        for (Knowledge k : allKnowledge) {
+            String title = k.getTitle();
+            if (title == null || title.length() < 2) continue;
+            String lowerTitle = title.toLowerCase();
+
+            // 快速跳过：长度差太多
+            if (Math.abs(lowerKeyword.length() - lowerTitle.length()) > 3) continue;
+
+            // 对标题整体做编辑距离
+            int dist = levenshtein(lowerKeyword, lowerTitle);
+            if (dist <= 2 && dist < bestDist) {
+                bestDist = dist;
+                best = title;
+            }
+
+            // 也对标题中的词片段做匹配（如搜索"打印点"→匹配标题"在哪里打印"）
+            if (best == null && lowerTitle.contains(lowerKeyword)) {
+                best = title;
+                bestDist = 0;
+            }
+        }
+        return (best != null && !best.equals(keyword)) ? best : null;
     }
 
     private static class RateLimitException extends RuntimeException {

@@ -131,4 +131,26 @@ public class ForumPostServiceImpl implements ForumPostService {
         forumCommentMapper.deleteByPostId(postId);
         forumPostMapper.deleteById(postId);
     }
+
+    @Override
+    public List<ForumPost> getHotPosts(int limit) {
+        return forumPostMapper.selectHotPosts(limit);
+    }
+
+    @Override
+    public Map<String, Object> getPostsByTag(String tag, int page, int size) {
+        int offset = (page - 1) * size;
+        List<ForumPost> list = forumPostMapper.selectByTag(tag, offset, size);
+        int total = forumPostMapper.countByTag(tag);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", page);
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> getHotTags(int limit) {
+        return forumPostMapper.selectHotTags(limit);
+    }
 }

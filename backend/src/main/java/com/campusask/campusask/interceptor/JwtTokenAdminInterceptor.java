@@ -36,7 +36,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
         log.info("请求URI: {}", requestUri);
 
         // ★★★ 核心修复：在这里直接对不需要登录的开放接口进行物理放行 ★★★
-        if ("/api/hotspot/top10".equals(requestUri) || requestUri.startsWith("/api/qa/")) {
+        if (requestUri.startsWith("/api/hotspot/") || requestUri.startsWith("/api/qa/")) {
             log.info("【白名单放行】接口 {} 不需要 Token 验证，直接放行", requestUri);
             // 尝试解析 Token：已登录用户则设置上下文，方便记录提问者
             String token = request.getHeader(jwtProperties.getUserTokenName());

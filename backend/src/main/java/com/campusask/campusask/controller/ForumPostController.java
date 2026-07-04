@@ -17,6 +17,29 @@ public class ForumPostController {
     @Autowired
     private ForumPostService forumPostService;
 
+    /** V4: 热门帖子排行榜 */
+    @GetMapping("/hot")
+    public Result<java.util.List<ForumPost>> hotPosts(
+            @RequestParam(defaultValue = "10") int limit) {
+        return Result.success(forumPostService.getHotPosts(limit));
+    }
+
+    /** V4: 按标签搜索帖子 */
+    @GetMapping("/posts/by-tag")
+    public Result<Map<String, Object>> postsByTag(
+            @RequestParam String tag,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return Result.success(forumPostService.getPostsByTag(tag, page, size));
+    }
+
+    /** V4: 热门标签列表 */
+    @GetMapping("/tags")
+    public Result<java.util.List<Map<String, Object>>> hotTags(
+            @RequestParam(defaultValue = "10") int limit) {
+        return Result.success(forumPostService.getHotTags(limit));
+    }
+
     /**
      * 获取帖子列表（分页）
      */
@@ -62,6 +85,7 @@ public class ForumPostController {
         post.setTitle(title.trim());
         post.setContent(content.trim());
         post.setImages(images);
+        post.setTags(body.get("tags"));  // V4: 标签
 
         Long id = forumPostService.createPost(post);
         return Result.success(id);

@@ -101,8 +101,8 @@
                     v-for="(sq, i) in suggestedQuestions"
                     :key="'sq-' + i"
                     class="suggestion-chip"
-                    @click="applyHot(sq)"
-                  >{{ sq }}</button>
+                    @click="applyHot(formatSuggestion(sq))"
+                  >{{ formatSuggestion(sq) }}</button>
                 </div>
               </div>
             </div>
@@ -149,7 +149,7 @@
         </div>
 
         <div class="hot-title">
-          热门 TOP10
+          🔥 常见问题排行榜
           <div class="hot-tabs">
             <button :class="{active: selectedRange==='today'}" @click="changeRange('today')">今日</button>
             <button :class="{active: selectedRange==='7d'}" @click="changeRange('7d')">近7日</button>
@@ -158,27 +158,30 @@
         </div>
         <div class="hot-list">
           <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
-          <button
-            v-else-if="hotError"
-            class="hot-state is-error ui-state ui-state-error"
-            type="button"
-            @click="loadHotList(selectedRange)"
-          >
-            获取失败，点击重试
-          </button>
-          <div v-else-if="hotList.length === 0" class="hot-state ui-state ui-state-empty">暂无热词</div>
+          <button v-else-if="hotError" class="hot-state is-error ui-state ui-state-error" type="button" @click="loadHotData(selectedRange)">获取失败，点击重试</button>
+          <div v-else-if="questionRanking.length === 0 && hotList.length === 0" class="hot-state ui-state ui-state-empty">暂无数据</div>
           <template v-else>
-            <button
-              v-for="(item, index) in hotList"
-              :key="item.keyword + '-' + index"
-              class="hot-item"
-              type="button"
-              @click="applyHot(item.keyword)"
-            >
-              <span class="hot-rank">{{ index + 1 }}</span>
-              <span class="hot-text">{{ item.keyword }}</span>
-              <span class="hot-count">{{ item.freq }}</span>
-            </button>
+            <!-- V4: 常见问题排行榜（带进度条 + 同义归并） -->
+            <template v-if="questionRanking.length > 0">
+              <button v-for="(item, index) in questionRanking" :key="'q-' + index" class="ranking-card" type="button" @click="applyHot(item.name)">
+                <div class="ranking-header">
+                  <span class="hot-rank" :class="'rank-' + (index + 1)">{{ rankMedal(index) }}</span>
+                  <span class="ranking-name">{{ truncateName(item.name, 12) }}</span>
+                  <span class="ranking-count">{{ item.value }}次</span>
+                </div>
+                <div class="ranking-bar-track">
+                  <div class="ranking-bar-fill" :style="{ width: rankingBarWidth(item) }"></div>
+                </div>
+              </button>
+            </template>
+            <!-- 兜底：热词列表 -->
+            <template v-else>
+              <button v-for="(item, index) in hotList" :key="item.keyword + '-' + index" class="hot-item" type="button" @click="applyHot(item.keyword)">
+                <span class="hot-rank">{{ index + 1 }}</span>
+                <span class="hot-text">{{ item.keyword }}</span>
+                <span class="hot-count">{{ item.freq }}</span>
+              </button>
+            </template>
           </template>
         </div>
       </aside>
@@ -206,7 +209,7 @@ export default {
       chatMessages: [],
       sessionId: '',           // V3: 多轮对话会话ID
       suggestedQuestions: [],  // V3: 相关问题推荐
-      // V3: 首页快捷提问卡片
+      // V3: 首页快捷提问卡片（默认兜底）
       quickQuestions: [
         '食堂几点开门？',
         '图书馆在哪里？',
@@ -215,6 +218,7 @@ export default {
         '一卡通怎么补办？',
         '怎么选课？'
       ],
+      DEFAULT_QUICK_QUESTIONS: null,  // 保存默认值用于兜底
       navItems: [
         { label: '茶话会',   icon: '💬', route: '/teatalk' },
         { label: '校园问答', icon: '🏠', route: '/' },
@@ -231,6 +235,7 @@ export default {
       hotLoading: false,
       hotError: '',
       selectedRange: '7d',
+      questionRanking: [],   // V4: 常见问题排行榜
       authExpiredHandler: null,
       profileUpdatedHandler: null
     }
@@ -383,7 +388,10 @@ export default {
       return userId || null
     },
     async refreshMeta() {
-      await Promise.all([this.loadHotList(), this.loadHistory()])
+      await Promise.all([this.loadHotData(), this.loadHistory()])
+    },
+    async loadHotData(range = '7d') {
+      await Promise.all([this.loadHotList(range), this.loadQuestionRanking(range)])
     },
     applyHot(item) {
       if (!item) return
@@ -499,6 +507,15 @@ export default {
         window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: '已复制到剪贴板', type: 'success' } }))
       }
     },
+    // V4: 格式化建议文本，让知识库标题看起来像自然问题
+    formatSuggestion(s) {
+      if (!s) return ''
+      // 已经是问句直接返回
+      if (s.endsWith('？') || s.endsWith('?') || s.endsWith('吗')) return s
+      // 知识库标题 → 加"？"变成问句
+      if (s.length <= 15) return s + '？'
+      return s
+    },
     sourceLabel(source) {
       const map = {
         knowledge:    '📚 数据库关键词检索',
@@ -518,18 +535,20 @@ export default {
         const res = await fetch(`/api/hotspot/top10?range=${range}`)
         const data = await res.json()
         if (data.code === 200 && Array.isArray(data.data)) {
-          // 后端返回格式： ["keyword (freq)", ...] or formatted maps
           const parsed = data.data.map(item => {
             if (typeof item === 'string') {
-              // 解析 "keyword (n)"
               const m = item.match(/^(.*)\s*\((\d+)\)\s*$/)
               if (m) return { keyword: m[1].trim(), freq: Number(m[2]) }
               return { keyword: item, freq: null }
             }
-            // 如果后端返回 map-like objects
             return { keyword: item.keyword || item.name || String(item), freq: item.freq || null }
           })
           this.hotList = parsed
+          // V4: 动态更新快捷提问卡片（取 Top 6，不够用默认兜底）
+          const topKeywords = parsed.slice(0, 6).map(p => p.keyword).filter(Boolean)
+          if (topKeywords.length >= 3) {
+            this.quickQuestions = topKeywords
+          }
         } else {
           this.hotList = []
           this.hotError = 'error'
@@ -543,7 +562,34 @@ export default {
     },
     changeRange(range) {
       this.selectedRange = range
-      this.loadHotList(range)
+      this.loadHotData(range)
+    },
+    async loadQuestionRanking(range) {
+      try {
+        const res = await fetch(`/api/hotspot/questions?range=${range}`)
+        const data = await res.json()
+        if (data.code === 200 && Array.isArray(data.data)) {
+          this.questionRanking = data.data
+        } else {
+          this.questionRanking = []
+        }
+      } catch (e) {
+        this.questionRanking = []
+      }
+    },
+    rankMedal(index) {
+      if (index === 0) return '🥇'
+      if (index === 1) return '🥈'
+      if (index === 2) return '🥉'
+      return index + 1
+    },
+    rankingBarWidth(item) {
+      const max = this.questionRanking[0]?.value || 1
+      return Math.round((item.value / max) * 100) + '%'
+    },
+    truncateName(name, max) {
+      if (!name) return ''
+      return name.length > max ? name.slice(0, max) + '...' : name
     },
     // V3: 开启新话题，清除会话上下文
     newTopic() {
@@ -1270,6 +1316,63 @@ export default {
   color: #c8e4f0;
   flex-shrink: 0;
 }
+
+/* V4: 常见问题排行榜样式 */
+.ranking-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+.ranking-card:hover { background: rgba(255,255,255,0.2); }
+.ranking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ranking-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-count {
+  font-size: 10px;
+  background: rgba(251,191,36,0.3);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: #fde68a;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.ranking-bar-track {
+  height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ranking-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(251,191,36,0.6), rgba(251,191,36,0.9));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.ranking-item { gap: 6px; }
+.ranking-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
+.hot-rank.rank-1, .hot-rank.rank-2, .hot-rank.rank-3 { background: transparent; font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.hot-rank.rank-1 { color: #FFD700; }
+.hot-rank.rank-2 { color: #C0C0C0; }
+.hot-rank.rank-3 { color: #CD7F32; }
 
 /* ===== 侧边栏导航图标 & 管理员 ===== */
 .nav-icon {

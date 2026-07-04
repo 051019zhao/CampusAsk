@@ -42,6 +42,10 @@
       <div v-if="!showDetail && !showCreatePost" class="post-feed">
         <div class="feed-header">
           <h2 class="feed-title">✨ 茶话会</h2>
+          <span v-if="activeTag" class="tag-filter-badge">
+            #{{ activeTag }}
+            <button class="tag-clear-btn" @click="clearTagFilter">✕</button>
+          </span>
           <span class="feed-count">共 {{ totalPosts }} 条讨论</span>
         </div>
 
@@ -234,6 +238,14 @@
             />
           </div>
           <div class="form-group">
+            <label>标签（逗号分隔，如：校园生活,求助）</label>
+            <input
+              v-model="newPostTags"
+              placeholder="校园生活, 学习交流, 求助..."
+              class="form-input"
+            />
+          </div>
+          <div class="form-group">
             <label>内容</label>
             <textarea
               v-model="newPost.content"
@@ -288,7 +300,10 @@ import {
   createForumPost,
   addForumComment,
   likeForumPost,
-  deleteForumPost
+  deleteForumPost,
+  getHotForumPosts,
+  getPostsByTag,
+  getHotForumTags
 } from '@/api/forum'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
@@ -325,7 +340,9 @@ export default {
       hotLoading: false,
       hotError: '',
 
-      hotTags: ['校园生活', '学习交流', '情感树洞', '二手交易', '社团活动', '求助']
+      hotTags: [],            // V4: 从后端动态加载
+      activeTag: '',         // V4: 当前筛选的标签
+      newPostTags: '',       // V4: 发帖时的标签输入
     }
   },
   computed: {
@@ -344,13 +361,19 @@ export default {
   mounted() {
     this.loadPosts()
     this.loadHotPosts()
+    this.loadHotTagList()
   },
   methods: {
     async loadPosts() {
       this.loading = true
       this.postError = ''
       try {
-        const res = await getForumPosts(this.currentPage, this.pageSize)
+        let res
+        if (this.activeTag) {
+          res = await getPostsByTag(this.activeTag, this.currentPage, this.pageSize)
+        } else {
+          res = await getForumPosts(this.currentPage, this.pageSize)
+        }
         if (res.code === 200) {
           this.postList = res.data.list || []
           this.totalPosts = res.data.total || 0
@@ -527,11 +550,13 @@ export default {
       try {
         const res = await createForumPost({
           title: this.newPost.title.trim(),
-          content: this.newPost.content.trim()
+          content: this.newPost.content.trim(),
+          tags: this.newPostTags.trim()
         })
         if (res.code === 200) {
           toastSuccess('发布成功')
           this.newPost = { title: '', content: '' }
+          this.newPostTags = ''
           this.showCreatePost = false
           this.currentPage = 1
           await this.loadPosts()
@@ -547,10 +572,9 @@ export default {
       this.hotLoading = true
       this.hotError = ''
       try {
-        const res = await getForumPosts(1, 5)
+        const res = await getHotForumPosts(10)
         if (res.code === 200) {
-          const list = res.data.list || []
-          this.hotPosts = [...list].sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0)).slice(0, 5)
+          this.hotPosts = res.data || []
         } else {
           this.hotPosts = []
           this.hotError = '热门加载失败'
@@ -563,9 +587,23 @@ export default {
         this.hotLoading = false
       }
     },
+    async loadHotTagList() {
+      try {
+        const res = await getHotForumTags(10)
+        if (res.code === 200) {
+          this.hotTags = (res.data || []).map(t => t.name).filter(Boolean)
+        }
+      } catch (e) { /* 失败就用默认 */ }
+    },
     searchTag(tag) {
-      // 后续可扩展为按标签搜索
-      toastInfo('搜索标签：' + tag + '（功能开发中）')
+      this.activeTag = tag
+      this.currentPage = 1
+      this.loadPosts()
+    },
+    clearTagFilter() {
+      this.activeTag = ''
+      this.currentPage = 1
+      this.loadPosts()
     },
     goHome() {
       this.$router.push({ name: 'QaPage' })
@@ -753,6 +791,29 @@ export default {
   font-size: 13px;
   color: #7a8b97;
 }
+
+/* V4: 标签筛选 */
+.tag-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e8f0f5;
+  color: #2E75B6;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tag-clear-btn {
+  border: none;
+  background: transparent;
+  color: #6b8290;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.tag-clear-btn:hover { color: #e74c3c; }
 
 .post-list {
   display: grid;
