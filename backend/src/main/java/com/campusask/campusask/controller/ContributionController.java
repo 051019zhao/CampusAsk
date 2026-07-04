@@ -38,7 +38,6 @@ public class ContributionController {
     public Result<String> submit(@RequestBody Map<String, String> body) {
         String question = body.get("question");
         String answer = body.get("answer");
-        String userIdValue = body.get("userId");
 
         if (question == null || question.trim().isEmpty()) {
             return Result.error("问题不能为空");
@@ -61,11 +60,10 @@ public class ContributionController {
         contribution.setAnswer(answer.trim());
         contribution.setStatus("pending");
 
-        if (userIdValue != null && !userIdValue.isBlank()) {
-            try {
-                contribution.setUserId(Long.parseLong(userIdValue));
-            } catch (NumberFormatException ignored) {
-            }
+        // 从 JWT Token 中获取当前登录用户 ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId != null) {
+            contribution.setUserId(currentUserId);
         }
 
         contributionService.submitContribution(contribution);
