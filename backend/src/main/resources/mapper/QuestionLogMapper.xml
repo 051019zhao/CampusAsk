@@ -82,4 +82,28 @@
             LIMIT #{limit}
         </select>
 
+        <!-- V4: 累计查询总数 -->
+        <select id="countAll" resultType="int">
+            SELECT COUNT(*) FROM question_log
+        </select>
+
+        <!-- V4: 近期活跃动态（带来源和时间） -->
+        <select id="findRecentQuestionsWithSource" resultType="java.util.HashMap">
+            SELECT question, source, created_at
+            FROM question_log
+            WHERE question IS NOT NULL AND question &lt;&gt; ''
+            ORDER BY created_at DESC
+            LIMIT #{limit}
+        </select>
+
+        <!-- V4: 全时段高频提问 Top N -->
+        <select id="findTopQuestions" resultType="java.util.HashMap">
+            SELECT question AS name, COUNT(*) AS value
+            FROM question_log
+            WHERE question IS NOT NULL AND question &lt;&gt; ''
+            GROUP BY question
+            ORDER BY value DESC
+            LIMIT #{limit}
+        </select>
+
 </mapper>

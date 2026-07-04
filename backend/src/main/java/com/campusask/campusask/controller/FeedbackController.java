@@ -23,10 +23,26 @@ public class FeedbackController {
     @Value("${deepseek.api.key}")
     private String apiKey;
 
-    /** 反馈列表 */
+    /** V4: 反馈列表（分页 + 可选筛选） */
     @GetMapping("/list")
-    public Result<List<Map<String, Object>>> list() {
-        return Result.success(feedbackMapper.listAll());
+    public Result<Map<String, Object>> list(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String filter) {  // all / helpful / unhelpful
+        int offset = (page - 1) * size;
+        Boolean helpfulFilter = null;
+        if ("helpful".equals(filter)) helpfulFilter = true;
+        else if ("unhelpful".equals(filter)) helpfulFilter = false;
+
+        List<Map<String, Object>> list = feedbackMapper.listWithAnswer(offset, size, helpfulFilter);
+        int total = helpfulFilter == null ? feedbackMapper.countAll()
+                : (helpfulFilter ? feedbackMapper.countHelpful() : feedbackMapper.countUnhelpful());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", page);
+        return Result.success(result);
     }
 
     /** 反馈统计 */
@@ -37,6 +53,12 @@ public class FeedbackController {
         data.put("unhelpful", feedbackMapper.countUnhelpful());
         data.put("total", feedbackMapper.countAll());
         return Result.success(data);
+    }
+
+    /** V4: 近7日反馈趋势 */
+    @GetMapping("/trend")
+    public Result<List<Map<String, Object>>> trend() {
+        return Result.success(feedbackMapper.dailyTrend(7));
     }
 
     /** 按问题分组的反馈摘要 */

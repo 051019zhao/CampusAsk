@@ -106,8 +106,12 @@ public class ContributionController {
             if (category == null || category.isBlank()) {
                 return Result.error("分类不能为空");
             }
+            // V4: 支持管理员编辑后再入库
+            String editedTitle = body.get("title");
+            String editedContent = body.get("content");
             Long reviewerId = BaseContext.getCurrentId();
-            contributionService.approveContribution(id, category, keywords, reviewerId);
+            contributionService.approveContribution(id, category, keywords, reviewerId,
+                    editedTitle, editedContent);
             return Result.success("已通过并已加入知识库");
         }
 

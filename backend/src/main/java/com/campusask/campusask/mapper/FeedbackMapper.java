@@ -24,6 +24,28 @@ public interface FeedbackMapper {
     @Select("SELECT * FROM feedback ORDER BY created_at DESC LIMIT 100")
     List<Map<String, Object>> listAll();
 
+    /** V4: 分页列表（带回答内容+筛选） */
+    @Select("<script>" +
+            "SELECT * FROM feedback " +
+            "<where>" +
+            "  <if test='helpful != null'> AND helpful = #{helpful} </if>" +
+            "</where>" +
+            "ORDER BY created_at DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<Map<String, Object>> listWithAnswer(@Param("offset") int offset,
+                                             @Param("size") int size,
+                                             @Param("helpful") Boolean helpful);
+
+    /** V4: 近N天反馈趋势 */
+    @Select("SELECT DATE(created_at) AS date, " +
+            "SUM(CASE WHEN helpful = 1 THEN 1 ELSE 0 END) AS helpful, " +
+            "SUM(CASE WHEN helpful = 0 THEN 1 ELSE 0 END) AS unhelpful, " +
+            "COUNT(*) AS total " +
+            "FROM feedback " +
+            "WHERE created_at >= DATE_SUB(NOW(), INTERVAL #{days} DAY) " +
+            "GROUP BY DATE(created_at) ORDER BY date")
+    List<Map<String, Object>> dailyTrend(@Param("days") int days);
+
     @Select("SELECT question, " +
             "SUM(CASE WHEN helpful = 1 THEN 1 ELSE 0 END) AS helpful, " +
             "SUM(CASE WHEN helpful = 0 THEN 1 ELSE 0 END) AS unhelpful, " +

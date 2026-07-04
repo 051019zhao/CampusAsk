@@ -1,6 +1,8 @@
 package com.campusask.campusask.controller;
 
 import com.campusask.campusask.dto.Result;
+import com.campusask.campusask.mapper.FeedbackMapper;
+import com.campusask.campusask.mapper.KnowledgeGapMapper;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.mapper.QuestionLogMapper;
 import com.campusask.campusask.mapper.UserMapper;
@@ -8,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -26,9 +30,14 @@ public class AdminStatsController {
     @Autowired
     private KnowledgeMapper knowledgeMapper;
 
+    @Autowired
+    private KnowledgeGapMapper knowledgeGapMapper;
+
+    @Autowired
+    private FeedbackMapper feedbackMapper;
+
     /**
-     * 统计面板概览（三张卡片 + 今日查询量）
-     * GET /api/admin/stats/overview
+     * V4: 统计面板概览（6 张卡片）
      */
     @GetMapping("/overview")
     public Result<Map<String, Object>> overview() {
@@ -37,8 +46,45 @@ public class AdminStatsController {
         data.put("todayCount", questionLogMapper.countByDate(today));
         data.put("userCount", userMapper.countAll());
         data.put("knowledgeCount", knowledgeMapper.countAll());
+        data.put("gapPending", knowledgeGapMapper.countPending());        // 待审核缺口
+        data.put("totalQueries", questionLogMapper.countAll());           // 累计查询
+        data.put("feedbackRatio", feedbackMapper.countHelpful() > 0      // 好评率
+                ? Math.round(feedbackMapper.countHelpful() * 100.0 / Math.max(feedbackMapper.countAll(), 1)) : 0);
         data.put("date", today);
         return Result.success(data);
+    }
+
+    /** V4: 近期活跃动态（最新 10 条问答） */
+    @GetMapping("/recent-activity")
+    public Result<List<Map<String, Object>>> recentActivity() {
+        List<Map<String, Object>> raw = questionLogMapper.findRecentQuestionsWithSource(10);
+        List<Map<String, Object>> result = new ArrayList<>();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm:ss");
+        for (Map<String, Object> row : raw) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("question", row.get("question"));
+            item.put("source", row.get("source"));
+            Object timeObj = row.get("created_at");
+            if (timeObj != null) {
+                try {
+                    if (timeObj instanceof LocalDateTime) {
+                        item.put("time", ((LocalDateTime) timeObj).format(fmt));
+                    } else {
+                        item.put("time", timeObj.toString());
+                    }
+                } catch (Exception e) {
+                    item.put("time", timeObj.toString());
+                }
+            }
+            result.add(item);
+        }
+        return Result.success(result);
+    }
+
+    /** V4: 全时段高频提问 Top 10 */
+    @GetMapping("/top-questions")
+    public Result<List<Map<String, Object>>> topQuestions() {
+        return Result.success(questionLogMapper.findTopQuestions(10));
     }
 
     /**

@@ -69,15 +69,22 @@ public class ContributionService {
     }
 
     @Transactional
-    public void approveContribution(Long id, String category, String keywords, Long reviewerId) {
+    public void approveContribution(Long id, String category, String keywords, Long reviewerId,
+                                    String editedTitle, String editedContent) {
         Contribution contribution = contributionMapper.selectById(id);
         if (contribution == null) {
             throw new RuntimeException("投稿不存在或已被处理");
         }
 
+        // V4: 支持管理员编辑后再入库
+        String title = (editedTitle != null && !editedTitle.isBlank())
+                ? editedTitle.trim() : contribution.getQuestion();
+        String content = (editedContent != null && !editedContent.isBlank())
+                ? editedContent.trim() : contribution.getAnswer();
+
         Knowledge knowledge = new Knowledge();
-        knowledge.setTitle(contribution.getQuestion());
-        knowledge.setContent(contribution.getAnswer());
+        knowledge.setTitle(title.length() > 200 ? title.substring(0, 200) : title);
+        knowledge.setContent(content);
         knowledge.setCategory(category == null || category.isBlank() ? "未分类" : category.trim());
         knowledge.setKeywords(keywords == null ? "" : keywords.trim());
         knowledge.setViewCount(0);

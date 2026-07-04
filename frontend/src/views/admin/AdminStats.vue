@@ -2,42 +2,74 @@
   <div class="stats-dashboard">
     <h1>📊 数据统计面板</h1>
 
-    <!-- 今日查询量卡片 -->
+    <!-- V4: 6 张统计卡片 -->
     <div class="card-row">
       <div class="card highlight">
-        <div class="card-title">今日查询量</div>
+        <div class="card-title">📅 今日查询量</div>
         <div class="card-value">{{ overview.todayCount ?? 0 }}</div>
         <div class="card-sub">{{ overview.date }}</div>
       </div>
       <div class="card">
-        <div class="card-title">知识库条目</div>
+        <div class="card-title">📚 知识库条目</div>
         <div class="card-value">{{ overview.knowledgeCount ?? '-' }}</div>
         <div class="card-sub">总条目数</div>
       </div>
       <div class="card">
-        <div class="card-title">用户总数</div>
+        <div class="card-title">👥 用户总数</div>
         <div class="card-value">{{ overview.userCount ?? '-' }}</div>
         <div class="card-sub">注册用户</div>
       </div>
-    </div>
-
-    <!-- 趋势图 -->
-    <div class="chart-section">
-      <h2>📈 近7日查询趋势</h2>
-      <div class="chart-container">
-        <canvas id="trendChart" height="80"></canvas>
+      <div class="card highlight">
+        <div class="card-title">🔍 累计查询</div>
+        <div class="card-value">{{ overview.totalQueries ?? 0 }}</div>
+        <div class="card-sub">历史总量</div>
+      </div>
+      <div class="card" :class="{ warn: overview.gapPending > 0 }">
+        <div class="card-title">📋 待审缺口</div>
+        <div class="card-value">{{ overview.gapPending ?? 0 }}</div>
+        <div class="card-sub">知识缺口</div>
+      </div>
+      <div class="card">
+        <div class="card-title">👍 好评率</div>
+        <div class="card-value">{{ overview.feedbackRatio ?? 0 }}%</div>
+        <div class="card-sub">用户反馈</div>
       </div>
     </div>
 
-    <!-- 来源占比 + 知识库分类 -->
-    <div style="display:flex; gap:24px; flex-wrap:wrap">
-      <div class="chart-section" style="flex:1; min-width:350px">
+    <div style="display:flex; gap:16px; flex-wrap:wrap">
+      <!-- 趋势图 -->
+      <div class="chart-section" style="flex:2; min-width:480px">
+        <h2>📈 近7日查询趋势</h2>
+        <div class="chart-container">
+          <canvas id="trendChart" height="80"></canvas>
+        </div>
+      </div>
+
+      <!-- V4: 高频提问 Top 10 -->
+      <div class="chart-section" style="flex:1; min-width:320px">
+        <h2>🔥 高频提问 Top 10</h2>
+        <div v-if="!topQuestions.length" class="empty-hint">暂无数据</div>
+        <div v-else class="bar-chart">
+          <div v-for="(item, i) in topQuestions" :key="i" class="bar-row">
+            <span class="bar-rank">{{ i + 1 }}</span>
+            <span class="bar-label left" :title="item.name">{{ item.name }}</span>
+            <div class="bar-track"><div class="bar-fill short" :style="{width: barWidthQ(item.value)}"></div></div>
+            <span class="bar-val">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap">
+      <!-- 来源占比 -->
+      <div class="chart-section" style="flex:1; min-width:320px">
         <h2>检索来源占比</h2>
         <div class="chart-container half">
           <canvas id="sourceChart" height="80"></canvas>
         </div>
       </div>
-      <div class="chart-section" style="flex:1; min-width:350px">
+      <!-- 知识库分类 -->
+      <div class="chart-section" style="flex:1; min-width:320px">
         <h2>知识库分类统计</h2>
         <div v-if="!knowledgeCategories.length" class="empty-hint">暂无数据</div>
         <div v-else class="bar-chart">
@@ -50,22 +82,36 @@
       </div>
     </div>
 
-    <!-- 话题分布 -->
-    <div class="chart-section">
-      <h2>今日提问话题分布</h2>
-      <div v-if="!topics.length" class="empty-hint">今日暂无提问</div>
-      <div v-else class="bar-chart">
-        <div v-for="(item, i) in topics" :key="i" class="bar-row">
-          <span class="bar-label">{{ item.name }}</span>
-          <div class="bar-track"><div class="bar-fill" :style="{width: barWidth(item.value), background: topicColor(item.name)}"></div></div>
-          <span class="bar-val">{{ item.value }}</span>
+    <div style="display:flex; gap:16px; flex-wrap:wrap">
+      <!-- 今日话题分布 -->
+      <div class="chart-section" style="flex:1; min-width:320px">
+        <h2>💬 今日话题分布</h2>
+        <div v-if="!topics.length" class="empty-hint">今日暂无提问</div>
+        <div v-else class="bar-chart">
+          <div v-for="(item, i) in topics" :key="i" class="bar-row">
+            <span class="bar-label">{{ item.name }}</span>
+            <div class="bar-track"><div class="bar-fill" :style="{width: barWidth(item.value), background: topicColor(item.name)}"></div></div>
+            <span class="bar-val">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
+      <!-- V4: 近期活跃动态 -->
+      <div class="chart-section" style="flex:1; min-width:320px">
+        <h2>🕐 近期活跃动态</h2>
+        <div v-if="!recentActivity.length" class="empty-hint">暂无数据</div>
+        <div v-else class="activity-feed">
+          <div v-for="(item, i) in recentActivity" :key="i" class="activity-item">
+            <span class="act-time">{{ item.time }}</span>
+            <span class="act-source" :class="'src-' + item.source">{{ sourceShort(item.source) }}</span>
+            <span class="act-question">{{ item.question }}</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- AI 报告 -->
     <div class="chart-section ai-report">
-      <h2>AI 每日报告</h2>
+      <h2>🤖 AI 每日报告</h2>
       <p v-if="report" class="report-text">{{ report }}</p>
       <p v-else class="empty-hint">加载中...</p>
     </div>
@@ -77,12 +123,14 @@ export default {
   name: "AdminStats",
   data() {
     return {
-      overview: { todayCount: 0, userCount: 0, knowledgeCount: 0, date: "" },
+      overview: { todayCount: 0, userCount: 0, knowledgeCount: 0, date: "", totalQueries: 0, gapPending: 0, feedbackRatio: 0 },
       trend: [],
       source: [],
       knowledgeCategories: [],
       topics: [],
       report: "",
+      topQuestions: [],      // V4
+      recentActivity: [],    // V4
     }
   },
   mounted() {
@@ -95,22 +143,27 @@ export default {
     },
     async loadData() {
       try {
-        const [overviewRes, trendRes, sourceRes, catRes, topicRes, reportRes] = await Promise.all([
+        const [overviewRes, trendRes, sourceRes, catRes, topicRes, reportRes, topQRes, actRes] = await Promise.all([
           fetch("/api/admin/stats/overview", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/trend", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/source", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/knowledge-categories", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/topics", { headers: this.getAuthHeaders() }),
           fetch("/api/admin/stats/report", { headers: this.getAuthHeaders() }),
+          fetch("/api/admin/stats/top-questions", { headers: this.getAuthHeaders() }),       // V4
+          fetch("/api/admin/stats/recent-activity", { headers: this.getAuthHeaders() }),      // V4
         ])
         const o = await overviewRes.json(); const t = await trendRes.json(); const s = await sourceRes.json()
         const c = await catRes.json(); const tp = await topicRes.json(); const r = await reportRes.json()
+        const tq = await topQRes.json(); const ac = await actRes.json()
         if (o.code === 200) this.overview = o.data
         if (t.code === 200) this.trend = t.data
         if (s.code === 200) this.source = s.data
         if (c.code === 200) this.knowledgeCategories = c.data
         if (tp.code === 200) this.topics = tp.data
         if (r.code === 200) this.report = r.data
+        if (tq.code === 200) this.topQuestions = tq.data
+        if (ac.code === 200) this.recentActivity = ac.data
         this.$nextTick(() => {
           this.drawTrend()
           this.drawSource()
@@ -174,8 +227,17 @@ export default {
       })
     },
     barWidth(val) {
-      const max = Math.max(...[...this.knowledgeCategories, ...this.topics].map(d => d.value || 0), 1)
+      const all = [...this.knowledgeCategories, ...this.topics]
+      const max = Math.max(...all.map(d => d.value || 0), 1)
       return Math.round((val / max) * 100) + '%'
+    },
+    barWidthQ(val) {
+      const max = Math.max(...this.topQuestions.map(d => d.value || 0), 1)
+      return Math.round((val / max) * 100) + '%'
+    },
+    sourceShort(s) {
+      const m = { knowledge: '📚本地', ai_knowledge: '🤖AI库', ai_search: '🌐联网', ai_web: '💡AI答', fallback: '⚠️降级', rejected: '🚫拒绝' }
+      return m[s] || s
     },
     topicColor(name) {
       const map = { '餐饮':'#F56C6C', '宿舍':'#409EFF', '学习':'#67C23A', '交通':'#E6A23C', '校园服务':'#909399', '其他':'#C0C4CC' }
@@ -235,6 +297,23 @@ h2 { color: #606266; margin-bottom: 12px; font-size: 16px; }
 .bar-fill { height: 100%; background: #2E75B6; border-radius: 4px; transition: width 0.6s ease; min-width: 4px; }
 .bar-val { width: 30px; font-size: 13px; font-weight: 600; color: #303133; }
 .empty-hint { color: #C0C4CC; font-size: 14px; padding: 16px 0; }
+.card.warn { border-left: 4px solid #E6A23C; }
 .ai-report { border-left: 4px solid #67C23A; }
 .report-text { font-size: 15px; color: #303133; line-height: 1.8; padding: 8px 0; }
+
+/* V4: 高频提问排名 */
+.bar-rank { width: 20px; font-size: 12px; font-weight: 700; color: #909399; text-align: center; flex-shrink: 0; }
+.bar-label.left { width: auto; flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-fill.short { height: 100%; background: #E6A23C; border-radius: 4px; transition: width 0.6s ease; min-width: 4px; }
+
+/* V4: 活跃动态 */
+.activity-feed { max-height: 300px; overflow-y: auto; }
+.activity-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f2f5; font-size: 12px; }
+.activity-item:last-child { border-bottom: none; }
+.act-time { color: #C0C4CC; font-size: 11px; width: 55px; flex-shrink: 0; }
+.act-source { font-size: 10px; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; }
+.src-ai_knowledge, .src-ai_search, .src-ai_web { background: #e6f7ff; color: #0369a1; }
+.src-knowledge { background: #fff4e6; color: #b45309; }
+.src-fallback { background: #fef3c7; color: #92400e; }
+.act-question { color: #606266; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

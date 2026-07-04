@@ -22,27 +22,25 @@
         </tr>
         <tr v-else v-for="item in list" :key="item.id">
           <td>{{ item.id }}</td>
-          <td class="wrap">{{ item.question }}</td>
-          <td class="wrap">{{ item.answer }}</td>
+          <td class="wrap" @click="startEdit(item, 'question')">
+            <div v-if="editingId !== item.id || editingField !== 'question'" class="editable-cell">{{ item.question }}</div>
+            <textarea v-else v-model="editQuestion" class="edit-textarea-inline" rows="2" @click.stop></textarea>
+          </td>
+          <td class="wrap" @click="startEdit(item, 'answer')">
+            <div v-if="editingId !== item.id || editingField !== 'answer'" class="editable-cell">{{ item.answer }}</div>
+            <textarea v-else v-model="editAnswer" class="edit-textarea-inline" rows="3" @click.stop></textarea>
+          </td>
           <td>{{ item.userId || '匿名' }}</td>
           <td>{{ formatDate(item.createdAt) }}</td>
           <td>
-            <input
-              v-model="item.category"
-              placeholder="请输入分类"
-              class="edit-input"
-            />
+            <input v-model="item.category" placeholder="分类" class="edit-input" />
           </td>
           <td>
-            <input
-              v-model="item.keywords"
-              placeholder="请输入关键词，用逗号分隔"
-              class="edit-input"
-            />
+            <input v-model="item.keywords" placeholder="关键词" class="edit-input" />
           </td>
-          <td>
-            <button class="btn btn-success" @click="approve(item)">通过</button>
-            <button class="btn btn-delete" @click="openReject(item)">驳回</button>
+          <td class="action-cell">
+            <button class="btn btn-success" @click="approve(item)">✅ 通过</button>
+            <button class="btn btn-delete" @click="openReject(item)">⏭ 驳回</button>
           </td>
         </tr>
       </tbody>
@@ -79,6 +77,10 @@ export default {
       currentRejectItem: null,
       message: '',
       messageType: 'success',
+      editingId: null,      // V4: 正在编辑的投稿 ID
+      editingField: null,   // V4: 正在编辑的字段 'question' | 'answer'
+      editQuestion: '',     // V4: 编辑中的标题
+      editAnswer: '',       // V4: 编辑中的内容
     }
   },
   mounted() {
@@ -114,26 +116,36 @@ export default {
       const date = new Date(value)
       return date.toLocaleString()
     },
+    startEdit(item, field) {
+      this.editingId = item.id
+      this.editingField = field
+      this.editQuestion = item.question
+      this.editAnswer = item.answer
+    },
     async approve(item) {
       if (!item.category || !item.category.trim()) {
         this.showMessage('请先填写分类', 'error')
         return
       }
       try {
+        const body = {
+          action: 'approve',
+          category: item.category,
+          keywords: item.keywords || '',
+        }
+        // V4: 如果编辑过，传修改后的内容
+        if (this.editingId === item.id) {
+          if (this.editQuestion !== item.question) body.title = this.editQuestion.trim()
+          if (this.editAnswer !== item.answer) body.content = this.editAnswer.trim()
+        }
         const res = await fetch(`/api/contribute/${item.id}/review`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...this.getAuthHeaders(),
-          },
-          body: JSON.stringify({
-            action: 'approve',
-            category: item.category,
-            keywords: item.keywords || '',
-          }),
+          headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+          body: JSON.stringify(body),
         })
         const data = await res.json()
         if (data.code === 200) {
+          this.editingId = null; this.editingField = null
           this.showMessage(data.message || '已通过并入库', 'success')
           this.loadPending()
         } else {
@@ -307,4 +319,10 @@ th {
   background: #fde2e2;
   color: #f56c6c;
 }
+
+/* V4: 可编辑单元格 */
+.editable-cell { cursor: pointer; min-height: 20px; padding: 4px; border-radius: 4px; }
+.editable-cell:hover { background: #f0f4f7; }
+.edit-textarea-inline { width: 100%; border: 2px solid #2E75B6; border-radius: 4px; padding: 4px 6px; font-size: 13px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+.action-cell { white-space: nowrap; }
 </style>
