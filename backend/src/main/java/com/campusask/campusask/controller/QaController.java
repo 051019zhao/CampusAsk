@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -26,6 +27,9 @@ public class QaController {
     @Autowired
     private KnowledgeGapMapper knowledgeGapMapper;
 
+    @Autowired
+    private com.campusask.campusask.utils.OssUtil ossUtil;
+
     private static final Logger log = LoggerFactory.getLogger(QaController.class);
 
     @PostMapping("/ask")
@@ -34,6 +38,14 @@ public class QaController {
         String sessionId = body.get("sessionId"); // V3 新增：多轮对话会话ID
         Map<String, Object> data = qaService.ask(keyword, sessionId);
         return Result.success(data);
+    }
+
+    /** V4: 上传图片到 OSS */
+    @PostMapping("/upload-image")
+    public Result<String> uploadImage(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) return Result.error("文件为空");
+        try { String url = ossUtil.uploadAvatar(file); return Result.success(url); }
+        catch (Exception e) { return Result.error("上传失败"); }
     }
 
     /** V3 新增：清除会话上下文（用户切换话题时调用） */

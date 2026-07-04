@@ -57,4 +57,8 @@ public interface KnowledgeMapper {
     /** V4: 浏览量+1 */
     @Update("UPDATE knowledge SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(@Param("id") Long id);
+
+    /** V4: 根据标题查询知识（用于重复检测） */
+    @Select("SELECT * FROM knowledge WHERE title = #{title} LIMIT 1")
+    Knowledge selectByTitle(@Param("title") String title);
 }

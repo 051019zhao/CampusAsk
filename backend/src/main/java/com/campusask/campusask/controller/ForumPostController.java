@@ -40,6 +40,30 @@ public class ForumPostController {
         return Result.success(forumPostService.getHotTags(limit));
     }
 
+    /** V4: 搜索帖子（标题+内容） */
+    @GetMapping("/posts/search")
+    public Result<Map<String, Object>> searchPosts(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return Result.success(forumPostService.searchPosts(q, page, size));
+    }
+
+    @Autowired
+    private com.campusask.campusask.utils.OssUtil ossUtil;
+
+    /** V4: 上传帖子图片到 OSS */
+    @PostMapping("/upload-image")
+    public Result<String> uploadImage(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        if (file == null || file.isEmpty()) return Result.error("文件为空");
+        try {
+            String url = ossUtil.uploadAvatar(file); // 复用头像上传逻辑
+            return Result.success(url);
+        } catch (Exception e) {
+            return Result.error("上传失败：" + e.getMessage());
+        }
+    }
+
     /**
      * 获取帖子列表（分页）
      */

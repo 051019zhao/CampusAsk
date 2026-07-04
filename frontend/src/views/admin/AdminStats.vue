@@ -111,8 +111,11 @@
 
     <!-- AI 报告 -->
     <div class="chart-section ai-report">
-      <h2>🤖 AI 每日报告</h2>
-      <p v-if="report" class="report-text">{{ report }}</p>
+      <div class="report-header">
+        <h2>🤖 每日数据报告</h2>
+        <button class="btn-refresh" @click="loadReport">🔄 刷新</button>
+      </div>
+      <div v-if="report" class="report-text" v-html="formatReport(report)"></div>
       <p v-else class="empty-hint">加载中...</p>
     </div>
   </div>
@@ -235,6 +238,32 @@ export default {
       const max = Math.max(...this.topQuestions.map(d => d.value || 0), 1)
       return Math.round((val / max) * 100) + '%'
     },
+    async loadReport() {
+      try {
+        const res = await fetch("/api/admin/stats/report", { headers: this.getAuthHeaders() })
+        const d = await res.json()
+        if (d.code === 200) this.report = d.data
+      } catch (e) { }
+    },
+    formatReport(text) {
+      if (!text) return ''
+      return text
+        .replace(/📊/g, '<span class="r-title">📊')
+        .replace(/━━+/g, '')
+        .replace(/\n/g, '<br>')
+        .replace(/📌/g, '<span class="r-section">📌')
+        .replace(/🔍/g, '<span class="r-section">🔍')
+        .replace(/🔥/g, '<span class="r-section">🔥')
+        .replace(/⏳/g, '<span class="r-section">⏳')
+        .replace(/💡/g, '<span class="r-section">💡')
+        .replace(/  •/g, '  <span class="r-bullet">•</span>')
+        .replace(/⚠️/g, '<span class="r-warn">⚠️</span>')
+        .replace(/✅/g, '<span class="r-ok">✅</span>')
+        .replace(/📈/g, '<span class="r-up">📈</span>')
+        .replace(/📉/g, '<span class="r-down">📉</span>')
+        .replace(/➡️/g, '<span>')
+        .replace(/<\/span>(\s*<br>\s*)?$/gm, '</span>')
+    },
     sourceShort(s) {
       const m = { knowledge: '📚本地', ai_knowledge: '🤖AI库', ai_search: '🌐联网', ai_web: '💡AI答', fallback: '⚠️降级', rejected: '🚫拒绝' }
       return m[s] || s
@@ -299,7 +328,16 @@ h2 { color: #606266; margin-bottom: 12px; font-size: 16px; }
 .empty-hint { color: #C0C4CC; font-size: 14px; padding: 16px 0; }
 .card.warn { border-left: 4px solid #E6A23C; }
 .ai-report { border-left: 4px solid #67C23A; }
-.report-text { font-size: 15px; color: #303133; line-height: 1.8; padding: 8px 0; }
+.report-header { display:flex; justify-content:space-between; align-items:center; }
+.btn-refresh { border:1px solid #dcdfe6; border-radius:6px; padding:4px 12px; background:#fff; font-size:12px; cursor:pointer; }
+.report-text { font-size:14px; color:#303133; line-height:2; padding:8px 0; }
+.report-text :deep(.r-title) { font-size:18px; font-weight:700; color:#2b5569; display:block; margin-bottom:8px; }
+.report-text :deep(.r-section) { font-size:15px; font-weight:600; color:#303133; display:block; margin-top:12px; }
+.report-text :deep(.r-bullet) { color:#2b5569; font-weight:700; }
+.report-text :deep(.r-warn) { color:#E6A23C; }
+.report-text :deep(.r-ok) { color:#67C23A; }
+.report-text :deep(.r-up) { color:#F56C6C; }
+.report-text :deep(.r-down) { color:#67C23A; }
 
 /* V4: 高频提问排名 */
 .bar-rank { width: 20px; font-size: 12px; font-weight: 700; color: #909399; text-align: center; flex-shrink: 0; }

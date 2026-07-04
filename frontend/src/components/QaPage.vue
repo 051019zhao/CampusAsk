@@ -3,7 +3,7 @@
     <div class="qa-shell">
       <aside class="side-panel">
         <div class="brand">
-          <div class="brand-badge"></div>
+          <img src="/favicon.png" class="brand-badge" />
           <div>
             <div class="brand-title">CampusAsk</div>
             <div class="brand-sub">校园智能问答</div>
@@ -116,13 +116,15 @@
         </div>
 
         <div class="composer">
-          <textarea
-            v-model="keyword"
-            placeholder="输入你的问题……"
-            rows="2"
-            @keyup.enter.exact.prevent="search"
-          ></textarea>
+          <textarea v-model="keyword" placeholder="输入你的问题……" rows="2" @keyup.enter.exact.prevent="search"></textarea>
+          <!-- V4: 图片预览 -->
+          <img v-if="qaImageUrl" :src="qaImageUrl" class="qa-preview-img" @click="qaImageUrl=''" title="点击移除" />
           <div class="composer-actions">
+            <div class="composer-left">
+              <input type="file" accept="image/*" ref="qaImageInput" hidden @change="handleQaImage" />
+              <button class="img-btn" @click="$refs.qaImageInput.click()" title="上传图片">📷</button>
+              <span v-if="qaUploading" class="uploading-hint">上传中...</span>
+            </div>
             <div class="composer-hint">按 Enter 发送，Shift + Enter 换行</div>
             <button class="send-btn" @click="search">发送</button>
           </div>
@@ -209,6 +211,8 @@ export default {
       chatMessages: [],
       sessionId: '',           // V3: 多轮对话会话ID
       suggestedQuestions: [],  // V3: 相关问题推荐
+      qaImageUrl: '',          // V4: 问答图片
+      qaUploading: false,      // V4: 图片上传中
       // V3: 首页快捷提问卡片（默认兜底）
       quickQuestions: [
         '食堂几点开门？',
@@ -281,6 +285,19 @@ export default {
     }
   },
   methods: {
+    async handleQaImage(e) {
+      const file = e.target.files[0]; if (!file) return
+      this.qaUploading = true
+      try {
+        const fd = new FormData(); fd.append('file', file)
+        const token = localStorage.getItem('token'); const headers = token ? { token } : {}
+        const r = await fetch('/api/qa/upload-image', { method: 'POST', headers, body: fd })
+        const d = await r.json()
+        if (d.code === 200) this.qaImageUrl = d.data
+        else alert(d.message || '上传失败')
+      } catch (ex) { alert('上传失败') }
+      finally { this.qaUploading = false; e.target.value = '' }
+    },
     async search() {
       if (this.loading) return
       const question = this.keyword.trim()
@@ -308,11 +325,11 @@ export default {
         const token = localStorage.getItem('token')
         const headers = { 'Content-Type': 'application/json' }
         if (token) headers['token'] = token
-        // V3: 传递 sessionId 支持多轮对话
+        // V3: 传递 sessionId 支持多轮对话; V4: 图片URL
         const res = await fetch('/api/qa/ask', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ keyword: question, sessionId: this.sessionId })
+          body: JSON.stringify({ keyword: question, sessionId: this.sessionId, imageUrl: this.qaImageUrl })
         })
         const data = await res.json()
         if (data.code === 200 && data.data) {
@@ -357,7 +374,7 @@ export default {
       if (idx >= 0) local.splice(idx, 1)
       local.unshift(question)
       localStorage.setItem(this.getRecentSearchStorageKey(), JSON.stringify(local.slice(0, 6)))
-      this.keyword = ''
+      this.keyword = ''; this.qaImageUrl = ''
       this.refreshMeta()
     },
     buildAnswerText() {
@@ -624,7 +641,7 @@ export default {
 <style scoped>
 .qa-page {
   height: 100vh;
-  background: radial-gradient(circle at 15% 10%, #cbe2ec 0%, #a9cddb 45%, #8fbcd1 100%);
+  background: linear-gradient(135deg, #e8f0f5 0%, #d5e3ec 30%, #c8dbe6 60%, #dce8ef 100%);
   padding: 0;
   box-sizing: border-box;
   font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
@@ -671,6 +688,7 @@ export default {
   height: 34px;
   border-radius: 10px;
   background: #b5d7e6;
+  object-fit: cover;
 }
 
 .brand-title {
@@ -756,15 +774,18 @@ export default {
 .card {
   background: #ffffff;
   border-radius: 16px;
-  padding: 12px;
-  box-shadow: 0 12px 28px rgba(60, 80, 90, 0.08);
+  padding: 16px;
+  box-shadow: 0 2px 16px rgba(60,80,90,.06);
+  transition: box-shadow .2s;
 }
+.card:hover { box-shadow: 0 4px 20px rgba(60,80,90,.1); }
 
 .hero-card {
   min-height: 90px;
   display: grid;
   gap: 6px;
-  background: linear-gradient(135deg, #cfdde4 0%, #e9f2f6 100%);
+  background: linear-gradient(135deg, #e6eef3 0%, #f0f5f8 100%);
+  border: 1px solid rgba(43,85,105,.08);
 }
 
 .hero-title {
@@ -784,20 +805,22 @@ export default {
   gap: 8px;
 }
 .quick-card {
-  border: 1px solid #dce5ea;
-  border-radius: 12px;
-  padding: 12px 10px;
+  border: 1px solid #e0e8ed;
+  border-radius: 14px;
+  padding: 14px 12px;
   background: #fff;
   font-size: 13px;
   color: #2b5569;
   cursor: pointer;
   text-align: center;
-  transition: all 0.2s;
+  transition: all .25s;
+  box-shadow: 0 1px 8px rgba(60,80,90,.04);
 }
 .quick-card:hover {
-  background: #eaf1f4;
+  background: #f4f7f9;
   border-color: #2b5569;
-  box-shadow: 0 4px 12px rgba(43,85,105,.12);
+  box-shadow: 0 6px 20px rgba(43,85,105,.12);
+  transform: translateY(-2px);
 }
 
 /* V3: 复制按钮 */
@@ -999,6 +1022,10 @@ export default {
   gap: 12px;
 }
 
+.composer-left { display:flex; align-items:center; gap:6px; }
+.img-btn { border:1px solid #d5dce3; border-radius:8px; padding:4px 10px; background:#fff; font-size:16px; cursor:pointer; }
+.uploading-hint { font-size:11px; color:#909399; }
+.qa-preview-img { max-height:120px; border-radius:8px; margin-bottom:6px; cursor:pointer; }
 .composer-hint {
   font-size: 11px;
   color: #6a7f8a;
