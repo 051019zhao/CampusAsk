@@ -6,6 +6,7 @@ import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.service.KnowledgeService;
 import com.campusask.campusask.service.QaService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -147,6 +148,27 @@ public class AdminKnowledgeController {
         knowledgeService.update(knowledge);
         qaService.invalidateRelatedCache(knowledge.getTitle()); // V3: 清除相关缓存
         return Result.success("更新成功");
+    }
+
+    /** V4: 导出全部知识库为 CSV */
+    @GetMapping("/export")
+    public void exportCsv(HttpServletResponse response) throws Exception {
+        List<Knowledge> list = knowledgeService.listAll();
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment;filename=knowledge_export.csv");
+        java.io.PrintWriter w = response.getWriter();
+        w.write("﻿"); // BOM for Excel
+        w.println("标题,内容,分类,关键词,浏览量");
+        for (Knowledge k : list) {
+            w.printf("\"%s\",\"%s\",\"%s\",\"%s\",%d\n",
+                    escCsv(k.getTitle()), escCsv(k.getContent()),
+                    escCsv(k.getCategory()), escCsv(k.getKeywords()), k.getViewCount());
+        }
+        w.flush();
+    }
+
+    private String escCsv(String s) {
+        return s == null ? "" : s.replace("\"", "\"\"");
     }
 
     /**

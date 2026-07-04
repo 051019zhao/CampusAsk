@@ -217,29 +217,25 @@ CREATE TABLE IF NOT EXISTS feedback (
                                         helpful TINYINT(1) DEFAULT 1,
                                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
--- 更新为学术学习类
-UPDATE knowledge SET category = '学术学习' 
-WHERE category IN ('课程相关', '考试相关', '论文相关', '学习指导', '课程', '考试', '论文');
+-- V4: 知识库分类体系（17 类）
+-- 学业：课程与选课、考试与成绩、图书馆、奖学金与资助、毕业与实习
+-- 生活：食堂餐饮、宿舍住宿、交通出行、校园卡证、校园服务
+-- 行政：医疗健康、网络与IT、行政规章、社团活动
+-- 综合：招生与就业、学校概况、其他
 
--- 更新为校园生活类
-UPDATE knowledge SET category = '校园生活' 
-WHERE category IN ('宿舍相关', '食堂相关', '活动相关', '宿舍', '食堂', '活动', '校园活动');
-
--- 更新为规章制度类
-UPDATE knowledge SET category = '规章制度' 
-WHERE category IN ('学籍相关', '奖惩相关', '日常管理', '学籍', '奖惩', '管理');
-
--- 更新为就业指导类
-UPDATE knowledge SET category = '就业指导' 
-WHERE category IN ('实习相关', '招聘相关', '职业规划', '实习', '招聘', '就业');
-
--- 更新为技术支持类
-UPDATE knowledge SET category = '技术支持' 
-WHERE category IN ('网络相关', '系统相关', '设备相关', '网络', '系统', '设备', '技术');
-
--- 更新为其他服务类
-UPDATE knowledge SET category = '其他服务'
-WHERE category IN ('医疗相关', '后勤相关', '综合咨询', '医疗', '后勤', '其他');
+UPDATE knowledge SET category = '课程与选课' WHERE category IN ('学术学习', '课程相关', '考试相关', '课程', '选课');
+UPDATE knowledge SET category = '图书馆' WHERE category IN ('学习资源', '论文相关', '学习指导', '论文');
+UPDATE knowledge SET category = '食堂餐饮' WHERE category IN ('校园生活', '食堂相关', '食堂', '餐饮');
+UPDATE knowledge SET category = '宿舍住宿' WHERE category IN ('宿舍相关', '宿舍', '住宿服务');
+UPDATE knowledge SET category = '校园服务' WHERE category IN ('生活服务', '综合咨询', '后勤相关', '打印', '快递', '后勤');
+UPDATE knowledge SET category = '网络与IT' WHERE category IN ('网络服务', '技术支持', '网络相关', '系统相关', '设备相关', '网络', '系统', '设备', '技术');
+UPDATE knowledge SET category = '行政规章' WHERE category IN ('规章制度', '学籍相关', '奖惩相关', '日常管理', '学籍', '奖惩', '管理');
+UPDATE knowledge SET category = '社团活动' WHERE category IN ('活动相关', '活动', '校园活动');
+UPDATE knowledge SET category = '招生与就业' WHERE category IN ('就业指导', '实习相关', '招聘相关', '职业规划', '实习', '招聘', '就业');
+UPDATE knowledge SET category = '医疗健康' WHERE category IN ('医疗相关', '医疗', '校医');
+UPDATE knowledge SET category = '奖学金与资助' WHERE category IN ('奖学金', '助学金');
+UPDATE knowledge SET category = '交通出行' WHERE category IN ('校车');
+UPDATE knowledge SET category = '其他' WHERE category IN ('其他服务');
 
 -- ----------------------------
 -- Table structure for knowledge_gap（知识缺口：AI/联网搜索回答的问题，待管理员审核入库）
