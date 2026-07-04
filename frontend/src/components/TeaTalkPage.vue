@@ -691,24 +691,19 @@ export default {
 <style scoped>
 /* ===== 全局布局 ===== */
 .teatalk-page {
-  min-height: 100vh;
+  height: 100vh;
   background: #f5f7fa;
   padding: 0;
   box-sizing: border-box;
   font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
   color: #1c2b35;
-  overflow-y: auto;
-}
-
-.teatalk-page {
-  max-width: none;
-  min-height: 100vh;
-  margin: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 200px 1fr 200px;
   gap: 14px;
   background: #f8fbfd;
   padding: 12px;
+  align-items: start;
 }
 
 /* ===== 左侧边栏 ===== */
@@ -720,6 +715,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
 .brand {
@@ -827,6 +826,8 @@ export default {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
 /* ===== 帖子列表 ===== */
@@ -1487,6 +1488,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
 /* ===== 用户信息块 ===== */
@@ -1641,36 +1646,23 @@ export default {
 @media (max-width: 1100px) {
   .teatalk-page {
     grid-template-columns: 200px 1fr;
+    height: 100vh;
+    overflow: hidden;
   }
-
-  .hot-panel {
-    display: none;
-  }
+  .hot-panel { display: none; }
 }
 
 @media (max-width: 900px) {
   .teatalk-page {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow-y: auto;
     padding: 10px;
   }
-
-  .side-panel {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-between;
-  }
-
-  .side-group {
-    flex: 1 1 100%;
-  }
-
-  .comment-composer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .send-comment-btn {
-    width: 100%;
-  }
+  .side-panel { height: auto; position: static; flex-direction: row; flex-wrap: wrap; justify-content: space-between; }
+  .side-group { flex: 1 1 100%; }
+  .content-panel { height: auto; overflow-y: visible; }
+  .comment-composer { flex-direction: column; align-items: stretch; }
+  .send-comment-btn { width: 100%; }
 }
 </style>

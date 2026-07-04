@@ -32,13 +32,16 @@
 <style scoped>
 .admin-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 .sidebar {
   width: 200px;
   background: #2d3748;
   color: white;
   padding: 20px;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 .sidebar h3 {
   margin-bottom: 30px;
@@ -73,5 +76,6 @@
   flex: 1;
   padding: 20px;
   background: #f5f7fa;
+  overflow-y: auto;
 }
 </style>

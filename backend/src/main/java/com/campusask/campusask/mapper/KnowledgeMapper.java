@@ -53,4 +53,8 @@ public interface KnowledgeMapper {
 
     @Select("SELECT category AS name, COUNT(*) AS value FROM knowledge WHERE category IS NOT NULL AND category != '' GROUP BY category ORDER BY value DESC")
     List<java.util.Map<String, Object>> countByCategory();
+
+    /** V4: 浏览量+1 */
+    @Update("UPDATE knowledge SET view_count = view_count + 1 WHERE id = #{id}")
+    int incrementViewCount(@Param("id") Long id);
 }
