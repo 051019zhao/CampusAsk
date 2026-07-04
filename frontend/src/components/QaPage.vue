@@ -186,10 +186,8 @@ export default {
       noResult: false,
       chatMessages: [],
       navItems: [
-        { label: '首页',     icon: '🏠', route: '/' },
         { label: '茶话会',   icon: '💬', route: '/teatalk' },
-        { label: '我要投稿', icon: '📝', route: '/contribute' },
-        { label: '我的动态', icon: '❤️', route: '/my-interactions' },
+        { label: '校园问答', icon: '🏠', route: '/' },
         { label: '个人中心', icon: '👤', route: '/user-center' },
       ],
       userInfo: {
