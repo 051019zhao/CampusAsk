@@ -104,6 +104,21 @@ public class QaService {
     private static final long CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
+    // ===== 知识库列表缓存（30秒TTL，避免每次查DB）=====
+    private volatile List<Knowledge> cachedKnowledgeList;
+    private volatile long knowledgeListCacheTime;
+    private static final long KNOWLEDGE_CACHE_TTL_MS = 30_000;
+
+    private List<Knowledge> getCachedKnowledgeList() {
+        long now = System.currentTimeMillis();
+        if (cachedKnowledgeList != null && now - knowledgeListCacheTime < KNOWLEDGE_CACHE_TTL_MS) {
+            return cachedKnowledgeList;
+        }
+        cachedKnowledgeList = knowledgeMapper.listAll();
+        knowledgeListCacheTime = now;
+        return cachedKnowledgeList;
+    }
+
     // ===== RAG Top-K 预筛选配置 =====
     private static final int RAG_TOP_K = 5;              // 最多取 top-5 相关条目送入 prompt
     private static final double RAG_MIN_SIMILARITY = 0.05; // 最低相似度阈值，低于此值的条目不送入
@@ -233,7 +248,7 @@ public class QaService {
         // 第 0 步：非校园问题直接拒绝（先做拼写纠错，可能是打字错误）
         if (!hasSessionHistory && !isCampusRelated(trimmed)) {
             // V4: 可能是拼写错误，尝试纠错后再判断
-            String corrected = fuzzyCorrect(trimmed, knowledgeMapper.listAll());
+            String corrected = fuzzyCorrect(trimmed, getCachedKnowledgeList());
             if (corrected != null && isCampusRelated(corrected)) {
                 // 纠错后是校园问题，放行到 Step 1 用纠错后的词搜索
                 log.info("拼写纠错放行：{} → {}", trimmed, corrected);
@@ -255,6 +270,7 @@ public class QaService {
                 resp.put("source", "knowledge");
                 resp.put("sourceLabel", "📚 数据库关键词检索");
                 resp.put("answer", localHits);
+                incrementViewCounts(localHits);  // V4: 浏览量+1
                 putInCache(cacheKey, resp);
                 recordAsync(trimmed, "knowledge");
                 addSuggestedQuestions(resp, trimmed);
@@ -264,15 +280,16 @@ public class QaService {
 
             // V4: 拼写纠错 —— LIKE 无结果时尝试编辑距离纠错
             if (localHits == null || localHits.isEmpty()) {
-                List<Knowledge> allK = knowledgeMapper.listAll();
+                List<Knowledge> allK = getCachedKnowledgeList();
                 String corrected = fuzzyCorrect(searchKeyword, allK);
                 if (corrected != null && !corrected.equals(searchKeyword)) {
                     List<Knowledge> correctedHits = knowledgeMapper.searchByKeyword(corrected);
                     if (correctedHits != null && !correctedHits.isEmpty()) {
                         resp.put("source", "knowledge");
                         resp.put("sourceLabel", "📚 数据库关键词检索（拼写纠错）");
-                        resp.put("didYouMean", corrected);  // 提示用户"您是不是想找"
+                        resp.put("didYouMean", corrected);
                         resp.put("answer", correctedHits);
+                        incrementViewCounts(correctedHits);  // V4: 浏览量+1
                         putInCache(cacheKey, resp);
                         recordAsync(trimmed, "knowledge");
                         addSuggestedQuestions(resp, trimmed);
@@ -283,83 +300,111 @@ public class QaService {
             }
         }
 
-        // 第 2 步：AI 检索数据库（RAG + Top-K 预筛选）
-        List<Knowledge> allKnowledge = knowledgeMapper.listAll();
-        // ★★★ V3 核心优化：只取 Top-K 最相关条目送入 prompt
+        // 第 2 步：AI 检索数据库 + Tavily 联网搜索（V4: 并行执行，谁先返回用谁）
+        List<Knowledge> allKnowledge = getCachedKnowledgeList();
         List<Knowledge> ragKnowledge = selectTopK(trimmed, allKnowledge, RAG_TOP_K);
         log.info("RAG Top-K：全量 {} 条 → 筛选后 {} 条", allKnowledge.size(), ragKnowledge.size());
+
+        String contextPrompt = buildSessionContext(sessionId);
+
+        // V4: 并行容器（用 final 变量解决 lambda 捕获问题）
+        final String finalTrimmed = trimmed;
+        final String[] ragResult = { null };
+        final String[] searchResult = { null };
+        final Exception[] ragError = { null };
+
+        Thread ragThread = new Thread(() -> {
+            try {
+                ragResult[0] = callDeepSeekWithRAG(finalTrimmed, ragKnowledge, contextPrompt);
+            } catch (Exception e) { ragError[0] = e; }
+        }, "rag-thread");
+
+        Thread searchThread = new Thread(() -> {
+            try {
+                searchResult[0] = searchService.search(finalTrimmed);
+            } catch (Exception e) { /* ignore */ }
+        }, "search-thread");
+
+        ragThread.start();
+        searchThread.start();
+
         try {
-            // 如果有多轮对话历史，传入上下文
-            String contextPrompt = buildSessionContext(sessionId);
-            String raw = callDeepSeekWithRAG(trimmed, ragKnowledge, contextPrompt);
+            // 等 RAG 完成（最多 DEEPSEEK_TIMEOUT_SECONDS）
+            ragThread.join(DEEPSEEK_TIMEOUT_SECONDS * 1000L);
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 
-            if (raw.contains(TAG_DB)) {
-                String answer = raw.replace(TAG_DB, "").trim();
-                resp.put("source", "ai_knowledge");
-                resp.put("sourceLabel", "🤖 AI检索数据库（智能匹配）");
-                resp.put("answer", answer);
-                putInCache(cacheKey, resp);
-                recordAsync(trimmed, "ai_knowledge");
-                addSuggestedQuestions(resp, trimmed);
-                updateSession(sessionId, trimmed, answer);
-                return resp;
+        // 处理 RAG 结果
+        if (ragError[0] != null) {
+            if (ragError[0] instanceof HttpTimeoutException) {
+                log.warn("DeepSeek 超时，降级。keyword={}", trimmed);
+                return fallbackToLocal(cacheKey, "timeout");
             }
+            if (ragError[0] instanceof RateLimitException) {
+                log.warn("DeepSeek 限流，降级。keyword={}", trimmed);
+                return fallbackToLocal(cacheKey, "rate_limited");
+            }
+            log.warn("DeepSeek 失败，降级。keyword={}, err={}", trimmed, ragError[0].getMessage());
+            return fallbackToLocal(cacheKey, "exception:" + ragError[0].getClass().getSimpleName());
+        }
 
-            // 第 3 步：RAG 也没找到 → 调 Tavily 联网搜索
-            String searchResult = searchService.search(trimmed);
-            if (searchResult != null && !searchResult.isBlank()) {
-                List<String> urls = searchService.getLastUrls();
-                String summary = summarizeWithDeepSeek(trimmed, searchResult);
-                if (summary != null && !summary.isBlank()
-                        && !summary.contains("暂无相关")) {
+        String raw = ragResult[0];
+        if (raw != null && raw.contains(TAG_DB)) {
+            searchThread.interrupt(); // 不需要搜索结果了
+            String answer = raw.replace(TAG_DB, "").trim();
+            resp.put("source", "ai_knowledge");
+            resp.put("sourceLabel", "🤖 AI检索数据库（智能匹配）");
+            resp.put("answer", answer);
+            putInCache(cacheKey, resp);
+            recordAsync(trimmed, "ai_knowledge");
+            addSuggestedQuestions(resp, trimmed);
+            updateSession(sessionId, trimmed, answer);
+            return resp;
+        }
+
+        // RAG 没找到 → 等 Tavily 搜索结果
+        try { searchThread.join(10000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+
+        if (searchResult[0] != null && !searchResult[0].isBlank()) {
+            List<String> urls = searchService.getLastUrls();
+            try {
+                String summary = summarizeWithDeepSeek(trimmed, searchResult[0]);
+                if (summary != null && !summary.isBlank() && !summary.contains("暂无相关")) {
                     resp.put("source", "ai_search");
                     resp.put("sourceLabel", "🌐 AI联网搜索(华南理工)");
                     resp.put("answer", summary);
                     resp.put("searchUrls", urls);
                     putInCache(cacheKey, resp);
                     recordAsync(trimmed, "ai_search");
-                    recordGapAsync(trimmed, summary, "ai_search",
-                            urls != null ? String.join(",", urls) : null);
+                    recordGapAsync(trimmed, summary, "ai_search", urls != null ? String.join(",", urls) : null);
                     addSuggestedQuestions(resp, trimmed);
                     updateSession(sessionId, trimmed, summary);
                     return resp;
                 }
-                if (!urls.isEmpty()) {
-                    resp.put("source", "ai_search");
-                    resp.put("sourceLabel", "🌐 AI联网搜索(华南理工)");
-                    resp.put("answer", "以下网页可能包含您需要的信息：\n\n"
-                            + searchService.extractResultTitles(searchResult));
-                    resp.put("searchUrls", urls);
-                    putInCache(cacheKey, resp);
-                    recordAsync(trimmed, "ai_search");
-                    addSuggestedQuestions(resp, trimmed);
-                    updateSession(sessionId, trimmed, "搜索结果列表");
-                    return resp;
-                }
+            } catch (Exception e) { /* summary failed, fall through */ }
+            if (!urls.isEmpty()) {
+                resp.put("source", "ai_search");
+                resp.put("sourceLabel", "🌐 AI联网搜索(华南理工)");
+                resp.put("answer", "以下网页可能包含您需要的信息：\n\n" + searchService.extractResultTitles(searchResult[0]));
+                resp.put("searchUrls", urls);
+                putInCache(cacheKey, resp);
+                recordAsync(trimmed, "ai_search");
+                addSuggestedQuestions(resp, trimmed);
+                updateSession(sessionId, trimmed, "搜索结果列表");
+                return resp;
             }
-
-            // 第 4 步：搜索也没结果 → AI 自主回答
-            String answer = raw.replace(TAG_WEB, "").trim();
-            resp.put("source", "ai_web");
-            resp.put("sourceLabel", "💡 AI自主回答");
-            resp.put("answer", answer);
-            putInCache(cacheKey, resp);
-            recordAsync(trimmed, "ai_web");
-            recordGapAsync(trimmed, answer, "ai_web", null);
-            addSuggestedQuestions(resp, trimmed);
-            updateSession(sessionId, trimmed, answer);
-            return resp;
-
-        } catch (HttpTimeoutException e) {
-            log.warn("DeepSeek 超时，降级。keyword={}", trimmed);
-            return fallbackToLocal(cacheKey, "timeout");
-        } catch (RateLimitException e) {
-            log.warn("DeepSeek 限流，降级。keyword={}", trimmed);
-            return fallbackToLocal(cacheKey, "rate_limited");
-        } catch (Exception e) {
-            log.warn("DeepSeek 失败，降级。keyword={}, err={}", trimmed, e.getMessage());
-            return fallbackToLocal(cacheKey, "exception:" + e.getClass().getSimpleName());
         }
+
+        // RAG 和搜索都没结果 → AI 自主回答
+        String answer = raw != null ? raw.replace(TAG_WEB, "").trim() : "抱歉，暂时无法回答这个问题。";
+        resp.put("source", "ai_web");
+        resp.put("sourceLabel", "💡 AI自主回答");
+        resp.put("answer", answer);
+        putInCache(cacheKey, resp);
+        recordAsync(trimmed, "ai_web");
+        recordGapAsync(trimmed, answer, "ai_web", null);
+        addSuggestedQuestions(resp, trimmed);
+        updateSession(sessionId, trimmed, answer);
+        return resp;
     }
 
     // ===== AI 降级兜底 =====
@@ -371,6 +416,7 @@ public class QaService {
         resp.put("fallbackReason", reason);
         List<Knowledge> hits = knowledgeMapper.searchByKeyword(keyword);
         if (hits != null && !hits.isEmpty()) {
+            incrementViewCounts(hits);  // V4: 浏览量+1
             resp.put("answer", hits);
         } else {
             // ★ V3 新增：尝试静态 FAQ 兜底
@@ -521,6 +567,14 @@ public class QaService {
             hotspotService.invalidateCache();
         } catch (Exception ex) {
             QaService.log.warn("question_log 写入失败：{}", ex.getMessage());
+        }
+    }
+
+    /** V4: 知识库条目被检索命中时浏览量+1 */
+    private void incrementViewCounts(List<Knowledge> hits) {
+        if (hits == null) return;
+        for (Knowledge k : hits) {
+            try { knowledgeMapper.incrementViewCount(k.getId()); } catch (Exception ignored) { }
         }
     }
 
@@ -809,7 +863,7 @@ public class QaService {
                 if (!hits.isEmpty()) {
                     String category = hits.get(0).getCategory();
                     if (category != null) {
-                        List<Knowledge> sameCategory = knowledgeMapper.listAll().stream()
+                        List<Knowledge> sameCategory = getCachedKnowledgeList().stream()
                                 .filter(k -> category.equals(k.getCategory())
                                         && !hits.get(0).getTitle().equals(k.getTitle()))
                                 .limit(3)
@@ -840,7 +894,7 @@ public class QaService {
 
             // 策略3: Jaccard 相似度兜底
             if (suggestions.size() < 3) {
-                List<Knowledge> all = knowledgeMapper.listAll();
+                List<Knowledge> all = getCachedKnowledgeList();
                 all.stream()
                     .map(k -> new AbstractMap.SimpleEntry<>(k.getTitle(),
                             textSimilarity(normalizedQ, k.getTitle() + " " +

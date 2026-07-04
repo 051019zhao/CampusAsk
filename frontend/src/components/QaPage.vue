@@ -623,18 +623,18 @@ export default {
 
 <style scoped>
 .qa-page {
-  min-height: 100vh;
+  height: 100vh;
   background: radial-gradient(circle at 15% 10%, #cbe2ec 0%, #a9cddb 45%, #8fbcd1 100%);
   padding: 0;
   box-sizing: border-box;
   font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
   color: #1c2b35;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .qa-shell {
   max-width: none;
-  min-height: 100vh;
+  height: 100vh;
   margin: 0;
   display: grid;
   grid-template-columns: 200px 1fr 200px;
@@ -643,6 +643,7 @@ export default {
   border-radius: 0;
   padding: 12px;
   box-shadow: 0 20px 48px rgba(39, 66, 80, 0.18);
+  align-items: start;
 }
 
 .side-panel {
@@ -653,6 +654,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
 .brand {
@@ -736,6 +741,15 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
+  height: calc(100vh - 24px);
+  overflow: hidden;
+}
+
+/* 中间可滚动区域：header 固定 + 对话列表滚动 */
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
   min-height: 0;
 }
 
@@ -868,19 +882,29 @@ export default {
 }
 
 .chat-panel {
-  display: grid;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px 12px 14px;
   background: #ffffff;
   border-radius: 0;
   box-shadow: none;
-  min-height: 280px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 10;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f2f5;
 }
 
 .chat-title {
@@ -948,13 +972,13 @@ export default {
 }
 
 .composer {
-  margin-top: auto;
   background: #f7f3f2;
   border-radius: 16px;
   padding: 10px 12px;
   display: grid;
   gap: 6px;
   box-shadow: inset 0 0 0 1px rgba(106, 129, 140, 0.2);
+  flex-shrink: 0;
 }
 
 .composer textarea {
@@ -1002,6 +1026,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
 .hot-title {

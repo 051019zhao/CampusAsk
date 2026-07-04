@@ -12,10 +12,13 @@
 
     <!-- 统计概览 -->
     <div class="stats-bar">
-      <div class="stat-item">共 <strong>{{ total }}</strong> 条</div>
-      <div class="stat-item">分类 <strong>{{ categories.length }}</strong> 个</div>
+      <div class="stat-item">📚 知识库总数 <strong>{{ allTotal }}</strong> 条</div>
+      <div class="stat-item">📂 分类 <strong>{{ categories.length }}</strong> 个</div>
       <div class="stat-item" v-if="keyword || selectedCategory">
-        当前筛选结果 <strong>{{ total }}</strong> 条
+        🔍 筛选结果 <strong>{{ total }}</strong> 条
+      </div>
+      <div class="stat-item" v-else>
+        📄 当前页显示 <strong>{{ list.length }}</strong> 条
       </div>
     </div>
 
@@ -156,7 +159,7 @@ export default {
   data() {
     return {
       keyword: "", selectedCategory: "", categories: [],
-      list: [], total: 0, page: 1, pageSize: 15, loading: false,
+      list: [], total: 0, allTotal: 0, page: 1, pageSize: 15, loading: false,
       editingId: null, editForm: { title: "", content: "", category: "", keywords: "" },
       deleteConfirmVisible: false, deleteItem: null,
       errorModalVisible: false, errorRows: [],
@@ -165,8 +168,15 @@ export default {
       msg: { text: "", type: "success" },
     }
   },
-  mounted() { this.loadCategories(); this.searchData() },
+  mounted() { this.loadCategories(); this.searchData(); this.loadTotalCount() },
   methods: {
+    async loadTotalCount() {
+      try {
+        const r = await fetch("/api/knowledge/list?page=1&size=1", { headers: this.getAuthHeaders() })
+        const d = await r.json()
+        if (d.code === 200) this.allTotal = d.data?.total || 0
+      } catch (e) { }
+    },
     getAuthHeaders() { const t = localStorage.getItem("token"); return t ? { token: t } : {} },
     showMsg(text, type = "success") { this.msg = { text, type }; setTimeout(() => this.msg.text = "", 2500) },
 
@@ -209,7 +219,7 @@ export default {
           body: JSON.stringify({ title: this.addForm.title.trim(), content: this.addForm.content.trim(), category: cat, keywords: this.addForm.keywords.trim() })
         })
         const d = await r.json()
-        if (d.code === 200) { this.showMsg("添加成功"); this.showAddModal = false; this.addForm = { title: "", category: "", newCategory: "", content: "", keywords: "" }; this.loadCategories(); this.searchData() }
+        if (d.code === 200) { this.showMsg("添加成功"); this.showAddModal = false; this.addForm = { title: "", category: "", newCategory: "", content: "", keywords: "" }; this.loadCategories(); this.searchData(); this.loadTotalCount() }
         else this.showMsg(d.message || "添加失败", "error")
       } catch (e) { this.showMsg("网络错误", "error") }
       finally { this.adding = false }
@@ -237,7 +247,7 @@ export default {
       try {
         const r = await fetch(`/api/knowledge/${this.deleteItem.id}`, { method: "DELETE", headers: this.getAuthHeaders() })
         const d = await r.json()
-        if (d.code === 200) { this.showMsg("删除成功"); this.searchData() }
+        if (d.code === 200) { this.showMsg("删除成功"); this.searchData(); this.loadTotalCount() }
         else this.showMsg(d.message || "删除失败", "error")
       } catch (e) { this.showMsg("网络错误", "error") }
       finally { this.deleteConfirmVisible = false; this.deleteItem = null }
@@ -254,7 +264,7 @@ export default {
           this.showMsg(d.message)
           if (d.data?.errorRows?.length) { this.errorRows = d.data.errorRows; this.errorModalVisible = true }
         } else this.showMsg(d.message || "导入失败", "error")
-        this.searchData(); this.loadCategories()
+        this.searchData(); this.loadCategories(); this.loadTotalCount()
       } catch (e) { this.showMsg("导入失败: " + e.message, "error") }
       this.$refs.file.value = ""
     },
