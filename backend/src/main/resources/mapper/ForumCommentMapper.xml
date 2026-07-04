@@ -13,6 +13,7 @@
         SELECT
             fc.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
         LEFT JOIN user u ON fc.user_id = u.username
@@ -25,6 +26,7 @@
         SELECT
             fc.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
         LEFT JOIN user u ON fc.user_id = u.username
@@ -37,6 +39,7 @@
         SELECT
             fc.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             ru.nickname AS reply_to_nickname
         FROM forum_comment fc
         LEFT JOIN user u ON fc.user_id = u.username
@@ -60,6 +63,7 @@
     <resultMap id="commentWithUser" type="com.campusask.campusask.entity.ForumComment" autoMapping="true">
         <id property="id" column="id"/>
         <result property="nickname" column="nickname"/>
+        <result property="avatarUrl" column="avatar_url"/>
         <result property="replyToNickname" column="reply_to_nickname"/>
     </resultMap>
 

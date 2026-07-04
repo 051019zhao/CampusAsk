@@ -16,6 +16,7 @@ public class ForumComment {
 
     // 非数据库字段
     private String nickname;
+    private String avatarUrl;
     private String replyToNickname;
     private List<ForumComment> replies;
 }

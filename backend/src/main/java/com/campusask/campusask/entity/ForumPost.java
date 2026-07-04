@@ -20,6 +20,7 @@ public class ForumPost {
 
     // 非数据库字段
     private String nickname;
+    private String avatarUrl;
     private Boolean liked;
     private Double hotScore;  // V4: 热度分数
 }

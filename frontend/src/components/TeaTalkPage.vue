@@ -80,7 +80,10 @@
             @click="openPost(post.id)"
           >
             <div class="post-header">
-              <div class="post-avatar">{{ post.nickname ? post.nickname.charAt(0) : '?' }}</div>
+              <div class="post-avatar">
+                <img v-if="post.avatarUrl" :src="post.avatarUrl" class="avatar-img" />
+                <span v-else class="avatar-text">{{ post.nickname ? post.nickname.charAt(0) : '?' }}</span>
+              </div>
               <div class="post-meta">
                 <span class="post-author">{{ post.nickname || '匿名用户' }}</span>
                 <span class="post-time">{{ formatTime(post.createdAt) }}</span>
@@ -108,7 +111,10 @@
 
         <article class="detail-card">
           <div class="detail-header">
-            <div class="post-avatar large">{{ currentPost.nickname ? currentPost.nickname.charAt(0) : '?' }}</div>
+            <div class="post-avatar large">
+              <img v-if="currentPost.avatarUrl" :src="currentPost.avatarUrl" class="avatar-img" />
+              <span v-else class="avatar-text">{{ currentPost.nickname ? currentPost.nickname.charAt(0) : '?' }}</span>
+            </div>
             <div class="post-meta">
               <span class="post-author">{{ currentPost.nickname || '匿名用户' }}</span>
               <span class="post-time">{{ formatTime(currentPost.createdAt) }}</span>
@@ -145,7 +151,10 @@
           <div v-for="comment in comments" :key="comment.id" class="comment-thread">
             <!-- 顶级评论 -->
             <div class="comment-item">
-              <div class="comment-avatar">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</div>
+              <div class="comment-avatar">
+                <img v-if="comment.avatarUrl" :src="comment.avatarUrl" class="avatar-img" />
+                <span v-else class="avatar-text">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</span>
+              </div>
               <div class="comment-body">
                 <div class="comment-meta">
                   <span class="comment-author">{{ comment.nickname || '匿名用户' }}</span>
@@ -176,7 +185,10 @@
             <!-- 子回复列表（嵌套显示） -->
             <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
               <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
-                <div class="comment-avatar small">{{ reply.nickname ? reply.nickname.charAt(0) : '?' }}</div>
+                <div class="comment-avatar small">
+                  <img v-if="reply.avatarUrl" :src="reply.avatarUrl" class="avatar-img" />
+                  <span v-else class="avatar-text">{{ reply.nickname ? reply.nickname.charAt(0) : '?' }}</span>
+                </div>
                 <div class="comment-body">
                   <div class="comment-meta">
                     <span class="comment-author">{{ reply.nickname || '匿名用户' }}</span>
@@ -847,18 +859,31 @@ export default {
   height: 36px;
   border-radius: 50%;
   background: #b5d7e6;
-  color: #3c6476;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.post-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-avatar .avatar-text {
+  color: #3c6476;
   font-weight: 700;
   font-size: 16px;
-  flex-shrink: 0;
 }
 
 .post-avatar.large {
   width: 44px;
   height: 44px;
+}
+
+.post-avatar.large .avatar-text {
   font-size: 20px;
 }
 
@@ -1097,13 +1122,23 @@ export default {
   height: 32px;
   border-radius: 50%;
   background: #d4e0e6;
-  color: #3c6476;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.comment-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comment-avatar .avatar-text {
+  color: #3c6476;
   font-weight: 600;
   font-size: 14px;
-  flex-shrink: 0;
 }
 
 .comment-body {

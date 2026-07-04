@@ -13,6 +13,7 @@
         SELECT
             fp.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
         FROM forum_post fp
         LEFT JOIN user u ON fp.user_id = u.username
@@ -23,6 +24,7 @@
         SELECT
             fp.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
         FROM forum_post fp
         LEFT JOIN user u ON fp.user_id = u.username
@@ -38,6 +40,7 @@
         SELECT
             fp.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
         FROM forum_post fp
         LEFT JOIN user u ON fp.user_id = u.username
@@ -59,7 +62,7 @@
 
     <!-- V4: 按标签搜索 -->
     <select id="selectByTag" resultMap="postWithExtra">
-        SELECT fp.*, u.nickname AS nickname,
+        SELECT fp.*, u.nickname AS nickname, u.avatar_url AS avatar_url,
             (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
         FROM forum_post fp
         LEFT JOIN user u ON fp.user_id = u.username
@@ -90,6 +93,7 @@
         SELECT
             fp.*,
             u.nickname AS nickname,
+            u.avatar_url AS avatar_url,
             (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count,
             (fp.view_count * 0.4 + (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) * 0.3
              + fp.like_count * 0.2 + COALESCE(fp.favorite_count, 0) * 0.1) AS hot_score
@@ -102,6 +106,7 @@
     <resultMap id="postWithExtra" type="com.campusask.campusask.entity.ForumPost" autoMapping="true">
         <id property="id" column="id"/>
         <result property="nickname" column="nickname"/>
+        <result property="avatarUrl" column="avatar_url"/>
         <result property="commentCount" column="comment_count"/>
         <result property="favoriteCount" column="favorite_count"/>
         <result property="hotScore" column="hot_score"/>
