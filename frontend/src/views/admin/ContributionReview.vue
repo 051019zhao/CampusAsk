@@ -30,10 +30,13 @@
             <div v-if="editingId !== item.id || editingField !== 'answer'" class="editable-cell">{{ item.answer }}</div>
             <textarea v-else v-model="editAnswer" class="edit-textarea-inline" rows="3" @click.stop></textarea>
           </td>
-          <td>{{ item.userId || '匿名' }}</td>
+          <td>{{ item.username || item.userId || '匿名' }}</td>
           <td>{{ formatDate(item.createdAt) }}</td>
           <td>
-            <input v-model="item.category" placeholder="分类" class="edit-input" />
+            <select v-model="item.category" class="edit-select">
+              <option value="">-- 选择分类 --</option>
+              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
           </td>
           <td>
             <input v-model="item.keywords" placeholder="关键词" class="edit-input" />
@@ -81,15 +84,25 @@ export default {
       editingField: null,   // V4: 正在编辑的字段 'question' | 'answer'
       editQuestion: '',     // V4: 编辑中的标题
       editAnswer: '',       // V4: 编辑中的内容
+      categories: [],       // V4: 分类下拉列表
     }
   },
   mounted() {
+    this.initCategories()
     this.loadPending()
   },
   methods: {
     getAuthHeaders() {
       const token = localStorage.getItem('token')
       return token ? { token } : {}
+    },
+    initCategories() {
+      this.categories = [
+        '课程与选课', '考试与成绩', '图书馆', '奖学金与资助', '毕业与实习',
+        '食堂餐饮', '宿舍住宿', '交通出行', '校园卡证', '校园服务',
+        '医疗健康', '网络与IT', '行政规章', '社团活动', '招生与就业',
+        '学校概况', '其他'
+      ]
     },
     async loadPending() {
       this.loading = true
@@ -248,6 +261,15 @@ th {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   font-size: 14px;
+}
+.edit-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
 }
 .btn {
   padding: 6px 12px;

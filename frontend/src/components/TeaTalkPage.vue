@@ -278,6 +278,24 @@
 
     <!-- ===== 右侧热门面板 ===== -->
     <aside class="hot-panel">
+      <!-- 用户信息区 -->
+      <div class="user-block">
+        <div v-if="isLoggedIn" class="user-info-wrap">
+          <div class="user-info" @click="$router.push('/user-center')">
+            <div class="user-avatar">
+              <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+              <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+              <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+            </div>
+          </div>
+          <button class="logout-btn" type="button" @click="logout">退出登录</button>
+        </div>
+        <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+      </div>
+
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
         <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
@@ -317,6 +335,7 @@ import {
   getPostsByTag,
   getHotForumTags
 } from '@/api/forum'
+import { clearAuthState } from '@/utils/request'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
@@ -355,11 +374,29 @@ export default {
       hotTags: [],            // V4: 从后端动态加载
       activeTag: '',         // V4: 当前筛选的标签
       newPostTags: '',       // V4: 发帖时的标签输入
+
+      // 用户信息
+      userInfo: {
+        nickname: localStorage.getItem('nickname') || '',
+        avatarUrl: localStorage.getItem('avatarUrl') || '',
+        username: localStorage.getItem('userId') || localStorage.getItem('username') || '',
+        role: localStorage.getItem('role') || ''
+      }
     }
   },
   computed: {
     currentUserId() {
       return localStorage.getItem('username') || null
+    },
+    isLoggedIn() {
+      return !!localStorage.getItem('token')
+    },
+    isAdmin() {
+      return String(this.userInfo.role) === '1'
+    },
+    avatarInitial() {
+      const name = this.userInfo.nickname || this.userInfo.username || 'U'
+      return name.slice(0, 1).toUpperCase()
     },
     totalCommentCount() {
       let count = 0
@@ -622,6 +659,14 @@ export default {
     },
     goUserCenter() {
       this.$router.push({ name: 'UserCenter' })
+    },
+    logout() {
+      clearAuthState()
+      this.userInfo.nickname = ''
+      this.userInfo.avatarUrl = ''
+      this.userInfo.username = ''
+      this.userInfo.role = ''
+      this.$router.replace('/login')
     },
     formatTime(time) {
       if (!time) return ''
@@ -1442,6 +1487,91 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* ===== 用户信息块 ===== */
+.user-block {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+}
+.user-info-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #48b6b5, #5494b9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initial {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.user-role-tag {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.logout-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8f5fb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #e8f5fb;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .hot-title {
