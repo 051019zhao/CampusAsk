@@ -28,6 +28,9 @@ public class QaController {
     private KnowledgeGapMapper knowledgeGapMapper;
 
     @Autowired
+    private com.campusask.campusask.mapper.KnowledgeMapper knowledgeMapper;
+
+    @Autowired
     private com.campusask.campusask.utils.OssUtil ossUtil;
 
     private static final Logger log = LoggerFactory.getLogger(QaController.class);
@@ -82,7 +85,7 @@ public class QaController {
         fb.setHelpful(helpful);
         feedbackMapper.insert(fb);
 
-        // V3: 差评累计 ≥3 次 → 自动加入知识缺口，管理员可审核优化
+        // V4: 差评累计 ≥3 次 → 自动加入知识缺口
         if (!helpful && question != null && !question.isBlank()) {
             try {
                 int negativeCount = feedbackMapper.countNegativeByQuestion(question);
@@ -93,7 +96,18 @@ public class QaController {
                     gap.setSource(source != null && !source.isBlank() ? source : "feedback");
                     gap.setSearchCount(negativeCount);
                     knowledgeGapMapper.upsertGap(gap);
-                    log.info("差评≥3次，已自动加入知识缺口：{}", question);
+                    log.info("差评>=3次，已自动加入知识缺口：{}", question);
+
+                    // V4: 如果是数据库知识回答，从知识库中移除（等待管理员审核优化后重新入库）
+                    if ("knowledge".equals(source)) {
+                        com.campusask.campusask.entity.Knowledge k =
+                                knowledgeMapper.selectByTitle(question);
+                        if (k != null) {
+                            knowledgeMapper.deleteById(k.getId());
+                            qaService.invalidateRelatedCache(null);
+                            log.info("知识条目已移入缺口：{}", question);
+                        }
+                    }
                 }
             } catch (Exception e) {
                 log.warn("差评自动入缺口失败：{}", e.getMessage());

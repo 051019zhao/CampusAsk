@@ -35,6 +35,7 @@
           <button class="btn-pill green" @click="$router.push('/profile')">✏️ 编辑资料</button>
           <button class="btn-pill blue" @click="$router.push('/my-interactions')">💬 我的互动</button>
           <button v-if="userInfo.role==1" class="btn-pill gold" @click="$router.push('/admin')">👑 管理后台</button>
+          <button class="btn-pill red" @click="handleLogout">🚪 退出登录</button>
         </div>
       </div>
 
@@ -162,6 +163,7 @@ const changePage = (m) => { pageParams.page+=m; fetchHistory() }
 const changeForumPage = (m) => { forumPageParams.page+=m; fetchForum() }
 const formatTime = (t) => t ? t.replace('T',' ').substring(0,16) : ''
 
+const handleLogout = () => { localStorage.clear(); router.push('/login') }
 const triggerFileSelect = () => fileInputRef.value.click()
 const handleNativeUpload = async (e) => {
   const file = e.target.files[0]; if (!file) return
@@ -209,6 +211,7 @@ const handleNativeUpload = async (e) => {
 .btn-pill.green { background:#e6f7f2; color:#11b980; } .btn-pill.green:hover { background:#11b980; color:#fff; }
 .btn-pill.blue { background:#e8f4ff; color:#1890ff; } .btn-pill.blue:hover { background:#1890ff; color:#fff; }
 .btn-pill.gold { background:#fef3e2; color:#e6a23c; } .btn-pill.gold:hover { background:#e6a23c; color:#fff; }
+.btn-pill.red { background:#fef2f2; color:#f56c6c; } .btn-pill.red:hover { background:#f56c6c; color:#fff; }
 
 .uc-content { flex:1; background:#fff; border-radius:16px; padding:20px; box-shadow:0 2px 12px rgba(0,0,0,.06); min-width:0; }
 .uc-tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid #f0f2f5; }

@@ -113,7 +113,7 @@
 
         <article class="detail-card">
           <div class="detail-header">
-            <div class="post-avatar large">
+            <div class="post-avatar large" @click="showProfile(currentPost)">
               <img v-if="currentPost.avatarUrl" :src="currentPost.avatarUrl" class="avatar-img" />
               <span v-else class="avatar-text">{{ currentPost.nickname ? currentPost.nickname.charAt(0) : '?' }}</span>
             </div>
@@ -155,7 +155,7 @@
           <div v-for="comment in comments" :key="comment.id" class="comment-thread">
             <!-- 顶级评论 -->
             <div class="comment-item">
-              <div class="comment-avatar">
+              <div class="comment-avatar" @click="showProfile(comment)">
                 <img v-if="comment.avatarUrl" :src="comment.avatarUrl" class="avatar-img" />
                 <span v-else class="avatar-text">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</span>
               </div>
@@ -188,7 +188,7 @@
             <!-- 子回复列表（嵌套显示） -->
             <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
               <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
-                <div class="comment-avatar small">
+                <div class="comment-avatar small" @click="showProfile(reply)">
                   <img v-if="reply.avatarUrl" :src="reply.avatarUrl" class="avatar-img" />
                   <span v-else class="avatar-text">{{ reply.nickname ? reply.nickname.charAt(0) : '?' }}</span>
                 </div>
@@ -306,6 +306,33 @@
 
     <!-- ===== 右侧热门面板 ===== -->
     <aside class="hot-panel">
+<<<<<<< HEAD
+=======
+      <!-- 用户信息区 -->
+      <div class="user-block">
+        <div v-if="isLoggedIn" class="user-info-wrap">
+          <div class="user-info" @click="$router.push('/user-center')">
+            <div class="user-avatar">
+              <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+              <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+              <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+            </div>
+          </div>
+          <button class="logout-btn" type="button" @click="logout">退出登录</button>
+        </div>
+        <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+      </div>
+
+      <!-- V4: 通知铃铛 -->
+      <div v-if="isLoggedIn" class="notif-row" @click="$router.push('/')">
+        🔔<span v-if="unreadCount>0" class="notif-badge-tea">{{ unreadCount }}</span>
+        <span class="notif-label">通知</span>
+      </div>
+
+>>>>>>> a22da14 (V4完善：退出登录+缺口标签+差评移入缺口+头像名片)
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
         <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
