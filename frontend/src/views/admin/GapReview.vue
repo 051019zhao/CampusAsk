@@ -195,7 +195,14 @@ export default {
     switchTab(t) { this.tab = t; this.page = 1; this.loadList() },
     goPage(p) { this.page = p; this.loadList() },
     sourceLabel(s) {
-      return { ai_search: '🌐 联网搜索', ai_web: '💡 AI回答', fallback: '⚠️ 降级兜底' }[s] || s
+      return {
+        ai_search: '🌐 联网搜索',
+        ai_web: '💡 AI自主回答',
+        ai_knowledge: '🤖 AI检索数据库',
+        fallback: '⚠️ 系统降级',
+        knowledge: '📚 知识库差评',
+        feedback: '👎 用户反馈差评'
+      }[s] || s
     },
     truncate(text, n) { return text && text.length > n ? text.slice(0, n) + '...' : text },
     urlHost(url) { try { return new URL(url).hostname } catch { return url } }
@@ -221,7 +228,10 @@ export default {
 .gap-source { padding: 2px 10px; border-radius: 999px; font-size: 11px; }
 .badge-ai_search { background: #e6f7ff; color: #0369a1; }
 .badge-ai_web { background: #f3f4f6; color: #6b7280; }
+.badge-ai_knowledge { background: #f0e6ff; color: #6d28d9; }
 .badge-fallback { background: #fef3c7; color: #92400e; }
+.badge-knowledge { background: #fff1f0; color: #cf1322; }
+.badge-feedback { background: #fff7e6; color: #d46b08; }
 .gap-count { font-size: 11px; color: #e67e22; }
 .gap-question { font-weight: 600; margin-bottom: 6px; }
 .gap-answer { font-size: 12px; color: #526a77; line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; }

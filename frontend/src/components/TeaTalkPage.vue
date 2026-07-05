@@ -119,7 +119,7 @@
 
         <article class="detail-card">
           <div class="detail-header">
-            <div class="post-avatar large">
+            <div class="post-avatar large" @click="showProfile(currentPost)">
               <img v-if="currentPost.avatarUrl" :src="currentPost.avatarUrl" class="avatar-img" />
               <span v-else class="avatar-text">{{ currentPost.nickname ? currentPost.nickname.charAt(0) : '?' }}</span>
             </div>
@@ -161,7 +161,7 @@
           <div v-for="comment in comments" :key="comment.id" class="comment-thread">
             <!-- 顶级评论 -->
             <div class="comment-item">
-              <div class="comment-avatar">
+              <div class="comment-avatar" @click="showProfile(comment)">
                 <img v-if="comment.avatarUrl" :src="comment.avatarUrl" class="avatar-img" />
                 <span v-else class="avatar-text">{{ comment.nickname ? comment.nickname.charAt(0) : '?' }}</span>
               </div>
@@ -194,7 +194,7 @@
             <!-- 子回复列表（嵌套显示） -->
             <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
               <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
-                <div class="comment-avatar small">
+                <div class="comment-avatar small" @click="showProfile(reply)">
                   <img v-if="reply.avatarUrl" :src="reply.avatarUrl" class="avatar-img" />
                   <span v-else class="avatar-text">{{ reply.nickname ? reply.nickname.charAt(0) : '?' }}</span>
                 </div>
