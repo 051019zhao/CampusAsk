@@ -1,0 +1,11 @@
+from docx import Document;from docx.shared import Pt;from docx.enum.text import WD_ALIGN_PARAGRAPH
+doc=Document()
+S=doc.styles["Normal"];S.font.name="Arial";S.font.size=Pt(11)
+H1=lambda t:doc.add_heading(t,1)
+H2=lambda t:doc.add_heading(t,2)
+B=lambda t:doc.add_paragraph(t,style="List Bullet")
+P=lambda t:doc.add_paragraph(t)
+def page():doc.add_page_break()
+print("functions defined")
+doc.save(r"D:\CampusAsk\CampusAsk	est_arch.docx")
+print("test saved")
