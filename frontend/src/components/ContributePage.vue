@@ -420,6 +420,26 @@ textarea {
   color: #1f2937;
 }
 
+.category-select {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid #d7e2ea;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #1f2937;
+  background: #fff;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23909499' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+.category-select:focus {
+  outline: none;
+  border-color: #2E75B6;
+}
+
 .hint {
   margin-bottom: 18px;
   padding: 12px 14px;

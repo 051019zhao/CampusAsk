@@ -13,6 +13,9 @@ public class Contribution {
     private LocalDateTime reviewTime;
     private LocalDateTime createdAt;
 
+    // 非数据库字段：提交人用户名
+    private String username;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -39,4 +42,7 @@ public class Contribution {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 }
