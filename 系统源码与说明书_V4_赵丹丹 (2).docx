@@ -1,0 +1,286 @@
+# CampusAsk 校园智能问答系统
+## 系统源码与配置说明书 V4.0
+
+**项目组：CampusAsk | 编制人：赵丹丹 | 日期：2026-07-05**
+
+---
+
+## 1. 系统概述
+
+CampusAsk 是一款面向华南理工大学师生的校园智能问答系统。系统集成本地知识库检索、DeepSeek AI 大模型（RAG）、Tavily 联网搜索引擎，为用户提供准确的校园生活信息查询服务。
+
+- **技术栈**：Spring Boot 4.0 + Vue 3 + MySQL 8.0 + MyBatis + JWT + 阿里云 OSS + DeepSeek API + Tavily API
+- **部署地址**：http://8.166.122.152
+- **GitHub**：https://github.com/051019zhao/CampusAsk
+
+### 主要功能
+
+- 智能问答（五级检索：缓存→DB→FAQ→RAG+Tavily并行→AI回答）
+- 热点问题排行榜（同义归并+频次过滤）
+- 茶话会社区（发帖/评论/点赞/收藏/标签/搜索/图片上传）
+- 知识库管理（CRUD/Excel批量导入/CSV导出/17类分类）
+- 知识缺口审核（AI回答自动记录→管理员审核入库）
+- 用户系统（注册/登录/忘记密码/个人中心/头像上传）
+- 管理员后台（统计面板/反馈管理/投稿审核/用户管理）
+- 通知系统（评论/回复自动通知）
+
+---
+
+## 2. 开发环境与工具
+
+- JDK：17 (Microsoft OpenJDK 17.0.18)
+- IDE：IntelliJ IDEA 2025.2 (后端) + VS Code (前端)
+- 数据库：MySQL 8.0.46
+- 构建工具：Maven 4.0 (后端) + npm/Vue CLI 5 (前端)
+- 版本管理：Git + GitHub
+- 服务器：阿里云 ECS Ubuntu 22.04
+
+---
+
+## 3. 项目结构说明
+
+### 3.1 后端项目结构 (backend/)
+
+```
+backend/
+├── pom.xml                          # Maven配置
+├── mvnw / mvnw.cmd                  # Maven Wrapper
+├── src/main/java/com/campusask/campusask/
+│   ├── CampusAskApplication.java    # 启动类
+│   ├── config/                      # 配置类
+│   │   ├── CorsConfig.java          # 跨域配置
+│   │   ├── WebMvcConfig.java        # 拦截器注册
+│   │   ├── GlobalExceptionHandler.java
+│   │   └── QuestionLogSchemaInitializer.java
+│   ├── controller/                  # 控制器(11个)
+│   │   ├── QaController.java        # 智能问答
+│   │   ├── ForumPostController.java # 茶话会论坛
+│   │   ├── UserController.java      # 用户系统
+│   │   ├── AdminKnowledgeController.java # 知识管理
+│   │   ├── AdminStatsController.java     # 统计面板
+│   │   ├── AdminGapController.java       # 知识缺口
+│   │   ├── FeedbackController.java       # 反馈管理
+│   │   ├── ContributionController.java   # 投稿审核
+│   │   ├── HotspotController.java  # 热点排行
+│   │   └── NotificationController.java   # 通知
+│   ├── service/                     # 业务层(10个)
+│   │   ├── QaService.java           # 核心检索
+│   │   ├── ForumPostService.java
+│   │   ├── HotspotService.java      # 热词归并
+│   │   ├── KnowledgeService.java
+│   │   ├── ContributionService.java
+│   │   ├── UserService.java
+│   │   ├── DeepSeekService.java     # AI调用
+│   │   ├── SearchService.java       # Tavily搜索
+│   │   └── SensitiveWordService.java
+│   ├── mapper/                      # 数据访问层(12个)
+│   ├── entity/                      # 实体类(15个)
+│   ├── dto/                         # DTO/VO
+│   ├── context/BaseContext.java     # ThreadLocal
+│   ├── interceptor/                 # JWT拦截器
+│   ├── utils/                       # 工具类(JWT/OSS)
+│   └── properties/                  # 配置属性
+├── src/main/resources/
+│   ├── application.properties       # 核心配置
+│   └── mapper/                      # MyBatis XML映射
+└── db/
+    └── campusask.sql                # 数据库建表SQL
+```
+
+### 3.2 前端项目结构 (frontend/)
+
+```
+frontend/
+├── package.json
+├── vue.config.js                    # 代理配置
+├── public/
+│   ├── index.html
+│   ├── favicon.png
+│   └── teachat.png
+└── src/
+    ├── main.js                      # Vue入口
+    ├── App.vue                      # 根组件
+    ├── router/index.js              # 路由(15条)
+    ├── api/                         # API封装
+    │   ├── auth.js
+    │   ├── forum.js
+    │   ├── qa.js
+    │   └── contribution.js
+    ├── utils/
+    │   ├── request.js               # Axios实例
+    │   └── toast.js
+    ├── components/                  # 页面组件
+    │   ├── QaPage.vue               # 智能问答主页
+    │   ├── TeaTalkPage.vue           # 茶话会
+    │   ├── UserAuth.vue             # 登录注册
+    │   ├── UserCenter.vue           # 个人中心
+    │   ├── ContributePage.vue       # 投稿
+    │   └── Profile.vue              # 编辑资料
+    └── views/admin/                 # 管理后台
+        ├── AdminLayout.vue          # 布局
+        ├── AdminStats.vue           # 数据统计
+        ├── KnowledgeImport.vue      # 知识管理
+        ├── FeedbackReview.vue       # 反馈管理
+        ├── ContributionReview.vue   # 投稿审核
+        ├── GapReview.vue            # 知识缺口
+        └── UserManage.vue           # 用户管理
+```
+
+---
+
+## 4. 环境配置与运行
+
+### 4.1 数据库配置
+
+编辑 `backend/src/main/resources/application.properties`：
+
+```
+spring.datasource.url=jdbc:mysql://localhost:3306/campusask
+spring.datasource.username=root
+spring.datasource.password=你的密码
+deepseek.api.key=sk-xxx
+tavily.api.key=tvly-xxx
+aliyun.oss.access-key-id=LTAIxxx
+aliyun.oss.access-key-secret=xxx
+aliyun.oss.bucket-name=campusask-images
+aliyun.oss.endpoint=oss-cn-guangzhou.aliyuncs.com
+campusask.jwt.user-secret-key=你的JWT密钥
+campusask.jwt.user-ttl=7200000
+```
+
+### 4.2 数据库初始化
+
+```sql
+CREATE DATABASE campusask CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+mysql -u root -p campusask < db/campusask.sql
+```
+
+### 4.3 后端运行
+
+```bash
+cd backend
+./mvnw spring-boot:run              # 开发模式
+./mvnw clean package -DskipTests    # 生产打包
+java -jar target/CampusAsk-0.0.1-SNAPSHOT.jar  # 运行
+```
+
+### 4.4 前端运行
+
+```bash
+cd frontend
+npm install                         # 安装依赖
+npm run serve                       # 开发模式(localhost:8080)
+npm run build                       # 生产构建
+```
+
+---
+
+## 5. 核心模块源码说明
+
+### 5.1 智能问答核心 — QaService.java
+
+**文件位置**：`backend/src/main/java/com/campusask/campusask/service/QaService.java`
+
+**核心方法**：`ask(String keyword, String sessionId)`
+
+**五级检索链路**：
+
+- **Step -3 快速缓存**：normalizeSynonym() 规则归一化 + MD5 缓存 key + ConcurrentHashMap 查询，毫秒命中
+- **Step -2 AI语义归一化**：调用 DeepSeek 解析实体和意图，格式"实体|意图"
+- **Step 0 校园过滤**：isCampusRelated() 检查 30+ 关键词，不通过时 fuzzyCorrect() 拼写纠错后再判断
+- **Step 1 DB检索**：searchByKeyword() LIKE 模糊匹配 + Levenshtein 拼写纠错，命中自动浏览量+1
+- **Step 1.5 静态FAQ**：getStaticFaqAnswer() 匹配 20 条预置高频问答，秒回
+- **Step 2-4 并行**：selectTopK() Jaccard Top-5 + RAG + Tavily 并行线程
+- **缓存**：ConcurrentHashMap + MD5 + 5min TTL + 100 条上限
+- **降级**：HttpTimeoutException/RateLimitException/Exception → fallbackToLocal()
+- **多轮对话**：SessionEntry 维护 3 轮历史，buildSessionContext() 写入 prompt
+- **推荐**：addSuggestedQuestions() 三层策略
+
+### 5.2 热点排行榜 — HotspotService.java
+
+- `getTopQuestionsByRange()`：取 200 条原始 → 同义归并 → 频次过滤(>=15) → Top 10
+- `normalizeQuestionForRanking()`：拼写纠错 + 同义词替换 + 20+ 实体词提取
+- 答案预热：加载时异步线程对 Top 10 调用 ask()
+
+### 5.3 认证拦截 — JwtTokenAdminInterceptor.java
+
+- `preHandle()`：拦截 /** 路径，白名单 /hotspot/、/qa/、/profile/
+- Token 解析：jjwt 解析 Header 中 token，提取 userId/username/role → BaseContext ThreadLocal
+- 管理员校验：/api/knowledge/、/api/admin/ 校验 role=1，否则 403
+- 异常：Token 过期 → 401；无权限 → 403
+
+### 5.4 茶话会 — ForumPostController.java
+
+- **帖子**：GET /posts(分页)、POST /posts(创建)、GET /posts/{id}(详情+浏览量+1)、DELETE(仅作者)
+- **评论**：POST /posts/{postId}/comments(嵌套回复)、自动通知作者
+- **点赞/收藏**：POST 切换，UNIQUE 防重复，乐观 UI
+- **标签**：GET /tags(排行)、GET /posts/by-tag(筛选)
+- **搜索**：GET /posts/search(标题+内容模糊)
+- **热门**：GET /hot(热度公式 SQL)
+- **图片**：POST /upload-image(OssUtil)
+
+### 5.5 知识库管理 — AdminKnowledgeController.java
+
+- CRUD：GET /list(分页+筛选)、POST /(新增+敏感词)、PUT /{id}(编辑+版本历史)、DELETE /{id}
+- 导入：POST /importExcel(Excel/CSV解析+双重去重+乱码+敏感词)
+- 导出：GET /export(CSV+BOM头)
+- 分类：GET /categories、17 类标准体系
+
+---
+
+## 6. 数据库表结构（16张核心表）
+
+| 表名 | 说明 | 关键字段 |
+|------|------|---------|
+| user | 用户 | id/username(UNIQUE)/password/role/nickname/avatar_url/motto |
+| knowledge | 知识库 | id/title/content/category/keywords/view_count |
+| question_log | 问答日志 | id/user_id/question/source/created_at |
+| forum_post | 帖子 | id/title/content/tags/view_count/like_count/favorite_count/comment_count |
+| forum_comment | 评论 | id/post_id/content/parent_id/like_count |
+| forum_like | 帖子点赞 | post_id/user_id (UNIQUE) |
+| forum_favorite | 收藏 | user_id/post_id (UNIQUE) |
+| forum_comment_like | 评论赞 | comment_id/user_id (UNIQUE) |
+| contribution | 投稿 | id/question/answer/status |
+| knowledge_gap | 知识缺口 | id/question(UNIQUE)/answer/source/urls/search_count/status |
+| knowledge_history | 版本历史 | id/knowledge_id/title/content/category/keywords |
+| notification | 通知 | id/user_id/type/content/post_id/is_read |
+| feedback | 反馈 | id/question/answer/source/helpful |
+| hot_keyword | 热词 | id/keyword(UNIQUE)/search_count |
+| sensitive_word | 敏感词 | id/word |
+
+---
+
+## 7. 部署说明
+
+### 服务器信息
+- IP：8.166.122.152
+- OS：Ubuntu 22.04
+- Nginx：80 端口（静态文件 + /api/* /auth/* 反向代理）
+- Spring Boot：8080 端口
+
+### 完整部署流程
+```bash
+git pull origin main
+cd frontend && npm run build && cp -r dist/* /var/www/html/
+cd ../backend && chmod +x mvnw && ./mvnw clean package -DskipTests -q
+pkill -f 'CampusAsk-0.0.1-SNAPSHOT.jar' && sleep 2
+nohup java -jar target/CampusAsk-0.0.1-SNAPSHOT.jar > /var/log/campusask.log 2>&1 &
+nginx -s reload
+```
+
+---
+
+## 8. 关键技术点
+
+| 技术 | 说明 |
+|------|------|
+| Jaccard相似度 | RAG知识条目预筛选，中文bigram交集占比 |
+| Levenshtein编辑距离 | 拼写纠错，最小编辑操作数 |
+| MD5缓存键 | 归一化问题MD5后作为HashMap key |
+| ConcurrentHashMap | 线程安全问答缓存，5min TTL |
+| 热度公式 | 0.4×浏览+0.3×评论+0.2×点赞+0.1×收藏 |
+| JWT认证 | jjwt HS256，2h有效期，拦截器校验 |
+| ThreadLocal | BaseContext传递userId，请求结束清理 |
+| 乐观UI | 点赞/收藏先更新前端，失败回滚 |
+| DeepSeek API | Java HttpClient，8s超时，异常降级 |
+| 双重去重 | 批量导入DB查重+文件内去重 |

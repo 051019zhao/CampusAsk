@@ -1,0 +1,274 @@
+# CampusAsk 数据库设计与表关系 (V4.0)
+
+---
+
+## 1. ER 图 (PlantUML)
+
+```plantuml
+@startuml CampusAsk数据库ER图
+!define TABLE class
+skinparam classBackgroundColor #E8F0F5
+skinparam classBorderColor #2B5569
+hide circle
+hide empty methods
+
+TABLE user {
+    + id : BIGINT <<PK>>
+    --
+    username : VARCHAR(50) <<UNIQUE>>
+    password : VARCHAR(100)
+    role : VARCHAR(20) <<0学生 1管理员>>
+    nickname : VARCHAR(20)
+    avatar_url : VARCHAR(255)
+    motto : VARCHAR(255)
+    created_at : DATETIME
+}
+
+TABLE knowledge {
+    + id : BIGINT <<PK>>
+    --
+    title : VARCHAR(200)
+    content : TEXT
+    category : VARCHAR(50)
+    keywords : VARCHAR(200)
+    view_count : INT
+    created_by : BIGINT <<FK→user.id>>
+    created_at : DATETIME
+}
+
+TABLE question_log {
+    + id : BIGINT <<PK>>
+    --
+    user_id : VARCHAR(50) <<FK→user.username>>
+    question : VARCHAR(500)
+    answer : TEXT
+    source : VARCHAR(20)
+    created_at : DATETIME
+}
+
+TABLE forum_post {
+    + id : BIGINT <<PK>>
+    --
+    user_id : VARCHAR(50) <<FK→user.username>>
+    title : VARCHAR(100)
+    content : TEXT
+    images : VARCHAR(1000)
+    tags : VARCHAR(200)
+    view_count : INT
+    like_count : INT
+    favorite_count : INT
+    comment_count : INT
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+TABLE forum_comment {
+    + id : BIGINT <<PK>>
+    --
+    post_id : BIGINT <<FK→forum_post.id>>
+    user_id : VARCHAR(50) <<FK→user.username>>
+    content : TEXT
+    parent_id : BIGINT <<FK→forum_comment.id 自引用>>
+    reply_to_user_id : VARCHAR(50)
+    like_count : INT
+    created_at : DATETIME
+}
+
+TABLE forum_like {
+    + id : BIGINT <<PK>>
+    --
+    post_id : BIGINT <<FK→forum_post.id>>
+    user_id : VARCHAR(50) <<FK→user.username>>
+    created_at : DATETIME
+    ==
+    UNIQUE(post_id, user_id)
+}
+
+TABLE forum_favorite {
+    + id : BIGINT <<PK>>
+    --
+    user_id : VARCHAR(50) <<FK→user.username>>
+    post_id : BIGINT <<FK→forum_post.id>>
+    created_at : DATETIME
+    ==
+    UNIQUE(user_id, post_id)
+}
+
+TABLE forum_comment_like {
+    + id : BIGINT <<PK>>
+    --
+    comment_id : BIGINT <<FK→forum_comment.id>>
+    user_id : VARCHAR(50) <<FK→user.username>>
+    created_at : DATETIME
+    ==
+    UNIQUE(comment_id, user_id)
+}
+
+TABLE contribution {
+    + id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK→user.id>>
+    question : VARCHAR(500)
+    answer : TEXT
+    status : VARCHAR(20) <<pending/approved/rejected>>
+    reviewed_by : BIGINT
+    review_reason : TEXT
+    review_time : DATETIME
+    created_at : DATETIME
+}
+
+TABLE knowledge_gap {
+    + id : BIGINT <<PK>>
+    --
+    question : VARCHAR(500) <<UNIQUE(200)>>
+    answer : TEXT
+    source : VARCHAR(20) <<ai_search/ai_web/fallback/feedback>>
+    urls : VARCHAR(2000)
+    search_count : INT
+    status : VARCHAR(20) <<pending/approved/ignored>>
+    category : VARCHAR(50)
+    keywords : VARCHAR(200)
+    reviewed_by : BIGINT <<FK→user.id>>
+    review_time : DATETIME
+    created_at : DATETIME
+}
+
+TABLE knowledge_history {
+    + id : BIGINT <<PK>>
+    --
+    knowledge_id : BIGINT <<FK→knowledge.id>>
+    title : VARCHAR(200)
+    content : TEXT
+    category : VARCHAR(50)
+    keywords : VARCHAR(200)
+    changed_by : BIGINT <<FK→user.id>>
+    changed_at : DATETIME
+}
+
+TABLE notification {
+    + id : BIGINT <<PK>>
+    --
+    user_id : VARCHAR(50) <<FK→user.username>>
+    type : VARCHAR(20) <<comment/like>>
+    content : VARCHAR(300)
+    post_id : BIGINT <<FK→forum_post.id>>
+    is_read : TINYINT
+    created_at : DATETIME
+}
+
+TABLE feedback {
+    + id : BIGINT <<PK>>
+    --
+    question : VARCHAR(500)
+    answer : TEXT
+    source : VARCHAR(50)
+    helpful : TINYINT <<1有帮助 0没帮助>>
+    created_at : DATETIME
+}
+
+TABLE hot_keyword {
+    + id : BIGINT <<PK>>
+    --
+    keyword : VARCHAR(100) <<UNIQUE>>
+    search_count : INT
+    updated_at : DATETIME
+}
+
+TABLE sensitive_word {
+    + id : BIGINT <<PK>>
+    --
+    word : VARCHAR(200)
+    created_at : DATETIME
+}
+
+
+' ===== 关系连线 =====
+user ||--o{ knowledge : "created_by"
+user ||--o{ question_log : "user_id"
+user ||--o{ forum_post : "user_id"
+user ||--o{ forum_comment : "user_id"
+user ||--o{ forum_like : "user_id"
+user ||--o{ forum_favorite : "user_id"
+user ||--o{ forum_comment_like : "user_id"
+user ||--o{ contribution : "user_id"
+user ||--o{ notification : "user_id"
+user ||--o{ knowledge_gap : "reviewed_by"
+user ||--o{ knowledge_history : "changed_by"
+
+forum_post ||--o{ forum_comment : "post_id"
+forum_post ||--o{ forum_like : "post_id"
+forum_post ||--o{ forum_favorite : "post_id"
+forum_post ||--o{ notification : "post_id"
+
+forum_comment ||--o{ forum_comment : "parent_id (嵌套回复)"
+forum_comment ||--o{ forum_comment_like : "comment_id"
+
+knowledge ||--o{ knowledge_history : "knowledge_id"
+knowledge ||--o{ knowledge_gap : "审核通过后写入"
+
+@enduml
+```
+
+---
+
+## 2. 核心表关系说明
+
+### 用户中心集群
+```
+user (1) ──┬── (N) forum_post        (用户发帖)
+            ├── (N) forum_comment     (用户评论)
+            ├── (N) forum_like        (用户点赞)
+            ├── (N) forum_favorite    (用户收藏)
+            ├── (N) question_log      (用户提问记录)
+            ├── (N) contribution      (用户投稿)
+            ├── (N) notification      (用户通知)
+            ├── (N) knowledge         (created_by 创建知识)
+            └── (N) knowledge_history (changed_by 修改知识)
+```
+
+### 论坛互动集群
+```
+forum_post (1) ──┬── (N) forum_comment    (帖子评论)
+                  ├── (N) forum_like       (帖子点赞, UNIQUE防重复)
+                  ├── (N) forum_favorite   (帖子收藏, UNIQUE防重复)
+                  └── (N) notification     (评论通知链接帖子)
+
+forum_comment (1) ──┬── (N) forum_comment  (子回复, parent_id自引用)
+                     └── (N) forum_comment_like (评论赞, UNIQUE防重复)
+```
+
+### 知识管理集群
+```
+knowledge (1) ── (N) knowledge_history  (版本追踪, 每次编辑记录)
+knowledge      ← knowledge_gap          (缺口审核通过后写入知识库)
+```
+
+### 独立表
+```
+question_log     ← HotspotService 统计生成排行榜
+feedback         ← QaController 收集用户反馈
+hot_keyword      ← HotspotService 热词统计
+sensitive_word   ← SensitiveWordService 内容过滤
+```
+
+---
+
+## 3. 表分类
+
+| 分类 | 表名 | 说明 |
+|------|------|------|
+| 用户 | user | 账号/密码/角色/昵称/头像/签名 |
+| 知识 | knowledge | 知识库条目(标题/内容/分类/关键词/浏览量) |
+| | knowledge_history | 知识版本历史(每次编辑自动记录) |
+| | knowledge_gap | 知识缺口(AI回答自动记录,审核入库) |
+| 问答 | question_log | 用户提问记录(问题/来源/时间) |
+| 论坛 | forum_post | 帖子(标题/内容/图片/标签/浏览/点赞/收藏/评论数) |
+| | forum_comment | 评论(内容/父评论/被回复者/点赞数) |
+| | forum_like | 帖子点赞(UNIQUE防重复) |
+| | forum_favorite | 帖子收藏(UNIQUE防重复) |
+| | forum_comment_like | 评论点赞(UNIQUE防重复) |
+| 投稿 | contribution | 用户投稿(问题/回答/审核状态) |
+| 通知 | notification | 用户通知(类型/内容/已读) |
+| 反馈 | feedback | 用户反馈(有帮助/没帮助) |
+| 统计 | hot_keyword | 热词统计 |
+| 安全 | sensitive_word | 敏感词库(61词) |
