@@ -1,16 +1,13 @@
 package com.campusask.campusask.controller;
 
-import com.campusask.campusask.context.BaseContext;
 import com.campusask.campusask.dto.ImportResult;
 import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.Knowledge;
 import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.service.KnowledgeService;
 import com.campusask.campusask.service.QaService;
-import com.campusask.campusask.service.SensitiveWordService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import org.springframework.jdbc.core.JdbcTemplate;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -40,12 +37,6 @@ public class AdminKnowledgeController {
 
     @Autowired
     private QaService qaService;
-
-    @Autowired
-    private JdbcTemplate jdbc;
-
-    @Autowired
-    private SensitiveWordService sensitiveWordService;
 
     /**
      * 获取所有知识点列表
@@ -93,26 +84,10 @@ public class AdminKnowledgeController {
      * 新增知识点（单条添加）
      */
     @PostMapping("/")
-    public Result<String> add(@Valid @RequestBody Knowledge knowledge) {
-        // V4: 敏感词检测
-        String checkResult = checkKnowledgeSensitive(knowledge);
-        if (checkResult != null) return Result.error(checkResult);
+    public Result<String> add(@Valid @RequestBody Knowledge knowledge) {  // 使用 @Valid 校验请求体
         knowledgeService.add(knowledge);
-        qaService.invalidateRelatedCache(knowledge.getTitle());
+        qaService.invalidateRelatedCache(knowledge.getTitle()); // V3: 清除相关缓存
         return Result.success("添加成功");
-    }
-
-    /** V4: 敏感词检测辅助方法 */
-    private String checkKnowledgeSensitive(Knowledge k) {
-        List<String> titleViolations = sensitiveWordService.findMatchingWords(k.getTitle());
-        List<String> contentViolations = sensitiveWordService.findMatchingWords(k.getContent());
-        if (!titleViolations.isEmpty()) return "标题包含违规内容：" + String.join("、", titleViolations);
-        if (!contentViolations.isEmpty()) return "内容包含违规内容：" + String.join("、", contentViolations);
-        if (k.getKeywords() != null) {
-            List<String> kwViolations = sensitiveWordService.findMatchingWords(k.getKeywords());
-            if (!kwViolations.isEmpty()) return "关键词包含违规内容：" + String.join("、", kwViolations);
-        }
-        return null;
     }
 
     /**
@@ -157,10 +132,8 @@ public class AdminKnowledgeController {
      * 编辑知识点（更新）
      */
     @PutMapping("/{id}")
-    public Result<String> update(@PathVariable @Min(value = 1, message = "ID必须大于0") Long id, @Valid @RequestBody Knowledge knowledge) {
-        // V4: 敏感词检测
-        String checkResult = checkKnowledgeSensitive(knowledge);
-        if (checkResult != null) return Result.error(checkResult);
+    public Result<String> update(@PathVariable @Min(value = 1, message = "ID必须大于0") Long id, @Valid @RequestBody Knowledge knowledge) {  // 使用 @Valid 校验请求体
+        // 检查知识点是否存在
         Knowledge existing = knowledgeService.getById(id);
         if (existing == null) {
             return Result.error("知识点不存在");
@@ -173,10 +146,7 @@ public class AdminKnowledgeController {
         knowledge.setViewCount(existing.getViewCount());
         
         knowledgeService.update(knowledge);
-        qaService.invalidateRelatedCache(knowledge.getTitle());
-        // V4: 记录版本历史
-        jdbc.update("INSERT INTO knowledge_history(knowledge_id,title,content,category,keywords,changed_by,changed_at) VALUES(?,?,?,?,?,?,NOW())",
-                id, knowledge.getTitle(), knowledge.getContent(), knowledge.getCategory(), knowledge.getKeywords(), BaseContext.getCurrentId());
+        qaService.invalidateRelatedCache(knowledge.getTitle()); // V3: 清除相关缓存
         return Result.success("更新成功");
     }
 
@@ -214,11 +184,5 @@ public class AdminKnowledgeController {
         knowledgeService.deleteById(id);
         qaService.invalidateRelatedCache(null); // V3: 清除全部缓存
         return Result.success("删除成功");
-    }
-
-    /** V4: 知识点版本历史 */
-    @GetMapping("/{id}/history")
-    public Result<java.util.List<Map<String,Object>>> history(@PathVariable Long id) {
-        return Result.success(jdbc.queryForList("SELECT * FROM knowledge_history WHERE knowledge_id=? ORDER BY changed_at DESC LIMIT 20", id));
     }
 }

@@ -232,7 +232,7 @@ public class QaService {
             return cached;
         }
 
-        // 第 -2 步：AI 语义归一化（缓存未命中才执行）
+        // 第 -2 步：AI 语义归一化（缓存未命中才执行，消耗 API 调用）
         String cacheKey = normalizeQuestion(trimmed);
         if (!cacheKey.equals(quickKey)) {
             // 用 AI 归一化后的 key 再查一次缓存（可能之前同一语义的问题已缓存）
@@ -300,20 +300,7 @@ public class QaService {
             }
         }
 
-        // V4: DB 未命中 → 先查静态 FAQ（秒回省 token，覆盖 20 个高频问题）
-        String staticAnswer = getStaticFaqAnswer(trimmed);
-        if (staticAnswer != null) {
-            resp.put("source", "knowledge");
-            resp.put("sourceLabel", "📚 静态FAQ匹配");
-            resp.put("answer", staticAnswer);
-            putInCache(cacheKey, resp);
-            recordAsync(trimmed, "knowledge");
-            addSuggestedQuestions(resp, trimmed);
-            updateSession(sessionId, trimmed, staticAnswer);
-            return resp;
-        }
-
-        // 第 2 步：AI 检索数据库 + Tavily 联网搜索（V4: 并行执行）
+        // 第 2 步：AI 检索数据库 + Tavily 联网搜索（V4: 并行执行，谁先返回用谁）
         List<Knowledge> allKnowledge = getCachedKnowledgeList();
         List<Knowledge> ragKnowledge = selectTopK(trimmed, allKnowledge, RAG_TOP_K);
         log.info("RAG Top-K：全量 {} 条 → 筛选后 {} 条", allKnowledge.size(), ragKnowledge.size());

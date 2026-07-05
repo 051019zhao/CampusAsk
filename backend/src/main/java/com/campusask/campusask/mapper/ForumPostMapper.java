@@ -20,6 +20,4 @@ public interface ForumPostMapper {
     List<ForumPost> selectByTag(@Param("tag") String tag, @Param("offset") int offset, @Param("size") int size);
     int countByTag(@Param("tag") String tag);
     List<java.util.Map<String, Object>> selectHotTags(@Param("limit") int limit);
-    List<ForumPost> searchPosts(@Param("keyword") String keyword, @Param("offset") int offset, @Param("size") int size);
-    int countSearchPosts(@Param("keyword") String keyword);
 }

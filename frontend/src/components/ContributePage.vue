@@ -38,14 +38,6 @@
           ></textarea>
         </div>
 
-        <div class="form-group">
-          <label>分类</label>
-          <select v-model="category" class="category-select">
-            <option value="">请选择分类...</option>
-            <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-          </select>
-        </div>
-
         <div v-if="sensitiveHint" class="hint warning">
           {{ sensitiveHint }}
         </div>
@@ -127,8 +119,6 @@ export default {
       activeTab: 'submit',
       question: '',
       answer: '',
-      category: '',  // V4: 投稿分类
-      categories: ['课程与选课','考试与成绩','图书馆','奖学金与资助','毕业与实习','食堂餐饮','宿舍住宿','交通出行','校园卡证','校园服务','医疗健康','网络与IT','行政规章','社团活动','招生与就业','学校概况','其他'],
       submitting: false,
       errorMessage: '',
       statusMessage: '',
@@ -280,8 +270,7 @@ export default {
         const response = await submitContribution({
           question: this.question.trim(),
           answer: this.answer.trim(),
-          userId: userId ? String(userId) : '',
-          category: this.category || ''
+          userId: userId ? String(userId) : ''
         })
 
         if (response?.code === 200) {

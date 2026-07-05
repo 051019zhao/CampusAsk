@@ -75,18 +75,6 @@
         SELECT COUNT(*) FROM forum_post WHERE tags LIKE CONCAT('%', #{tag}, '%')
     </select>
 
-    <!-- V4: 搜索帖子 -->
-    <select id="searchPosts" resultMap="postWithExtra">
-        SELECT fp.*, u.nickname AS nickname, u.avatar_url AS avatar_url,
-            (SELECT COUNT(*) FROM forum_comment WHERE post_id = fp.id) AS comment_count
-        FROM forum_post fp LEFT JOIN user u ON fp.user_id = u.username
-        WHERE fp.title LIKE CONCAT('%',#{keyword},'%') OR fp.content LIKE CONCAT('%',#{keyword},'%')
-        ORDER BY fp.created_at DESC LIMIT #{offset}, #{size}
-    </select>
-    <select id="countSearchPosts" resultType="int">
-        SELECT COUNT(*) FROM forum_post WHERE title LIKE CONCAT('%',#{keyword},'%') OR content LIKE CONCAT('%',#{keyword},'%')
-    </select>
-
     <!-- V4: 热门标签排行 -->
     <select id="selectHotTags" resultType="java.util.HashMap">
         SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(tags, ',', n.n), ',', -1)) AS name,

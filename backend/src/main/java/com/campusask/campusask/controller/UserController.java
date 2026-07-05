@@ -7,8 +7,6 @@ import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.dto.UserDTO;
 import com.campusask.campusask.dto.UserUpdateDTO;
 import com.campusask.campusask.entity.User;
-import com.campusask.campusask.mapper.ForumPostMapper;
-import com.campusask.campusask.mapper.UserMapper;
 import com.campusask.campusask.service.UserService;
 import com.campusask.campusask.utils.JwtUtil;
 import com.campusask.campusask.properties.JwtProperties;
@@ -37,24 +35,12 @@ public class UserController {
 
     @Autowired
     private OssUtil ossUtil;
-
-    @Autowired
-    private ForumPostMapper forumPostMapper;
-
-    @Autowired
-    private UserMapper userMapper;
     /**
      * 用户注册接口
      */
     @PostMapping("/auth/register")
     public Result register(@RequestBody UserDTO userDTO){
         log.info("用户注册：{}",userDTO);
-        // V4: 管理员注册需验证密钥
-        if ("1".equals(userDTO.getRole())) {
-            if (userDTO.getRegisterKey() == null || !userDTO.getRegisterKey().equals("@3265585758")) {
-                return Result.error("管理员注册密钥错误，请联系管理员获取");
-            }
-        }
         userService.register(userDTO);
         return Result.success();
     }
@@ -205,34 +191,5 @@ public class UserController {
         List<Map<String, Object>> commentsList = userService.getUserCommentInteractions(usernameStr);
 
         return Result.success(commentsList);
-    }
-
-    /** V4: 密码重置（需要验证 Key @3265585758） */
-    @PostMapping("/auth/reset-password")
-    public Result<String> resetPassword(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
-        String resetKey = body.get("resetKey");
-        String newPassword = body.get("newPassword");
-        if (username == null || username.isBlank()) return Result.error("请输入学号/工号");
-        if (resetKey == null || !resetKey.equals("@3265585758")) return Result.error("重置密钥错误");
-        if (newPassword == null || newPassword.length() < 6) return Result.error("新密码至少6位");
-        User user = userService.getByUsername(username);
-        if (user == null) return Result.error("用户不存在");
-        userMapper.updatePassword(username, newPassword);
-        return Result.success("密码重置成功，请重新登录");
-    }
-
-    /** V4: 查看用户公开主页（头像/昵称/名言/发帖列表） */
-    @GetMapping("/api/profile/{username}")
-    public Result<Map<String, Object>> publicProfile(@PathVariable String username) {
-        User user = userService.getByUsername(username);
-        if (user == null) return Result.error("用户不存在");
-        Map<String, Object> data = new HashMap<>();
-        data.put("username", user.getUsername());
-        data.put("nickname", user.getNickname());
-        data.put("avatarUrl", user.getAvatarUrl());
-        data.put("motto", user.getMotto());
-        data.put("posts", forumPostMapper.selectByUserId(username));
-        return Result.success(data);
     }
 }

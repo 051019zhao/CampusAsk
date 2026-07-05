@@ -3,7 +3,7 @@
     <!-- ===== 左侧边栏 ===== -->
     <aside class="side-panel">
       <div class="brand">
-        <img src="/teachat.png" class="brand-badge" />
+        <div class="brand-badge"></div>
         <div>
           <div class="brand-title">CampusAsk</div>
           <div class="brand-sub">茶话会</div>
@@ -42,12 +42,11 @@
       <div v-if="!showDetail && !showCreatePost" class="post-feed">
         <div class="feed-header">
           <h2 class="feed-title">✨ 茶话会</h2>
-          <span v-if="activeTag" class="tag-filter-badge">#{{ activeTag }}<button class="tag-clear-btn" @click="clearTagFilter">✕</button></span>
-          <span class="feed-count">共 {{ totalPosts }} 条</span>
-          <div class="search-box">
-            <input v-model="searchKeyword" placeholder="搜索帖子..." @keyup.enter="searchPosts" />
-            <button v-if="searchKeyword" class="search-clear" @click="searchKeyword='';loadPosts()">✕</button>
-          </div>
+          <span v-if="activeTag" class="tag-filter-badge">
+            #{{ activeTag }}
+            <button class="tag-clear-btn" @click="clearTagFilter">✕</button>
+          </span>
+          <span class="feed-count">共 {{ totalPosts }} 条讨论</span>
         </div>
 
         <!-- 骨架屏 / 加载状态 -->
@@ -81,7 +80,7 @@
             @click="openPost(post.id)"
           >
             <div class="post-header">
-              <div class="post-avatar" @click.stop="showProfile(post)">
+              <div class="post-avatar">
                 <img v-if="post.avatarUrl" :src="post.avatarUrl" class="avatar-img" />
                 <span v-else class="avatar-text">{{ post.nickname ? post.nickname.charAt(0) : '?' }}</span>
               </div>
@@ -92,7 +91,6 @@
             </div>
             <h3 class="post-title">{{ post.title }}</h3>
             <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
-            <img v-if="post.images" :src="post.images" class="post-thumb" />
             <div class="post-footer">
               <span class="post-stat">👁️ {{ post.viewCount }}</span>
               <span class="post-stat">👍 {{ post.likeCount }}</span>
@@ -129,7 +127,6 @@
           </div>
           <h2 class="detail-title">{{ currentPost.title }}</h2>
           <p class="detail-content">{{ currentPost.content }}</p>
-          <img v-if="currentPost.images" :src="currentPost.images" class="detail-image" @click="openImage(currentPost.images)" />
           <div class="detail-stats">
             <span>👁️ {{ currentPost.viewCount }}</span>
             <button
@@ -140,7 +137,6 @@
               {{ currentPost.liked ? '❤️' : '🤍' }} {{ currentPost.likeCount }}
             </button>
             <span>💬 {{ totalCommentCount }}</span>
-            <button class="favorite-btn" :class="{faved:currentPost.favorited}" @click="handleFavorite(currentPost.id)">{{ currentPost.favorited ? '⭐' : '☆' }} 收藏</button>
           </div>
         </article>
 
@@ -166,8 +162,9 @@
                 </div>
                 <p class="comment-text">{{ comment.content }}</p>
                 <div class="comment-actions">
-                  <button class="reply-toggle-btn" @click="startReply(comment)">💬 回复</button>
-                  <button class="reply-toggle-btn" @click="handleCommentLike(comment)">{{ comment.liked ? '❤️' : '🤍' }} {{ comment.like_count||0 }}</button>
+                  <button class="reply-toggle-btn" @click="startReply(comment)">
+                    💬 回复
+                  </button>
                 </div>
                 <!-- 内联回复框 -->
                 <div v-if="replyTarget && replyTarget.commentId === comment.id" class="inline-reply-box">
@@ -269,13 +266,6 @@
               class="form-textarea"
             ></textarea>
           </div>
-          <div class="form-group">
-            <label>图片（可选）</label>
-            <input type="file" accept="image/*" @change="uploadPostImage" ref="postImageInput" style="display:none" />
-            <button type="button" class="btn-upload-img" @click="$refs.postImageInput.click()">📷 选择图片</button>
-            <span v-if="uploadingImage" style="font-size:12px;color:#909399">上传中...</span>
-            <img v-if="newPostImages" :src="newPostImages" class="preview-img" />
-          </div>
           <div class="create-actions">
             <span class="char-count">{{ newPost.content.length }} 字</span>
             <button class="publish-btn" :disabled="submitting" @click="publishPost">
@@ -286,26 +276,26 @@
       </div>
     </main>
 
-    <!-- V4: 用户主页弹窗 -->
-    <div v-if="profileVisible" class="modal-overlay" @click.self="profileVisible=false">
-      <div class="profile-modal">
-        <button class="profile-close" @click="profileVisible=false">✕</button>
-        <div class="profile-avatar-wrap"><img v-if="profileUser.avatarUrl" :src="profileUser.avatarUrl" /><span v-else class="profile-avatar-text">{{ (profileUser.nickname||profileUser.username||'?').charAt(0) }}</span></div>
-        <div class="profile-name">{{ profileUser.nickname || '未设置昵称' }}</div>
-        <div class="profile-username">@{{ profileUser.username }}</div>
-        <div class="profile-motto">「{{ profileUser.motto || '这个人很懒，什么都没写~' }}」</div>
-        <div class="profile-posts">
-          <div class="profile-posts-title">📝 最近发帖 {{ profileUser.posts ? '('+profileUser.posts.length+')' : '' }}</div>
-          <div v-if="profileUser.posts && profileUser.posts.length">
-            <div v-for="p in profileUser.posts.slice(0,5)" :key="p.id" class="profile-post-item" @click="profileVisible=false;openPost(p.id)">{{ p.title }}</div>
-          </div>
-          <div v-else class="profile-no-posts">暂无发帖</div>
-        </div>
-      </div>
-    </div>
-
     <!-- ===== 右侧热门面板 ===== -->
     <aside class="hot-panel">
+      <!-- 用户信息区 -->
+      <div class="user-block">
+        <div v-if="isLoggedIn" class="user-info-wrap">
+          <div class="user-info" @click="$router.push('/user-center')">
+            <div class="user-avatar">
+              <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+              <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+              <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+            </div>
+          </div>
+          <button class="logout-btn" type="button" @click="logout">退出登录</button>
+        </div>
+        <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+      </div>
+
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
         <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
@@ -345,6 +335,7 @@ import {
   getPostsByTag,
   getHotForumTags
 } from '@/api/forum'
+import { clearAuthState } from '@/utils/request'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
@@ -383,16 +374,29 @@ export default {
       hotTags: [],            // V4: 从后端动态加载
       activeTag: '',         // V4: 当前筛选的标签
       newPostTags: '',       // V4: 发帖时的标签输入
-      profileVisible: false, // V4: 用户主页弹窗
-      profileUser: {},       // V4: 主页用户数据
-      searchKeyword: '',     // V4: 搜索关键词
-      newPostImages: '',     // V4: 帖子图片URL
-      uploadingImage: false, // V4: 图片上传中
+
+      // 用户信息
+      userInfo: {
+        nickname: localStorage.getItem('nickname') || '',
+        avatarUrl: localStorage.getItem('avatarUrl') || '',
+        username: localStorage.getItem('userId') || localStorage.getItem('username') || '',
+        role: localStorage.getItem('role') || ''
+      }
     }
   },
   computed: {
     currentUserId() {
       return localStorage.getItem('username') || null
+    },
+    isLoggedIn() {
+      return !!localStorage.getItem('token')
+    },
+    isAdmin() {
+      return String(this.userInfo.role) === '1'
+    },
+    avatarInitial() {
+      const name = this.userInfo.nickname || this.userInfo.username || 'U'
+      return name.slice(0, 1).toUpperCase()
     },
     totalCommentCount() {
       let count = 0
@@ -409,29 +413,6 @@ export default {
     this.loadHotTagList()
   },
   methods: {
-    async searchPosts() {
-      if (!this.searchKeyword.trim()) { this.loadPosts(); return }
-      this.loading = true; this.currentPage = 1
-      try {
-        const r = await fetch(`/api/forum/posts/search?q=${encodeURIComponent(this.searchKeyword.trim())}&page=1&size=10`)
-        const d = await r.json()
-        if (d.code === 200) { this.postList = d.data.list || []; this.totalPosts = d.data.total || 0; this.hasMore = false }
-      } catch (e) { }
-      finally { this.loading = false }
-    },
-    async uploadPostImage(e) {
-      const file = e.target.files[0]; if (!file) return
-      this.uploadingImage = true
-      try {
-        const fd = new FormData(); fd.append('file', file)
-        const token = localStorage.getItem('token'); const headers = token ? { token } : {}
-        const r = await fetch('/api/forum/upload-image', { method: 'POST', headers, body: fd })
-        const d = await r.json()
-        if (d.code === 200) this.newPostImages = d.data
-        else alert(d.message || '上传失败')
-      } catch (ex) { alert('上传失败') }
-      finally { this.uploadingImage = false; e.target.value = '' }
-    },
     async loadPosts() {
       this.loading = true
       this.postError = ''
@@ -470,8 +451,6 @@ export default {
       }
     },
     async openPost(id) {
-      // V4: 保存浏览记录到 localStorage
-      this.saveBrowseHistory(id)
       try {
         const res = await getForumPostDetail(id)
         if (res.code === 200) {
@@ -486,14 +465,6 @@ export default {
       } catch (e) {
         console.error('加载帖子详情失败:', e)
       }
-    },
-    saveBrowseHistory(postId) {
-      const key = 'browseHistory_' + (this.currentUserId || 'guest')
-      let list = JSON.parse(localStorage.getItem(key) || '[]')
-      list = list.filter(id => id !== postId)
-      list.unshift(postId)
-      if (list.length > 20) list = list.slice(0, 20)
-      localStorage.setItem(key, JSON.stringify(list))
     },
     closePost() {
       this.showDetail = false
@@ -629,13 +600,12 @@ export default {
         const res = await createForumPost({
           title: this.newPost.title.trim(),
           content: this.newPost.content.trim(),
-          tags: this.newPostTags.trim(),
-          images: this.newPostImages
+          tags: this.newPostTags.trim()
         })
         if (res.code === 200) {
           toastSuccess('发布成功')
           this.newPost = { title: '', content: '' }
-          this.newPostTags = ''; this.newPostImages = ''
+          this.newPostTags = ''
           this.showCreatePost = false
           this.currentPage = 1
           await this.loadPosts()
@@ -684,29 +654,19 @@ export default {
       this.currentPage = 1
       this.loadPosts()
     },
-    async handleFavorite(postId) {
-      try {
-        const r = await fetch(`/api/forum/posts/${postId}/favorite`, { method: 'POST', headers: { token: localStorage.getItem('token') || '' } })
-        const d = await r.json()
-        if (d.code === 200 && this.currentPost) this.currentPost.favorited = d.data.favorited
-        if (d.data.favorited) toastSuccess('已收藏'); else toastInfo('已取消收藏')
-      } catch (e) { }
-    },
-    async handleCommentLike(comment) {
-      const commentId = comment.id
-      const wasLiked = comment.liked
-      comment.liked = !wasLiked
-      comment.like_count = (comment.like_count||0) + (wasLiked ? -1 : 1)
-      try {
-        await fetch(`/api/forum/comments/${commentId}/like`, { method: 'POST', headers: { token: localStorage.getItem('token') || '' } })
-      } catch (e) { comment.liked = wasLiked; comment.like_count = (comment.like_count||0) + (wasLiked ? 1 : -1) }
-    },
-    openImage(url) { window.open(url, '_blank') },
     goHome() {
       this.$router.push({ name: 'QaPage' })
     },
     goUserCenter() {
       this.$router.push({ name: 'UserCenter' })
+    },
+    logout() {
+      clearAuthState()
+      this.userInfo.nickname = ''
+      this.userInfo.avatarUrl = ''
+      this.userInfo.username = ''
+      this.userInfo.role = ''
+      this.$router.replace('/login')
     },
     formatTime(time) {
       if (!time) return ''
@@ -719,27 +679,6 @@ export default {
       const month = String(d.getMonth() + 1).padStart(2, '0')
       const day = String(d.getDate()).padStart(2, '0')
       return `${month}-${day}`
-    },
-    async showProfile(user) {
-      if (!user || !user.userId) return
-      // 先用本地数据立即显示
-      this.profileUser = { nickname: user.nickname || '', username: user.userId, avatarUrl: user.avatarUrl || '', motto: '加载中...', posts: null }
-      this.profileVisible = true
-      // 异步加载完整数据
-      try {
-        const r = await fetch(`/api/profile/${user.userId}`)
-        const d = await r.json()
-        if (d && d.code === 200 && d.data) {
-          const dd = d.data
-          this.profileUser = {
-            nickname: dd.nickname || user.nickname || '',
-            username: dd.username || user.userId,
-            avatarUrl: dd.avatarUrl || user.avatarUrl || '',
-            motto: dd.motto || '',
-            posts: dd.posts || []
-          }
-        }
-      } catch (e) { console.error('Profile load failed:', e) }
     },
     truncate(text, len) {
       if (!text) return ''
@@ -793,7 +732,6 @@ export default {
   height: 34px;
   border-radius: 10px;
   background: #b5d7e6;
-  object-fit: cover;
 }
 
 .brand-title {
@@ -942,17 +880,16 @@ export default {
 
 .post-card {
   background: #fff;
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 2px 12px rgba(60,80,90,.05);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   cursor: pointer;
-  transition: all .25s cubic-bezier(.4,0,.2,1);
-  border: 1px solid #f0f3f5;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
+
 .post-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(43,85,105,.12);
-  border-color: #dce5ea;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 .post-header {
@@ -1026,7 +963,6 @@ export default {
   line-height: 1.6;
   margin: 0 0 12px 0;
 }
-.post-thumb { max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 8px; }
 
 .post-footer {
   display: flex;
@@ -1169,10 +1105,6 @@ export default {
   margin: 0 0 16px 0;
   white-space: pre-wrap;
 }
-.detail-image { max-width: 100%; max-height: 400px; border-radius: 12px; cursor: pointer; margin-bottom: 16px; }
-.favorite-btn { border: none; background: transparent; font-size: 13px; cursor: pointer; color: #909399; padding: 4px 8px; border-radius: 6px; }
-.favorite-btn:hover { background: #fef3e2; color: #e6a23c; }
-.favorite-btn.faved { color: #e6a23c; }
 
 .detail-stats {
   display: flex;
@@ -1562,6 +1494,91 @@ export default {
   overflow-y: auto;
 }
 
+/* ===== 用户信息块 ===== */
+.user-block {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+}
+.user-info-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #48b6b5, #5494b9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initial {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.user-role-tag {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.logout-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8f5fb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #e8f5fb;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
 .hot-title {
   font-size: 16px;
   font-weight: 600;
@@ -1625,21 +1642,6 @@ export default {
   opacity: 0;
   transform: translateY(20px);
 }
-
-/* V4: 用户主页弹窗 */
-.profile-modal { background:#fff; border-radius:16px; padding:28px 20px 20px; text-align:center; position:relative; min-width:280px; max-width:340px; box-shadow:0 12px 40px rgba(0,0,0,.2); max-height:80vh; overflow-y:auto; }
-.profile-close { position:absolute; top:8px; right:12px; border:none; background:transparent; font-size:18px; cursor:pointer; color:#909399; }
-.profile-avatar-wrap { width:72px; height:72px; border-radius:50%; margin:0 auto 10px; background:#b5d7e6; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-.profile-avatar-wrap img { width:100%; height:100%; object-fit:cover; }
-.profile-avatar-text { font-size:30px; font-weight:700; color:#3c6476; }
-.profile-name { font-size:18px; font-weight:700; color:#303133; margin-bottom:2px; }
-.profile-username { font-size:13px; color:#909399; }
-.profile-motto { margin-top:8px; font-size:13px; color:#606266; }
-.profile-posts { margin-top:16px; text-align:left; border-top:1px solid #f0f2f5; padding-top:12px; }
-.profile-posts-title { font-size:13px; font-weight:600; color:#606266; margin-bottom:8px; }
-.profile-post-item { font-size:12px; color:#2E75B6; padding:6px 0; cursor:pointer; border-bottom:1px solid #f5f7fa; }
-.profile-post-item:hover { color:#1890ff; }
-.profile-no-posts { font-size:12px; color:#C0C4CC; text-align:center; padding:8px 0; }
 
 @media (max-width: 1100px) {
   .teatalk-page {

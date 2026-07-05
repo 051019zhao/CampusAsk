@@ -19,9 +19,6 @@
         <li>
           <router-link to="/admin/gap-review">知识缺口</router-link>
         </li>
-        <li>
-          <router-link to="/admin/users">用户管理</router-link>
-        </li>
       </ul>
       <router-link to="/" class="home-btn">🏠 返回主页</router-link>
     </aside>
@@ -80,13 +77,5 @@
   padding: 20px;
   background: #f5f7fa;
   overflow-y: auto;
-}
-@media (max-width: 768px) {
-  .admin-layout { flex-direction: column; }
-  .sidebar { width: 100%; padding: 12px; }
-  .sidebar ul { display: flex; flex-wrap: wrap; gap: 4px; }
-  .sidebar li { margin-bottom: 0; }
-  .sidebar a { font-size: 12px; padding: 4px 8px; }
-  .main-content { padding: 12px; }
 }
 </style>

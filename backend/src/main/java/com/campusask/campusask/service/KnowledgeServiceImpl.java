@@ -136,18 +136,6 @@ if (isBlank(keywords)) {
                     continue;
                 }
 
-                // V4: 重复检测 - 检查数据库中是否已存在相同标题
-                if (knowledgeMapper.selectByTitle(title) != null) {
-                    errorRows.add("第" + rowIndex + "行：标题「" + title + "」已存在，跳过");
-                    continue;
-                }
-                // V4: 重复检测 - 检查本批次内是否已导入过
-                boolean dupInBatch = validList.stream().anyMatch(k -> k.getTitle().equals(title));
-                if (dupInBatch) {
-                    errorRows.add("第" + rowIndex + "行：标题「" + title + "」在文件中重复，跳过");
-                    continue;
-                }
-
                 Knowledge knowledge = new Knowledge();
                 knowledge.setTitle(title);
                 knowledge.setContent(content);
@@ -163,6 +151,10 @@ if (isBlank(keywords)) {
         }
     }
 }
+
+/**
+ * 解析 CSV 行，处理带引号的字段
+ */
 private String[] parseCsvLine(String line) {
     List<String> parts = new ArrayList<>();
     StringBuilder current = new StringBuilder();
@@ -244,16 +236,6 @@ private void processRow(Row row, int rowIndex, List<Knowledge> validList, List<S
         knowledge.setKeywords(isBlank(keywords) ? "" : keywords);
         knowledge.setViewCount(0);
         knowledge.setCreatedBy(1L);
-        // V4: 重复检测（title 已在方法开头定义）
-        if (knowledgeMapper.selectByTitle(title) != null) {
-            errorRows.add("第" + (rowIndex + 1) + "行：标题「" + title + "」已存在，跳过");
-            return;
-        }
-        if (validList.stream().anyMatch(k -> k.getTitle() != null && k.getTitle().equals(title))) {
-            errorRows.add("第" + (rowIndex + 1) + "行：标题「" + title + "」在文件中重复，跳过");
-            return;
-        }
-
         validList.add(knowledge);
 
     } catch (Exception e) {

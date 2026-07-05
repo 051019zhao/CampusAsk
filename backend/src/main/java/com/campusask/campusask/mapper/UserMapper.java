@@ -18,18 +18,6 @@ public interface UserMapper {
     @Select("select * from user where username = #{username}")
     User getByUsername(String username);
 
-    /** V4: 重置密码 */
-    @org.apache.ibatis.annotations.Update("UPDATE user SET password = #{password} WHERE username = #{username}")
-    int updatePassword(@org.apache.ibatis.annotations.Param("username") String username, @org.apache.ibatis.annotations.Param("password") String password);
-
-    /** V4: 查询所有用户 */
-    @Select("SELECT * FROM user ORDER BY created_at DESC")
-    java.util.List<User> findAll();
-
-    /** V4: 删除用户 */
-    @org.apache.ibatis.annotations.Delete("DELETE FROM user WHERE username = #{username}")
-    int deleteByUsername(@org.apache.ibatis.annotations.Param("username") String username);
-
     /**
      * 注册员工
      * @param user
