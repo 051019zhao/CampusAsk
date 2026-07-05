@@ -14,6 +14,7 @@ public class UserDTO {
     private String password;
     //身份
     private String role;//0学生1管理员
+    private String registerKey; // V4: 管理员注册密钥
     //头像链接
     private String avatarUrl;
     //个人名言

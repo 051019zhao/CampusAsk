@@ -270,7 +270,16 @@ export default {
     },
 
     // 导出
-    exportCsv() { window.open("/api/knowledge/export", "_blank") },
+    async exportCsv() {
+      try {
+        const token = localStorage.getItem('token')
+        const r = await fetch('/api/knowledge/export', { headers: token ? { token } : {} })
+        const blob = await r.blob()
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+        a.download = 'knowledge_export.csv'; a.click()
+        URL.revokeObjectURL(a.href)
+      } catch (e) { this.showMsg('导出失败', 'error') }
+    },
   }
 }
 </script>

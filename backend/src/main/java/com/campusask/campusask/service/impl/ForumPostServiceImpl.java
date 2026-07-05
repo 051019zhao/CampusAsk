@@ -150,6 +150,19 @@ public class ForumPostServiceImpl implements ForumPostService {
     }
 
     @Override
+    public ForumPost getPostById(Long id) { return forumPostMapper.selectById(id); }
+
+    @Override
+    public Map<String, Object> searchPosts(String keyword, int page, int size) {
+        int offset = (page - 1) * size;
+        List<ForumPost> list = forumPostMapper.searchPosts(keyword, offset, size);
+        int total = forumPostMapper.countSearchPosts(keyword);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list); result.put("total", total); result.put("page", page);
+        return result;
+    }
+
+    @Override
     public List<Map<String, Object>> getHotTags(int limit) {
         return forumPostMapper.selectHotTags(limit);
     }

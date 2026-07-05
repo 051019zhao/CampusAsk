@@ -73,57 +73,105 @@ public class FeedbackController {
         return Result.success(feedbackMapper.groupBySource());
     }
 
-    /** AI 总结反馈意见 */
+    /** V4: 智能分析报告（纯数据驱动，不消耗 token） */
     @GetMapping("/summary")
     public Result<String> summary() {
         List<Map<String, Object>> grouped = feedbackMapper.groupByQuestion();
-        if (grouped.isEmpty()) return Result.success("暂无反馈数据，用户反馈将在此处汇总分析。");
-
-        // 先用数据生成基础总结（不依赖 DeepSeek）
+        List<Map<String, Object>> bySource = feedbackMapper.groupBySource();
         int totalHelpful = feedbackMapper.countHelpful();
         int totalUnhelpful = feedbackMapper.countUnhelpful();
-        StringBuilder fallback = new StringBuilder();
-        fallback.append("共收到 ").append(feedbackMapper.countAll()).append(" 条反馈，");
-        fallback.append("其中 ").append(totalHelpful).append(" 条好评、").append(totalUnhelpful).append(" 条差评。");
-        if (!grouped.isEmpty()) {
-            Map<String, Object> top = grouped.get(0);
-            if (((Number)top.get("unhelpful")).intValue() > 0) {
-                fallback.append("差评最多的问题：「").append(top.get("question")).append("」（")
-                      .append(top.get("unhelpful")).append("次）。");
+        int totalAll = totalHelpful + totalUnhelpful;
+        int rating = totalAll > 0 ? Math.round(totalHelpful * 100f / totalAll) : 0;
+
+        if (grouped.isEmpty()) return Result.success("📭 还没有用户提交反馈，等数据积累后这里会生成详细的分析报告。");
+
+        StringBuilder r = new StringBuilder();
+
+        // === 1. 整体健康度 ===
+        r.append("📊 一、整体反馈健康度\n");
+        r.append("共收到 ").append(totalAll).append(" 条用户反馈，");
+        if (rating >= 85) r.append("好评率 ").append(rating).append("%，用户满意度很高！同学们对 CampusAsk 的回答质量相当认可。\n");
+        else if (rating >= 70) r.append("好评率 ").append(rating).append("%，整体表现不错，还有一些优化空间。\n");
+        else if (rating >= 50) r.append("好评率 ").append(rating).append("%，差评较多，建议重点关注被踩的问题。\n");
+        else r.append("好评率仅 ").append(rating).append("%，需要尽快排查问题，优化回答质量。\n");
+
+        // 2. 点赞最多的问题
+        r.append("\n👍 二、用户最满意的问题\n");
+        int praised = 0;
+        for (Map<String, Object> g : grouped) {
+            int h = ((Number) g.get("helpful")).intValue();
+            if (h > 0 && praised < 5) {
+                r.append("  • ").append(g.get("question")).append("（").append(h).append(" 赞）\n");
+                praised++;
+            }
+        }
+        if (praised == 0) r.append("  暂无用户点赞的问题\n");
+
+        // 3. 差评最多的问题
+        r.append("\n👎 三、需要优化的问题\n");
+        int criticized = 0;
+        for (Map<String, Object> g : grouped) {
+            int uh = ((Number) g.get("unhelpful")).intValue();
+            if (uh > 0 && criticized < 5) {
+                r.append("  • ").append(g.get("question")).append("（").append(uh).append(" 踩");
+                if (uh >= 3) r.append(" ⚠️ 已自动加入知识缺口");
+                r.append("）\n");
+                criticized++;
+            }
+        }
+        if (criticized == 0) r.append("  🎉 没有差评问题！太棒了！\n");
+
+        // 4. 来源分析
+        r.append("\n🔍 四、按来源分析\n");
+        if (bySource.isEmpty()) {
+            r.append("  暂无来源数据\n");
+        } else {
+            for (Map<String, Object> src : bySource) {
+                String name = src.get("source").toString();
+                int h = src.get("helpful") != null ? ((Number) src.get("helpful")).intValue() : 0;
+                int uh = src.get("unhelpful") != null ? ((Number) src.get("unhelpful")).intValue() : 0;
+                int t = h + uh;
+                if (t == 0) continue;
+                int pct = Math.round(h * 100f / t);
+                String label = name.contains("knowledge") ? "本地知识库" :
+                               name.contains("ai_knowledge") ? "AI检索数据库" :
+                               name.contains("ai_search") ? "AI联网搜索" :
+                               name.contains("ai_web") ? "AI自主回答" :
+                               name.contains("fallback") ? "降级兜底" : name;
+                r.append("  • ").append(label).append("：").append(t).append(" 条反馈，好评率 ").append(pct).append("%");
+                if (pct < 70) r.append(" ⚠️ 偏低");
+                r.append("\n");
             }
         }
 
-        // 尝试 AI 增强
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("以下用户对校园问答系统的反馈，用1-2句话概括核心问题：\n");
-        for (int i = 0; i < Math.min(5, grouped.size()); i++) {
-            Map<String, Object> g = grouped.get(i);
-            prompt.append("- ").append(g.get("question"))
-                  .append("（赞").append(g.get("helpful"))
-                  .append("/踩").append(g.get("unhelpful")).append("）\n");
+        // 5. 改进建议
+        r.append("\n💡 五、改进建议\n");
+        if (rating >= 85 && criticized == 0) {
+            r.append("  系统表现很优秀！保持当前质量，定期更新知识库即可。\n");
+        } else {
+            if (criticized > 0) {
+                r.append("  📋 有 ").append(criticized).append(" 个问题收到差评，建议优先查看这些问题的回答内容是否需要修正。\n");
+            }
+            if (rating < 70) {
+                r.append("  🎯 整体好评率偏低，建议：\n");
+                r.append("    1) 补充高频差评问题的知识库内容\n");
+                r.append("    2) 检查 AI 回答的准确性\n");
+                r.append("    3) 优化联网搜索的摘要质量\n");
+            }
+            // 来源建议
+            boolean aiSourceLow = false;
+            for (Map<String, Object> src : bySource) {
+                String name = src.get("source").toString();
+                int h = src.get("helpful") != null ? ((Number) src.get("helpful")).intValue() : 0;
+                int uh = src.get("unhelpful") != null ? ((Number) src.get("unhelpful")).intValue() : 0;
+                if (h + uh >= 3 && h * 100f / (h + uh) < 60 && (name.contains("ai_search") || name.contains("ai_web"))) {
+                    aiSourceLow = true;
+                }
+            }
+            if (aiSourceLow) r.append("  🌐 AI 联网搜索的回答好评率偏低，建议对这类回答加强审核后再入库。\n");
         }
 
-        try {
-            String body = "{\"model\":\"deepseek-chat\",\"messages\":["
-                    + "{\"role\":\"user\",\"content\":\"" + esc(prompt.toString()) + "\"}],"
-                    + "\"max_tokens\":150,\"temperature\":0.3}";
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.deepseek.com/chat/completions"))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .timeout(Duration.ofSeconds(6))
-                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-            HttpResponse<String> resp = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(6)).build()
-                    .send(req, HttpResponse.BodyHandlers.ofString());
-            String text = resp.body();
-            int s = text.indexOf("\"content\":\"") + 11;
-            int e = text.indexOf("\"", s);
-            String ai = s > 10 && e > 0 ? text.substring(s, e).replace("\\n", "\n") : null;
-            return Result.success(ai != null ? ai + "\n\n" + fallback : fallback.toString());
-        } catch (Exception ex) {
-            return Result.success(fallback.toString()); // AI 失败用基础总结兜底
-        }
+        return Result.success(r.toString());
     }
 
     private String esc(String s) {
