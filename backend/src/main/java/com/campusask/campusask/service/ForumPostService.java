@@ -32,4 +32,10 @@ public interface ForumPostService {
 
     /** V4: 获取热门标签 */
     java.util.List<Map<String, Object>> getHotTags(int limit);
+
+    /** V4: 搜索帖子 */
+    Map<String, Object> searchPosts(String keyword, int page, int size);
+
+    /** V4: 获取帖子简要信息 */
+    ForumPost getPostById(Long id);
 }
