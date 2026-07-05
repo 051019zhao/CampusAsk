@@ -46,8 +46,14 @@
           <span class="feed-count">共 {{ totalPosts }} 条</span>
           <div class="search-box">
             <input v-model="searchKeyword" placeholder="搜索帖子..." @keyup.enter="searchPosts" />
-            <button v-if="searchKeyword" class="search-clear" @click="searchKeyword='';loadPosts()">✕</button>
+            <button v-if="searchKeyword" class="search-clear" @click="exitSearch()">✕</button>
           </div>
+        </div>
+
+        <!-- 搜索状态提示 -->
+        <div v-if="isSearching" class="search-hint">
+          🔍 搜索 "{{ searchKeyword }}" 找到 {{ postList.length }} 条结果
+          <button class="search-exit-btn" @click="exitSearch">✕ 退出搜索</button>
         </div>
 
         <!-- 骨架屏 / 加载状态 -->
@@ -306,6 +312,24 @@
 
     <!-- ===== 右侧热门面板 ===== -->
     <aside class="hot-panel">
+      <!-- 用户信息区 -->
+      <div class="user-block">
+        <div v-if="isLoggedIn" class="user-info-wrap">
+          <div class="user-info" @click="$router.push('/user-center')">
+            <div class="user-avatar">
+              <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+              <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+              <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+            </div>
+          </div>
+          <button class="logout-btn" type="button" @click="logout">退出登录</button>
+        </div>
+        <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+      </div>
+
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
         <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
@@ -345,6 +369,7 @@ import {
   getPostsByTag,
   getHotForumTags
 } from '@/api/forum'
+import { clearAuthState } from '@/utils/request'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
@@ -383,9 +408,19 @@ export default {
       hotTags: [],            // V4: 从后端动态加载
       activeTag: '',         // V4: 当前筛选的标签
       newPostTags: '',       // V4: 发帖时的标签输入
+
+      // 用户信息
+      userInfo: {
+        nickname: localStorage.getItem('nickname') || '',
+        avatarUrl: localStorage.getItem('avatarUrl') || '',
+        username: localStorage.getItem('userId') || localStorage.getItem('username') || '',
+        role: localStorage.getItem('role') || ''
+      },
       profileVisible: false, // V4: 用户主页弹窗
       profileUser: {},       // V4: 主页用户数据
       searchKeyword: '',     // V4: 搜索关键词
+      isSearching: false,    // V4: 是否处于搜索模式
+      allPosts: [],          // V4: 全部帖子（搜索前备份）
       newPostImages: '',     // V4: 帖子图片URL
       uploadingImage: false, // V4: 图片上传中
     }
@@ -393,6 +428,16 @@ export default {
   computed: {
     currentUserId() {
       return localStorage.getItem('username') || null
+    },
+    isLoggedIn() {
+      return !!localStorage.getItem('token')
+    },
+    isAdmin() {
+      return String(this.userInfo.role) === '1'
+    },
+    avatarInitial() {
+      const name = this.userInfo.nickname || this.userInfo.username || 'U'
+      return name.slice(0, 1).toUpperCase()
     },
     totalCommentCount() {
       let count = 0
@@ -409,15 +454,22 @@ export default {
     this.loadHotTagList()
   },
   methods: {
-    async searchPosts() {
-      if (!this.searchKeyword.trim()) { this.loadPosts(); return }
-      this.loading = true; this.currentPage = 1
-      try {
-        const r = await fetch(`/api/forum/posts/search?q=${encodeURIComponent(this.searchKeyword.trim())}&page=1&size=10`)
-        const d = await r.json()
-        if (d.code === 200) { this.postList = d.data.list || []; this.totalPosts = d.data.total || 0; this.hasMore = false }
-      } catch (e) { }
-      finally { this.loading = false }
+    searchPosts() {
+      const kw = this.searchKeyword.trim().toLowerCase()
+      if (!kw) { this.exitSearch(); return }
+      this.isSearching = true
+      // 在全部帖子中过滤：匹配标题、内容、标签
+      this.postList = this.allPosts.filter(p => {
+        const title = (p.title || '').toLowerCase()
+        const content = (p.content || '').toLowerCase()
+        const tags = (p.tags || '').toLowerCase()
+        return title.includes(kw) || content.includes(kw) || tags.includes(kw)
+      })
+    },
+    exitSearch() {
+      this.searchKeyword = ''
+      this.isSearching = false
+      this.postList = [...this.allPosts]
     },
     async uploadPostImage(e) {
       const file = e.target.files[0]; if (!file) return
@@ -443,6 +495,7 @@ export default {
           res = await getForumPosts(this.currentPage, this.pageSize)
         }
         if (res.code === 200) {
+          this.allPosts = res.data.list || []
           this.postList = res.data.list || []
           this.totalPosts = res.data.total || 0
           this.hasMore = this.currentPage < (res.data.totalPages || 1)
@@ -461,6 +514,7 @@ export default {
       try {
         const res = await getForumPosts(this.currentPage, this.pageSize)
         if (res.code === 200) {
+          this.allPosts = [...this.allPosts, ...(res.data.list || [])]
           this.postList = [...this.postList, ...(res.data.list || [])]
           this.hasMore = this.currentPage < (res.data.totalPages || 1)
         }
@@ -470,8 +524,9 @@ export default {
       }
     },
     async openPost(id) {
-      // V4: 保存浏览记录到 localStorage
-      this.saveBrowseHistory(id)
+      // V4: 保存浏览记录到 localStorage（同时存标题）
+      const post = this.postList.find(p => p.id === id)
+      this.saveBrowseHistory(id, post ? post.title : '')
       try {
         const res = await getForumPostDetail(id)
         if (res.code === 200) {
@@ -487,11 +542,15 @@ export default {
         console.error('加载帖子详情失败:', e)
       }
     },
-    saveBrowseHistory(postId) {
+    saveBrowseHistory(postId, title) {
       const key = 'browseHistory_' + (this.currentUserId || 'guest')
       let list = JSON.parse(localStorage.getItem(key) || '[]')
-      list = list.filter(id => id !== postId)
-      list.unshift(postId)
+      // 兼容旧数据（纯 ID 数组）
+      if (list.length > 0 && typeof list[0] !== 'object') {
+        list = list.map(id => ({ id, title: '' }))
+      }
+      list = list.filter(item => (item.id || item) !== postId)
+      list.unshift({ id: postId, title: title || '', time: new Date().toISOString() })
       if (list.length > 20) list = list.slice(0, 20)
       localStorage.setItem(key, JSON.stringify(list))
     },
@@ -707,6 +766,14 @@ export default {
     },
     goUserCenter() {
       this.$router.push({ name: 'UserCenter' })
+    },
+    logout() {
+      clearAuthState()
+      this.userInfo.nickname = ''
+      this.userInfo.avatarUrl = ''
+      this.userInfo.username = ''
+      this.userInfo.role = ''
+      this.$router.replace('/login')
     },
     formatTime(time) {
       if (!time) return ''
@@ -934,6 +1001,62 @@ export default {
   line-height: 1;
 }
 .tag-clear-btn:hover { color: #e74c3c; }
+
+/* V4: 搜索提示与退出 */
+.search-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 4px;
+  background: #eef4fb;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #3c6476;
+}
+.search-exit-btn {
+  margin-left: auto;
+  border: 1px solid #c4d7e6;
+  background: #fff;
+  color: #5a7a8f;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-exit-btn:hover {
+  background: #f56c6c;
+  color: #fff;
+  border-color: #f56c6c;
+}
+
+/* V4: 搜索输入框 */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.search-box input {
+  border: 1px solid #d7e2ea;
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: 13px;
+  width: 180px;
+  outline: none;
+}
+.search-box input:focus {
+  border-color: #3c6476;
+}
+.search-clear {
+  border: none;
+  background: transparent;
+  color: #909399;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+.search-clear:hover { color: #e74c3c; }
 
 .post-list {
   display: grid;
@@ -1547,6 +1670,21 @@ export default {
   cursor: not-allowed;
 }
 
+.btn-upload-img {
+  border: 1px solid #d7e2ea;
+  background: #fff;
+  color: #606266;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-upload-img:hover {
+  border-color: #3c6476;
+  color: #3c6476;
+}
+
 /* ===== 右侧热门 ===== */
 .hot-panel {
   background: #3c6476;
@@ -1560,6 +1698,91 @@ export default {
   top: 12px;
   height: calc(100vh - 24px);
   overflow-y: auto;
+}
+
+/* ===== 用户信息块 ===== */
+.user-block {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+}
+.user-info-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #48b6b5, #5494b9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initial {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.user-role-tag {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.logout-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8f5fb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #e8f5fb;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .hot-title {
@@ -1627,6 +1850,7 @@ export default {
 }
 
 /* V4: 用户主页弹窗 */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
 .profile-modal { background:#fff; border-radius:16px; padding:28px 20px 20px; text-align:center; position:relative; min-width:280px; max-width:340px; box-shadow:0 12px 40px rgba(0,0,0,.2); max-height:80vh; overflow-y:auto; }
 .profile-close { position:absolute; top:8px; right:12px; border:none; background:transparent; font-size:18px; cursor:pointer; color:#909399; }
 .profile-avatar-wrap { width:72px; height:72px; border-radius:50%; margin:0 auto 10px; background:#b5d7e6; display:flex; align-items:center; justify-content:center; overflow:hidden; }

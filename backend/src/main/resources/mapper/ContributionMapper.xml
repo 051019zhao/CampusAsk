@@ -14,11 +14,19 @@
     </select>
 
     <select id="selectPending" resultType="com.campusask.campusask.entity.Contribution">
-        SELECT * FROM contribution WHERE status = 'pending' ORDER BY created_at DESC
+        SELECT c.*, u.username AS username
+        FROM contribution c
+        LEFT JOIN user u ON c.user_id = u.id
+        WHERE c.status = 'pending'
+        ORDER BY c.created_at DESC
     </select>
 
     <select id="selectRejected" resultType="com.campusask.campusask.entity.Contribution">
-        SELECT * FROM contribution WHERE status = 'rejected' ORDER BY review_time DESC
+        SELECT c.*, u.username AS username
+        FROM contribution c
+        LEFT JOIN user u ON c.user_id = u.id
+        WHERE c.status = 'rejected'
+        ORDER BY c.review_time DESC
     </select>
 
     <delete id="deleteById" parameterType="long">
