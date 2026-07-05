@@ -148,19 +148,30 @@ const fetchForum = async () => {
     if (res?.code===200) { forumList.value=res.data.records||[]; forumTotal.value=res.data.total||0 }
   } catch(e){}
 }
-const fetchBrowse = async () => {
+const fetchBrowse = () => {
   const key = 'browseHistory_'+(userInfo.value.username||'guest')
-  const ids = JSON.parse(localStorage.getItem(key)||'[]')
-  if (!ids.length) { browsePosts.value=[]; return }
-  try {
-    const res = await request.get('/auth/forum-history',{params:{page:1,size:20}})
-    if (res?.code===200) { const all=(res.data.records||[]); browsePosts.value=ids.map(id=>all.find(p=>p.id===id)).filter(Boolean) }
-  } catch(e){ browsePosts.value=[] }
+  const list = JSON.parse(localStorage.getItem(key)||'[]')
+  // 兼容旧数据格式
+  browsePosts.value = list.map(item => {
+    if (typeof item === 'object') {
+      const d = item.time ? new Date(item.time) : null
+      return { id: item.id, title: item.title || '(无标题)', createdAt: d ? formatTimeLocal(d) : '' }
+    }
+    return { id: item, title: '(旧记录)', createdAt: '' }
+  })
 }
 
 const changePage = (m) => { pageParams.page+=m; fetchHistory() }
 const changeForumPage = (m) => { forumPageParams.page+=m; fetchForum() }
 const formatTime = (t) => t ? t.replace('T',' ').substring(0,16) : ''
+const formatTimeLocal = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}:${min}`
+}
 
 const triggerFileSelect = () => fileInputRef.value.click()
 const handleNativeUpload = async (e) => {

@@ -33,7 +33,7 @@
           </div>
         </div>
       </div>
-      <button class="post-btn" @click="showCreatePost = true">📝 发帖</button>
+      <button class="post-btn" @click="showCreatePost = true; showDetail = false">📝 发帖</button>
     </aside>
 
     <!-- ===== 中间内容区 ===== -->
@@ -46,8 +46,14 @@
           <span class="feed-count">共 {{ totalPosts }} 条</span>
           <div class="search-box">
             <input v-model="searchKeyword" placeholder="搜索帖子..." @keyup.enter="searchPosts" />
-            <button v-if="searchKeyword" class="search-clear" @click="searchKeyword='';loadPosts()">✕</button>
+            <button v-if="searchKeyword" class="search-clear" @click="exitSearch()">✕</button>
           </div>
+        </div>
+
+        <!-- 搜索状态提示 -->
+        <div v-if="isSearching" class="search-hint">
+          🔍 搜索 "{{ searchKeyword }}" 找到 {{ postList.length }} 条结果
+          <button class="search-exit-btn" @click="exitSearch">✕ 退出搜索</button>
         </div>
 
         <!-- 骨架屏 / 加载状态 -->
@@ -232,7 +238,10 @@
               rows="2"
               @keyup.enter.exact.prevent="submitComment"
             ></textarea>
-            <button class="send-comment-btn" @click="submitComment">发送</button>
+            <div class="comment-actions-row">
+              <span v-if="commentSensitiveHint" class="sensitive-hint">{{ commentSensitiveHint }}</span>
+              <button class="send-comment-btn" :disabled="!!commentSensitiveHint" @click="submitComment">发送</button>
+            </div>
           </div>
         </div>
       </div>
@@ -278,7 +287,8 @@
           </div>
           <div class="create-actions">
             <span class="char-count">{{ newPost.content.length }} 字</span>
-            <button class="publish-btn" :disabled="submitting" @click="publishPost">
+            <span v-if="sensitiveHint" class="sensitive-hint">{{ sensitiveHint }}</span>
+            <button class="publish-btn" :disabled="submitting || !!sensitiveHint" @click="publishPost">
               {{ submitting ? '发布中...' : '✨ 发布' }}
             </button>
           </div>
@@ -306,6 +316,34 @@
 
     <!-- ===== 右侧热门面板 ===== -->
     <aside class="hot-panel">
+      <!-- 用户信息区 -->
+      <div class="user-block">
+        <div v-if="isLoggedIn" class="user-info-wrap">
+          <div class="user-info" @click="$router.push('/user-center')">
+            <div class="user-avatar">
+              <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="avatar" class="avatar-img" />
+              <span v-else class="avatar-initial">{{ avatarInitial }}</span>
+            </div>
+            <div class="user-meta">
+              <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
+              <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+            </div>
+          </div>
+          <button class="logout-btn" type="button" @click="logout">退出登录</button>
+        </div>
+        <!-- V4: 通知铃铛 -->
+        <div v-if="isLoggedIn" class="notif-bell" @click="showNotifs=!showNotifs" title="通知">
+          🔔<span v-if="unreadCount>0" class="notif-badge">{{ unreadCount }}</span>
+        </div>
+        <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+
+        <!-- V4: 通知下拉 -->
+        <div v-if="showNotifs" class="notif-dropdown">
+          <div v-if="notifications.length===0" class="notif-empty">暂无通知</div>
+          <div v-for="n in notifications" :key="n.id" class="notif-item" :class="{unread:!n.is_read}" @click="readNotif(n)">{{ n.content }}<span class="notif-time">{{ formatNotifTime(n.created_at) }}</span></div>
+        </div>
+      </div>
+
       <div class="hot-title">🔥 热门帖子</div>
       <div class="hot-list">
         <div v-if="hotLoading" class="hot-state ui-state ui-state-loading">加载中...</div>
@@ -345,6 +383,7 @@ import {
   getPostsByTag,
   getHotForumTags
 } from '@/api/forum'
+import request, { clearAuthState } from '@/utils/request'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
@@ -383,16 +422,41 @@ export default {
       hotTags: [],            // V4: 从后端动态加载
       activeTag: '',         // V4: 当前筛选的标签
       newPostTags: '',       // V4: 发帖时的标签输入
+
+      // 用户信息
+      userInfo: {
+        nickname: localStorage.getItem('nickname') || '',
+        avatarUrl: localStorage.getItem('avatarUrl') || '',
+        username: localStorage.getItem('userId') || localStorage.getItem('username') || '',
+        role: localStorage.getItem('role') || ''
+      },
       profileVisible: false, // V4: 用户主页弹窗
       profileUser: {},       // V4: 主页用户数据
       searchKeyword: '',     // V4: 搜索关键词
+      isSearching: false,    // V4: 是否处于搜索模式
+      allPosts: [],          // V4: 全部帖子（搜索前备份）
+      sensitiveWords: [],    // V4: 敏感词列表
       newPostImages: '',     // V4: 帖子图片URL
       uploadingImage: false, // V4: 图片上传中
+      // V4: 通知
+      showNotifs: false,
+      notifications: [],
+      unreadCount: 0,
     }
   },
   computed: {
     currentUserId() {
       return localStorage.getItem('username') || null
+    },
+    isLoggedIn() {
+      return !!localStorage.getItem('token')
+    },
+    isAdmin() {
+      return String(this.userInfo.role) === '1'
+    },
+    avatarInitial() {
+      const name = this.userInfo.nickname || this.userInfo.username || 'U'
+      return name.slice(0, 1).toUpperCase()
     },
     totalCommentCount() {
       let count = 0
@@ -401,23 +465,45 @@ export default {
         if (c.replies) count += c.replies.length
       }
       return count
+    },
+    // V4: 发帖实时敏感词检测
+    sensitiveHint() {
+      if (!this.sensitiveWords.length) return ''
+      const text = (this.newPost.title + ' ' + this.newPost.content + ' ' + this.newPostTags).toLowerCase()
+      const matched = this.sensitiveWords.filter(w => w && text.includes(w.toLowerCase()))
+      return matched.length ? '⚠ 包含敏感词：' + matched.join('、') : ''
+    },
+    // V4: 评论实时敏感词检测
+    commentSensitiveHint() {
+      if (!this.sensitiveWords.length || !this.commentText.trim()) return ''
+      const matched = this.sensitiveWords.filter(w => w && this.commentText.toLowerCase().includes(w.toLowerCase()))
+      return matched.length ? '⚠ 包含敏感词：' + matched.join('、') : ''
     }
   },
   mounted() {
     this.loadPosts()
     this.loadHotPosts()
     this.loadHotTagList()
+    this.loadSensitiveWords()
+    this.loadNotifications()
   },
   methods: {
-    async searchPosts() {
-      if (!this.searchKeyword.trim()) { this.loadPosts(); return }
-      this.loading = true; this.currentPage = 1
-      try {
-        const r = await fetch(`/api/forum/posts/search?q=${encodeURIComponent(this.searchKeyword.trim())}&page=1&size=10`)
-        const d = await r.json()
-        if (d.code === 200) { this.postList = d.data.list || []; this.totalPosts = d.data.total || 0; this.hasMore = false }
-      } catch (e) { }
-      finally { this.loading = false }
+    searchPosts() {
+      const kw = this.searchKeyword.trim().toLowerCase()
+      if (!kw) { this.exitSearch(); return }
+      this.isSearching = true
+      // 在全部帖子中过滤：匹配标题、内容、标签
+      this.postList = this.allPosts.filter(p => {
+        const title = (p.title || '').toLowerCase()
+        const content = (p.content || '').toLowerCase()
+        const tags = (p.tags || '').toLowerCase()
+        return title.includes(kw) || content.includes(kw) || tags.includes(kw)
+      })
+    },
+    exitSearch() {
+      this.searchKeyword = ''
+      this.isSearching = false
+      this.postList = [...this.allPosts]
     },
     async uploadPostImage(e) {
       const file = e.target.files[0]; if (!file) return
@@ -443,6 +529,7 @@ export default {
           res = await getForumPosts(this.currentPage, this.pageSize)
         }
         if (res.code === 200) {
+          this.allPosts = res.data.list || []
           this.postList = res.data.list || []
           this.totalPosts = res.data.total || 0
           this.hasMore = this.currentPage < (res.data.totalPages || 1)
@@ -461,6 +548,7 @@ export default {
       try {
         const res = await getForumPosts(this.currentPage, this.pageSize)
         if (res.code === 200) {
+          this.allPosts = [...this.allPosts, ...(res.data.list || [])]
           this.postList = [...this.postList, ...(res.data.list || [])]
           this.hasMore = this.currentPage < (res.data.totalPages || 1)
         }
@@ -470,8 +558,9 @@ export default {
       }
     },
     async openPost(id) {
-      // V4: 保存浏览记录到 localStorage
-      this.saveBrowseHistory(id)
+      // V4: 保存浏览记录到 localStorage（同时存标题）
+      const post = this.postList.find(p => p.id === id)
+      this.saveBrowseHistory(id, post ? post.title : '')
       try {
         const res = await getForumPostDetail(id)
         if (res.code === 200) {
@@ -487,11 +576,15 @@ export default {
         console.error('加载帖子详情失败:', e)
       }
     },
-    saveBrowseHistory(postId) {
+    saveBrowseHistory(postId, title) {
       const key = 'browseHistory_' + (this.currentUserId || 'guest')
       let list = JSON.parse(localStorage.getItem(key) || '[]')
-      list = list.filter(id => id !== postId)
-      list.unshift(postId)
+      // 兼容旧数据（纯 ID 数组）
+      if (list.length > 0 && typeof list[0] !== 'object') {
+        list = list.map(id => ({ id, title: '' }))
+      }
+      list = list.filter(item => (item.id || item) !== postId)
+      list.unshift({ id: postId, title: title || '', time: new Date().toISOString() })
       if (list.length > 20) list = list.slice(0, 20)
       localStorage.setItem(key, JSON.stringify(list))
     },
@@ -511,9 +604,12 @@ export default {
         if (res.code === 200) {
           await this.refreshComments()
           this.commentText = ''
+        } else {
+          toastError(res.message || '评论失败')
         }
       } catch (e) {
         console.error('提交评论失败:', e)
+        toastError('评论失败')
       }
     },
     /** 点击某条评论的"回复"按钮 */
@@ -550,6 +646,8 @@ export default {
         if (res.code === 200) {
           await this.refreshComments()
           this.cancelReply()
+        } else {
+          toastError(res.message || '回复失败')
         }
       } catch (e) {
         console.error('提交回复失败:', e)
@@ -639,6 +737,8 @@ export default {
           this.showCreatePost = false
           this.currentPage = 1
           await this.loadPosts()
+        } else {
+          toastError(res.message || '发布失败')
         }
       } catch (e) {
         console.error('发布失败:', e)
@@ -674,6 +774,18 @@ export default {
         }
       } catch (e) { /* 失败就用默认 */ }
     },
+    async loadSensitiveWords() {
+      try {
+        const res = await request.get('/api/forum/sensitive-words')
+        if (res.code === 200) { this.sensitiveWords = res.data || [] }
+      } catch (e) { }
+    },
+    async loadNotifications() {
+      try { const r = await fetch('/api/notifications', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.notifications = d.data || [] } catch (e) { }
+      try { const r = await fetch('/api/notifications/unread-count', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.unreadCount = d.data?.count || 0 } catch (e) { }
+    },
+    async readNotif(n) { if (!n.is_read) { try { await fetch(`/api/notifications/${n.id}/read`, { method: 'PUT', headers: { token: localStorage.getItem('token') || '' } }); n.is_read = 1; this.unreadCount = Math.max(0, this.unreadCount - 1) } catch (e) { } } },
+    formatNotifTime(t) { if (!t) return ''; const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` },
     searchTag(tag) {
       this.activeTag = tag
       this.currentPage = 1
@@ -707,6 +819,14 @@ export default {
     },
     goUserCenter() {
       this.$router.push({ name: 'UserCenter' })
+    },
+    logout() {
+      clearAuthState()
+      this.userInfo.nickname = ''
+      this.userInfo.avatarUrl = ''
+      this.userInfo.username = ''
+      this.userInfo.role = ''
+      this.$router.replace('/login')
     },
     formatTime(time) {
       if (!time) return ''
@@ -934,6 +1054,62 @@ export default {
   line-height: 1;
 }
 .tag-clear-btn:hover { color: #e74c3c; }
+
+/* V4: 搜索提示与退出 */
+.search-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 4px;
+  background: #eef4fb;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #3c6476;
+}
+.search-exit-btn {
+  margin-left: auto;
+  border: 1px solid #c4d7e6;
+  background: #fff;
+  color: #5a7a8f;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-exit-btn:hover {
+  background: #f56c6c;
+  color: #fff;
+  border-color: #f56c6c;
+}
+
+/* V4: 搜索输入框 */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.search-box input {
+  border: 1px solid #d7e2ea;
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: 13px;
+  width: 180px;
+  outline: none;
+}
+.search-box input:focus {
+  border-color: #3c6476;
+}
+.search-clear {
+  border: none;
+  background: transparent;
+  color: #909399;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+.search-clear:hover { color: #e74c3c; }
 
 .post-list {
   display: grid;
@@ -1324,6 +1500,17 @@ export default {
   background: #2b5569;
 }
 
+.send-comment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comment-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ===== 评论回复 ===== */
 .comment-thread {
   border-bottom: 1px solid #f0f2f5;
@@ -1527,6 +1714,17 @@ export default {
   color: #8a9ba8;
 }
 
+.sensitive-hint {
+  font-size: 12px;
+  color: #e74c3c;
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+  border-radius: 8px;
+  padding: 4px 10px;
+  flex: 1;
+  text-align: center;
+}
+
 .publish-btn {
   border: none;
   background: #e8a87c;
@@ -1547,6 +1745,21 @@ export default {
   cursor: not-allowed;
 }
 
+.btn-upload-img {
+  border: 1px solid #d7e2ea;
+  background: #fff;
+  color: #606266;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-upload-img:hover {
+  border-color: #3c6476;
+  color: #3c6476;
+}
+
 /* ===== 右侧热门 ===== */
 .hot-panel {
   background: #3c6476;
@@ -1561,6 +1774,102 @@ export default {
   height: calc(100vh - 24px);
   overflow-y: auto;
 }
+
+/* ===== 用户信息块 ===== */
+.user-block {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  position: relative;
+}
+.user-info-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #48b6b5, #5494b9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initial {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.user-role-tag {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.logout-btn {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8f5fb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #e8f5fb;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* V4: 通知 */
+.notif-bell { position: relative; cursor: pointer; font-size: 18px; padding: 4px; }
+.notif-badge { position: absolute; top: -4px; right: -4px; background: #f56c6c; color: #fff; font-size: 10px; border-radius: 10px; padding: 1px 5px; min-width: 16px; text-align: center; }
+.notif-dropdown { position: absolute; top: 100%; right: 0; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); z-index: 100; width: 280px; max-height: 360px; overflow-y: auto; margin-top: 8px; }
+.notif-empty { text-align: center; padding: 20px; color: #C0C4CC; font-size: 13px; }
+.notif-item { padding: 10px 14px; border-bottom: 1px solid #f5f7fa; font-size: 12px; color: #606266; cursor: pointer; }
+.notif-item.unread { background: #e6f7ff; font-weight: 600; }
+.notif-item:hover { background: #f5f7fa; }
+.notif-time { display: block; font-size: 10px; color: #C0C4CC; margin-top: 3px; }
 
 .hot-title {
   font-size: 16px;
@@ -1627,6 +1936,7 @@ export default {
 }
 
 /* V4: 用户主页弹窗 */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
 .profile-modal { background:#fff; border-radius:16px; padding:28px 20px 20px; text-align:center; position:relative; min-width:280px; max-width:340px; box-shadow:0 12px 40px rgba(0,0,0,.2); max-height:80vh; overflow-y:auto; }
 .profile-close { position:absolute; top:8px; right:12px; border:none; background:transparent; font-size:18px; cursor:pointer; color:#909399; }
 .profile-avatar-wrap { width:72px; height:72px; border-radius:50%; margin:0 auto 10px; background:#b5d7e6; display:flex; align-items:center; justify-content:center; overflow:hidden; }

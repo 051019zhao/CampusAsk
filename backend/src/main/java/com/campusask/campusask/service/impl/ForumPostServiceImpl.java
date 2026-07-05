@@ -93,6 +93,8 @@ public class ForumPostServiceImpl implements ForumPostService {
     @Override
     public Long addComment(ForumComment comment) {
         forumCommentMapper.insertComment(comment);
+        // V4: 更新帖子评论数
+        forumPostMapper.updateCommentCount(comment.getPostId(), 1);
         return comment.getId();
     }
 
