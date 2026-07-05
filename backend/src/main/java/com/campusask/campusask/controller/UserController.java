@@ -16,6 +16,7 @@ import com.campusask.campusask.utils.OssUtil;
 import com.campusask.campusask.vo.UserLoginVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -218,7 +219,9 @@ public class UserController {
         if (newPassword == null || newPassword.length() < 6) return Result.error("新密码至少6位");
         User user = userService.getByUsername(username);
         if (user == null) return Result.error("用户不存在");
-        userMapper.updatePassword(username, newPassword);
+        // MD5 加密后再存入数据库，与登录验证逻辑保持一致
+        String encryptedPwd = DigestUtils.md5DigestAsHex(newPassword.getBytes());
+        userMapper.updatePassword(username, encryptedPwd);
         return Result.success("密码重置成功，请重新登录");
     }
 
