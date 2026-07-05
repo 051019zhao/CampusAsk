@@ -33,7 +33,7 @@
           </div>
         </div>
       </div>
-      <button class="post-btn" @click="showCreatePost = true">📝 发帖</button>
+      <button class="post-btn" @click="showCreatePost = true; showDetail = false">📝 发帖</button>
     </aside>
 
     <!-- ===== 中间内容区 ===== -->
@@ -238,7 +238,10 @@
               rows="2"
               @keyup.enter.exact.prevent="submitComment"
             ></textarea>
-            <button class="send-comment-btn" @click="submitComment">发送</button>
+            <div class="comment-actions-row">
+              <span v-if="commentSensitiveHint" class="sensitive-hint">{{ commentSensitiveHint }}</span>
+              <button class="send-comment-btn" :disabled="!!commentSensitiveHint" @click="submitComment">发送</button>
+            </div>
           </div>
         </div>
       </div>
@@ -284,7 +287,8 @@
           </div>
           <div class="create-actions">
             <span class="char-count">{{ newPost.content.length }} 字</span>
-            <button class="publish-btn" :disabled="submitting" @click="publishPost">
+            <span v-if="sensitiveHint" class="sensitive-hint">{{ sensitiveHint }}</span>
+            <button class="publish-btn" :disabled="submitting || !!sensitiveHint" @click="publishPost">
               {{ submitting ? '发布中...' : '✨ 发布' }}
             </button>
           </div>
@@ -327,7 +331,17 @@
           </div>
           <button class="logout-btn" type="button" @click="logout">退出登录</button>
         </div>
+        <!-- V4: 通知铃铛 -->
+        <div v-if="isLoggedIn" class="notif-bell" @click="showNotifs=!showNotifs" title="通知">
+          🔔<span v-if="unreadCount>0" class="notif-badge">{{ unreadCount }}</span>
+        </div>
         <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
+
+        <!-- V4: 通知下拉 -->
+        <div v-if="showNotifs" class="notif-dropdown">
+          <div v-if="notifications.length===0" class="notif-empty">暂无通知</div>
+          <div v-for="n in notifications" :key="n.id" class="notif-item" :class="{unread:!n.is_read}" @click="readNotif(n)">{{ n.content }}<span class="notif-time">{{ formatNotifTime(n.created_at) }}</span></div>
+        </div>
       </div>
 
       <div class="hot-title">🔥 热门帖子</div>
@@ -369,7 +383,7 @@ import {
   getPostsByTag,
   getHotForumTags
 } from '@/api/forum'
-import { clearAuthState } from '@/utils/request'
+import request, { clearAuthState } from '@/utils/request'
 import { toastError, toastInfo, toastSuccess } from '@/utils/toast'
 
 export default {
@@ -421,8 +435,13 @@ export default {
       searchKeyword: '',     // V4: 搜索关键词
       isSearching: false,    // V4: 是否处于搜索模式
       allPosts: [],          // V4: 全部帖子（搜索前备份）
+      sensitiveWords: [],    // V4: 敏感词列表
       newPostImages: '',     // V4: 帖子图片URL
       uploadingImage: false, // V4: 图片上传中
+      // V4: 通知
+      showNotifs: false,
+      notifications: [],
+      unreadCount: 0,
     }
   },
   computed: {
@@ -446,12 +465,27 @@ export default {
         if (c.replies) count += c.replies.length
       }
       return count
+    },
+    // V4: 发帖实时敏感词检测
+    sensitiveHint() {
+      if (!this.sensitiveWords.length) return ''
+      const text = (this.newPost.title + ' ' + this.newPost.content + ' ' + this.newPostTags).toLowerCase()
+      const matched = this.sensitiveWords.filter(w => w && text.includes(w.toLowerCase()))
+      return matched.length ? '⚠ 包含敏感词：' + matched.join('、') : ''
+    },
+    // V4: 评论实时敏感词检测
+    commentSensitiveHint() {
+      if (!this.sensitiveWords.length || !this.commentText.trim()) return ''
+      const matched = this.sensitiveWords.filter(w => w && this.commentText.toLowerCase().includes(w.toLowerCase()))
+      return matched.length ? '⚠ 包含敏感词：' + matched.join('、') : ''
     }
   },
   mounted() {
     this.loadPosts()
     this.loadHotPosts()
     this.loadHotTagList()
+    this.loadSensitiveWords()
+    this.loadNotifications()
   },
   methods: {
     searchPosts() {
@@ -570,9 +604,12 @@ export default {
         if (res.code === 200) {
           await this.refreshComments()
           this.commentText = ''
+        } else {
+          toastError(res.message || '评论失败')
         }
       } catch (e) {
         console.error('提交评论失败:', e)
+        toastError('评论失败')
       }
     },
     /** 点击某条评论的"回复"按钮 */
@@ -609,6 +646,8 @@ export default {
         if (res.code === 200) {
           await this.refreshComments()
           this.cancelReply()
+        } else {
+          toastError(res.message || '回复失败')
         }
       } catch (e) {
         console.error('提交回复失败:', e)
@@ -698,6 +737,8 @@ export default {
           this.showCreatePost = false
           this.currentPage = 1
           await this.loadPosts()
+        } else {
+          toastError(res.message || '发布失败')
         }
       } catch (e) {
         console.error('发布失败:', e)
@@ -733,6 +774,18 @@ export default {
         }
       } catch (e) { /* 失败就用默认 */ }
     },
+    async loadSensitiveWords() {
+      try {
+        const res = await request.get('/api/forum/sensitive-words')
+        if (res.code === 200) { this.sensitiveWords = res.data || [] }
+      } catch (e) { }
+    },
+    async loadNotifications() {
+      try { const r = await fetch('/api/notifications', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.notifications = d.data || [] } catch (e) { }
+      try { const r = await fetch('/api/notifications/unread-count', { headers: { token: localStorage.getItem('token') || '' } }); const d = await r.json(); if (d.code === 200) this.unreadCount = d.data?.count || 0 } catch (e) { }
+    },
+    async readNotif(n) { if (!n.is_read) { try { await fetch(`/api/notifications/${n.id}/read`, { method: 'PUT', headers: { token: localStorage.getItem('token') || '' } }); n.is_read = 1; this.unreadCount = Math.max(0, this.unreadCount - 1) } catch (e) { } } },
+    formatNotifTime(t) { if (!t) return ''; const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` },
     searchTag(tag) {
       this.activeTag = tag
       this.currentPage = 1
@@ -1447,6 +1500,17 @@ export default {
   background: #2b5569;
 }
 
+.send-comment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comment-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ===== 评论回复 ===== */
 .comment-thread {
   border-bottom: 1px solid #f0f2f5;
@@ -1650,6 +1714,17 @@ export default {
   color: #8a9ba8;
 }
 
+.sensitive-hint {
+  font-size: 12px;
+  color: #e74c3c;
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+  border-radius: 8px;
+  padding: 4px 10px;
+  flex: 1;
+  text-align: center;
+}
+
 .publish-btn {
   border: none;
   background: #e8a87c;
@@ -1705,6 +1780,7 @@ export default {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 10px;
+  position: relative;
 }
 .user-info-wrap {
   display: flex;
@@ -1784,6 +1860,16 @@ export default {
 .login-btn:hover {
   background: rgba(255, 255, 255, 0.28);
 }
+
+/* V4: 通知 */
+.notif-bell { position: relative; cursor: pointer; font-size: 18px; padding: 4px; }
+.notif-badge { position: absolute; top: -4px; right: -4px; background: #f56c6c; color: #fff; font-size: 10px; border-radius: 10px; padding: 1px 5px; min-width: 16px; text-align: center; }
+.notif-dropdown { position: absolute; top: 100%; right: 0; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); z-index: 100; width: 280px; max-height: 360px; overflow-y: auto; margin-top: 8px; }
+.notif-empty { text-align: center; padding: 20px; color: #C0C4CC; font-size: 13px; }
+.notif-item { padding: 10px 14px; border-bottom: 1px solid #f5f7fa; font-size: 12px; color: #606266; cursor: pointer; }
+.notif-item.unread { background: #e6f7ff; font-weight: 600; }
+.notif-item:hover { background: #f5f7fa; }
+.notif-time { display: block; font-size: 10px; color: #C0C4CC; margin-top: 3px; }
 
 .hot-title {
   font-size: 16px;

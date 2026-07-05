@@ -56,6 +56,10 @@
         UPDATE forum_post SET like_count = like_count + #{delta} WHERE id = #{id}
     </update>
 
+    <update id="updateCommentCount">
+        UPDATE forum_post SET comment_count = comment_count + #{delta} WHERE id = #{id}
+    </update>
+
     <delete id="deleteById" parameterType="long">
         DELETE FROM forum_post WHERE id = #{id}
     </delete>

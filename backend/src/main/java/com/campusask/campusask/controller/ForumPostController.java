@@ -5,10 +5,12 @@ import com.campusask.campusask.dto.Result;
 import com.campusask.campusask.entity.ForumComment;
 import com.campusask.campusask.entity.ForumPost;
 import com.campusask.campusask.service.ForumPostService;
+import com.campusask.campusask.service.SensitiveWordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,6 +19,9 @@ public class ForumPostController {
 
     @Autowired
     private ForumPostService forumPostService;
+
+    @Autowired
+    private SensitiveWordService sensitiveWordService;
 
     /** V4: 热门帖子排行榜 */
     @GetMapping("/hot")
@@ -79,6 +84,12 @@ public class ForumPostController {
         return Result.success(forumPostService.getPosts(page, size, userId));
     }
 
+    /** V4: 获取全部敏感词列表（供前端实时检测） */
+    @GetMapping("/sensitive-words")
+    public Result<List<String>> getSensitiveWords() {
+        return Result.success(sensitiveWordService.getAllWords());
+    }
+
     /**
      * 获取帖子详情（含评论）
      */
@@ -108,6 +119,19 @@ public class ForumPostController {
             return Result.error("内容不能为空");
         }
 
+        // V4: 敏感词检测（标题 + 内容 + 标签）
+        String tags = body.get("tags");
+        StringBuilder checkText = new StringBuilder();
+        checkText.append(title.trim()).append(" ");
+        checkText.append(content.trim());
+        if (tags != null && !tags.trim().isEmpty()) {
+            checkText.append(" ").append(tags.trim());
+        }
+        List<String> matchedWords = sensitiveWordService.findMatchingWords(checkText.toString());
+        if (!matchedWords.isEmpty()) {
+            return Result.error("内容包含敏感词：" + String.join("、", matchedWords) + "，请修改后重试");
+        }
+
         ForumPost post = new ForumPost();
         post.setUserId(BaseContext.getCurrentUsername());
         post.setTitle(title.trim());
@@ -127,6 +151,12 @@ public class ForumPostController {
         String content = body.get("content");
         if (content == null || content.trim().isEmpty()) {
             return Result.error("评论内容不能为空");
+        }
+
+        // V4: 敏感词检测
+        List<String> matchedWords = sensitiveWordService.findMatchingWords(content.trim());
+        if (!matchedWords.isEmpty()) {
+            return Result.error("评论包含敏感词：" + String.join("、", matchedWords) + "，请修改后重试");
         }
 
         ForumComment comment = new ForumComment();
@@ -166,6 +196,13 @@ public class ForumPostController {
     public Result<Map<String, Object>> likePost(@PathVariable Long id) {
         String userId = BaseContext.getCurrentUsername();
         boolean isLiked = forumPostService.likePost(id, userId);
+        // V4: 点赞时通知帖子作者（取消点赞不通知）
+        if (isLiked) {
+            ForumPost post = forumPostService.getPostById(id);
+            if (post != null && post.getUserId() != null && !post.getUserId().equals(userId)) {
+                try { jdbc.update("INSERT INTO notification(user_id,type,content,post_id) VALUES(?,'like',?,?)", post.getUserId(), (userId!=null?userId:"匿名")+" 赞了你的帖子", id); } catch(Exception e){}
+            }
+        }
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("liked", isLiked);
         result.put("message", isLiked ? "点赞成功" : "取消点赞");
