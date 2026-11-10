@@ -19,6 +19,9 @@ import java.util.Map;
 public class QaController {
 
     @Autowired
+    private com.campusask.campusask.rag.RagService ragService;
+
+    @Autowired
     private QaService qaService;
 
     @Autowired
@@ -36,10 +39,12 @@ public class QaController {
     private static final Logger log = LoggerFactory.getLogger(QaController.class);
 
     @PostMapping("/ask")
-    public Result<Map<String, Object>> ask(@RequestBody Map<String, String> body) {
-        String keyword = body.get("keyword");
-        String sessionId = body.get("sessionId"); // V3 新增：多轮对话会话ID
-        Map<String, Object> data = qaService.ask(keyword, sessionId);
+    public Result<Map<String, Object>> ask(@jakarta.validation.Valid @RequestBody com.campusask.campusask.dto.AskRequest body) {
+        String keyword = body.keyword();
+        String sessionId = body.sessionId();
+        if (sessionId == null || sessionId.isBlank()) sessionId = java.util.UUID.randomUUID().toString();
+        Map<String, Object> data = ragService.ask(keyword, sessionId, !Boolean.FALSE.equals(body.memoryEnabled()));
+        qaService.recordRagQuestion(keyword, String.valueOf(data.get("source")));
         return Result.success(data);
     }
 
@@ -55,7 +60,7 @@ public class QaController {
     @PostMapping("/clear-session")
     public Result<String> clearSession(@RequestBody Map<String, String> body) {
         String sessionId = body.get("sessionId");
-        qaService.clearSession(sessionId);
+        if (com.campusask.campusask.context.BaseContext.getCurrentUsername() != null) ragService.clear(sessionId);
         return Result.success("会话已清除");
     }
 
@@ -67,7 +72,7 @@ public class QaController {
     @GetMapping("/history")
     public Result<java.util.List<String>> recentHistory(
             @RequestParam(required = false) String userId) {
-        return Result.success(qaService.getRecentQuestions(userId, 6));
+        return Result.success(qaService.getRecentQuestions(com.campusask.campusask.context.BaseContext.getCurrentUsername(), 6));
     }
 
     /** 用户反馈：有帮助/没帮助（V3：差评 ≥3 次自动加入知识缺口） */

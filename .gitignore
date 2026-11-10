@@ -46,3 +46,8 @@ yarn-error.log*
 .Spotlight-V100
 .Tradespaces
 Thumbs.db
+node_modules/
+.npm-cache/
+.env
+.env.*
+!.env.example

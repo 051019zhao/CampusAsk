@@ -5,7 +5,8 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "lint:check": "eslint src --ext .js,.vue --no-fix"
   },
   "dependencies": {
     "axios": "^1.16.1",
@@ -43,5 +44,8 @@
     "last 2 versions",
     "not dead",
     "not ie 11"
-  ]
+  ],
+  "engines": {
+    "node": ">=22 <26"
+  }
 }

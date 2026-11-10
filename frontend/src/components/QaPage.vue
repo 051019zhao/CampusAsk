@@ -46,7 +46,7 @@
         <div class="chat-panel">
           <div class="chat-header">
             <div class="chat-title">对话</div>
-            <button v-if="chatMessages.length > 0" class="new-topic-btn" @click="newTopic" title="开启新话题">＋ 新话题</button>
+            <button v-if="chatMessages.length > 0" :disabled="loading || documentLoading" class="new-topic-btn" @click="newTopic" title="开启新话题">＋ 新话题</button>
           </div>
           <div class="chat-list">
             <div
@@ -65,6 +65,14 @@
               <!-- V3: bot 回答用 Markdown 渲染，user 消息纯文本 -->
               <div v-if="message.role === 'bot'" class="chat-text" v-html="renderMd(message.text)"></div>
               <div v-else class="chat-text">{{ message.text }}</div>
+              <details v-if="message.citations && message.citations.length" class="rag-sources">
+                <summary>查看检索来源（{{ message.citations.length }}）</summary>
+                <div v-for="citation in message.citations" :key="citation.id">
+                  <strong>[{{ citation.id }}] {{ citation.title }} · 片段 {{ citation.chunk }}</strong>
+                  <pre>{{ citation.excerpt }}</pre>
+                </div>
+              </details>
+              <small v-if="message.role === 'bot' && message.memorySaved === false && memoryEnabled">本轮未保存到长时记忆。</small>
               <div v-if="message.role === 'bot'" class="msg-actions">
                 <button class="copy-btn" @click="copyText(message.text)" title="复制回答">📋</button>
               </div>
@@ -116,6 +124,16 @@
         </div>
 
         <div class="composer">
+          <div class="rag-toolbar">
+            <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading" /> 使用长时记忆</label>
+            <button :disabled="loading || documentLoading" @click="forgetMemory">删除我的历史记忆</button>
+            <span>登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。</span>
+          </div>
+          <div v-for="doc in documents" :key="doc.id" class="rag-document">
+            <span>📄 {{ doc.title }}</span>
+            <button :disabled="loading || documentLoading" @click="removeDocument(doc.id)">移除</button>
+          </div>
+          <div v-if="documentStatus" role="status" class="rag-status">{{ documentStatus }}</div>
           <textarea v-model="keyword" placeholder="输入你的问题……" rows="2" @keyup.enter.exact.prevent="search"></textarea>
           <!-- V4: 图片预览 -->
           <img v-if="qaImageUrl" :src="qaImageUrl" class="qa-preview-img" @click="qaImageUrl=''" title="点击移除" />
@@ -123,10 +141,12 @@
             <div class="composer-left">
               <input type="file" accept="image/*" ref="qaImageInput" hidden @change="handleQaImage" />
               <button class="img-btn" @click="$refs.qaImageInput.click()" title="上传图片">📷</button>
+              <input ref="documentInput" type="file" accept=".csv,.docx,.txt,.md" hidden @change="uploadDocument" />
+              <button :disabled="loading || documentLoading" class="img-btn" @click="$refs.documentInput.click()">{{ documentLoading ? '正在导入…' : '导入资料' }}</button>
               <span v-if="qaUploading" class="uploading-hint">上传中...</span>
             </div>
             <div class="composer-hint">按 Enter 发送，Shift + Enter 换行</div>
-            <button class="send-btn" @click="search">发送</button>
+            <button class="send-btn" :disabled="loading || documentLoading" @click="search">发送</button>
           </div>
         </div>
       </main>
@@ -205,6 +225,7 @@
 import { clearAuthState } from '@/utils/request'
 import { toastError } from '@/utils/toast'
 import { marked } from 'marked'
+import { safeMarkdown } from '@/utils/safeMarkdown'
 
 // 配置 marked 安全渲染
 marked.setOptions({ breaks: true, gfm: true })
@@ -220,6 +241,10 @@ export default {
       noResult: false,
       chatMessages: [],
       sessionId: '',           // V3: 多轮对话会话ID
+      documents: [],
+      documentLoading: false,
+      documentStatus: '',
+      memoryEnabled: true,
       suggestedQuestions: [],  // V3: 相关问题推荐
       qaImageUrl: '',          // V4: 问答图片
       qaUploading: false,      // V4: 图片上传中
@@ -279,6 +304,7 @@ export default {
   },
   mounted() {
     this.authExpiredHandler = () => {
+      this.sessionId = ''; this.documents = []; this.chatMessages = []
       this.resetUserInfo()
     }
     this.profileUpdatedHandler = () => {
@@ -288,6 +314,12 @@ export default {
     window.addEventListener('profile-updated', this.profileUpdatedHandler)
     this.refreshMeta()
     this.loadUserInfo()
+    this.sessionId = sessionStorage.getItem(this.ragSessionKey()) || ''
+    if (this.sessionId && localStorage.getItem('token')) {
+      this.ragRequest(`/documents?sessionId=${encodeURIComponent(this.sessionId)}`)
+        .then(docs => { this.documents = docs })
+        .catch(error => { this.documentStatus = error.message })
+    }
   },
   beforeUnmount() {
     if (this.authExpiredHandler) {
@@ -298,6 +330,49 @@ export default {
     }
   },
   methods: {
+    ragSessionKey() { return `ragSession:${this.getCurrentUsername() || 'guest'}` },
+    ensureSession() {
+      if (!this.sessionId) this.sessionId = `sess_${crypto.randomUUID()}`
+      sessionStorage.setItem(this.ragSessionKey(), this.sessionId)
+      return this.sessionId
+    },
+    async ragRequest(path, options = {}) {
+      const token = localStorage.getItem('token')
+      if (!token) throw new Error('请先登录，再使用资料和长时记忆')
+      const response = await fetch(`/api/qa/rag${path}`, { ...options, headers: { token, ...(options.headers || {}) } })
+      const body = await response.json()
+      if (!response.ok || body.code !== 200) throw new Error(body.message || '操作失败，请重试')
+      return body.data
+    },
+    async uploadDocument(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      if (file.size > 5 * 1024 * 1024) { this.documentStatus = '文件不能超过 5 MB'; event.target.value = ''; return }
+      this.documentLoading = true
+      this.documentStatus = '正在解析、分块并建立语义索引…'
+      try {
+        const session = this.ensureSession()
+        const form = new FormData()
+        form.append('file', file); form.append('sessionId', session)
+        const doc = await this.ragRequest('/documents', { method: 'POST', body: form })
+        this.documents = await this.ragRequest(`/documents?sessionId=${encodeURIComponent(session)}`)
+        this.documentStatus = doc.duplicate ? '该资料已经导入' : `已导入 ${doc.title}（${doc.chunks} 个片段），可以开始提问`
+      } catch (error) { this.documentStatus = error.message }
+      finally { this.documentLoading = false; event.target.value = '' }
+    },
+    async removeDocument(id) {
+      this.documentLoading = true
+      try {
+        await this.ragRequest(`/documents/${encodeURIComponent(id)}?sessionId=${encodeURIComponent(this.sessionId)}`, { method: 'DELETE' })
+        this.documents = this.documents.filter(doc => doc.id !== id)
+        this.documentStatus = '资料及其索引已移除'
+      } catch (error) { this.documentStatus = error.message }
+      finally { this.documentLoading = false }
+    },
+    async forgetMemory() {
+      try { await this.ragRequest('/memory', { method: 'DELETE' }); this.documentStatus = '你的历史记忆已删除' }
+      catch (error) { this.documentStatus = error.message }
+    },
     async handleQaImage(e) {
       const file = e.target.files[0]; if (!file) return
       this.qaUploading = true
@@ -312,14 +387,12 @@ export default {
       finally { this.qaUploading = false; e.target.value = '' }
     },
     async search() {
-      if (this.loading) return
+      if (this.loading || this.documentLoading) return
       const question = this.keyword.trim()
       if (!question) return
 
       // V3: 初始化 sessionId（首次提问时生成）
-      if (!this.sessionId) {
-        this.sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-      }
+      this.ensureSession()
 
       this.chatMessages.push({
         id: `${Date.now()}-user`,
@@ -334,6 +407,8 @@ export default {
       let replyText = ''
       let source = ''
       let searchUrls = []
+      let citations = []
+      let memorySaved = true
       try {
         const token = localStorage.getItem('token')
         const headers = { 'Content-Type': 'application/json' }
@@ -342,12 +417,14 @@ export default {
         const res = await fetch('/api/qa/ask', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ keyword: question, sessionId: this.sessionId, imageUrl: this.qaImageUrl })
+          body: JSON.stringify({ keyword: question, sessionId: this.sessionId, imageUrl: this.qaImageUrl, memoryEnabled: this.memoryEnabled })
         })
         const data = await res.json()
         if (data.code === 200 && data.data) {
           source = data.data.source || ''
           searchUrls = data.data.searchUrls || []
+          citations = data.data.citations || []
+          memorySaved = data.data.memorySaved !== false
           // V3: 接收推荐问题
           if (data.data.suggestions && Array.isArray(data.data.suggestions)) {
             this.suggestedQuestions = data.data.suggestions
@@ -363,6 +440,7 @@ export default {
           }
         } else {
           this.noResult = true
+          this.aiAnswer = data.message || '请求未完成，请重试'
         }
         replyText = this.buildAnswerText()
       } catch (e) {
@@ -376,6 +454,8 @@ export default {
             text: replyText,
             source: source,
             urls: searchUrls,
+            citations,
+            memorySaved,
             question: question  // 绑定对应的问题
           })
         }
@@ -518,7 +598,7 @@ export default {
       if (!text) return ''
       // 先清理来源标记（已在标签展示）
       const cleaned = text.replace(/\[来源:.*?\]/g, '').trim()
-      return marked.parse(cleaned)
+      return safeMarkdown(marked.parse(cleaned))
     },
     // V3: 一键复制
     async copyText(text) {
@@ -549,7 +629,7 @@ export default {
     sourceLabel(source) {
       const map = {
         knowledge:    '📚 数据库关键词检索',
-        ai_knowledge: '🤖 AI检索数据库',
+        ai_knowledge: '📚 RAG 资料问答',
         ai_search:    '🌐 AI联网搜索(华南理工)',
         ai_web:       '💡 AI自主回答',
         fallback:     '⚠️ AI不可用·本地兜底',
@@ -623,7 +703,11 @@ export default {
     },
     // V3: 开启新话题，清除会话上下文
     newTopic() {
+      if (this.loading || this.documentLoading) return
+      sessionStorage.removeItem(this.ragSessionKey())
       this.sessionId = ''
+      this.documents = []
+      this.documentStatus = '已开启新话题。旧资料仅属于原会话，历史记忆可跨话题召回。'
       this.suggestedQuestions = []
       this.chatMessages = []
       this.results = []
@@ -1501,4 +1585,14 @@ export default {
   background: #eaf1f4;
   border-color: #2b5569;
 }
+.rag-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: #496575; }
+.rag-toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+.rag-toolbar span { flex-basis: 100%; font-size: 11px; }
+.rag-toolbar button, .rag-document button { border: 1px solid #c5d4dc; border-radius: 6px; background: white; color: #2b5569; cursor: pointer; padding: 4px 8px; }
+.rag-document { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; padding: 6px; background: #f0f5f7; border-radius: 6px; }
+.rag-document span { overflow-wrap: anywhere; }
+.rag-status { font-size: 12px; color: #2b5569; }
+.rag-sources { margin-top: 8px; font-size: 12px; border-top: 1px solid #d5dce3; padding-top: 8px; }
+.rag-sources pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; max-height: 220px; overflow-y: auto; }
+button:disabled { opacity: .55; cursor: wait; }
 </style>

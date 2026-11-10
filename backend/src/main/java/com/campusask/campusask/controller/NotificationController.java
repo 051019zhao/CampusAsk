@@ -22,7 +22,7 @@ public class NotificationController {
 
     @PutMapping("/notifications/{id}/read")
     public Result<String> read(@PathVariable Long id) {
-        jdbc.update("UPDATE notification SET is_read=1 WHERE id=?", id);
+        jdbc.update("UPDATE notification SET is_read=1 WHERE id=? AND user_id=?", id,BaseContext.getCurrentUsername());
         return Result.success("ok");
     }
 

@@ -74,9 +74,13 @@ public class QaService {
     @Value("${deepseek.api.key}")
     private String apiKey;
 
+    @Value("${qa.legacy-warmup-enabled:false}")
+    private boolean legacyWarmupEnabled;
+
     // ===== V3: 启动后异步预热热点问题缓存（不阻塞启动）=====
     @PostConstruct
     public void warmUpCache() {
+        if (!legacyWarmupEnabled) return;
         new Thread(() -> {
             try {
                 Thread.sleep(3000); // 等应用完全启动后再预热
@@ -567,6 +571,10 @@ public class QaService {
 
     private String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+    }
+
+    public void recordRagQuestion(String keyword, String source) {
+        recordAsync(keyword.length() > 500 ? keyword.substring(0,500) : keyword, source);
     }
 
     private void recordAsync(String keyword, String source) {

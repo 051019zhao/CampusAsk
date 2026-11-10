@@ -10,6 +10,7 @@
         <li>
           <router-link to="/admin/knowledge-import">知识导入</router-link>
         </li>
+        <li><router-link to="/admin/crawler">官网知识采集</router-link></li>
         <li>
           <router-link to="/admin/feedback">用户反馈</router-link>
         </li>

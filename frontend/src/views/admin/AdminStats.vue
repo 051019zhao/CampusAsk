@@ -256,7 +256,7 @@ export default {
         .replace(/🔥/g, '<span class="r-section">🔥')
         .replace(/⏳/g, '<span class="r-section">⏳')
         .replace(/💡/g, '<span class="r-section">💡')
-        .replace(/  •/g, '  <span class="r-bullet">•</span>')
+        .replace(/ {2}•/g, '  <span class="r-bullet">•</span>')
         .replace(/⚠️/g, '<span class="r-warn">⚠️</span>')
         .replace(/✅/g, '<span class="r-ok">✅</span>')
         .replace(/📈/g, '<span class="r-up">📈</span>')

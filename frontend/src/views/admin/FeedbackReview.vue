@@ -123,7 +123,7 @@ export default {
     async loadSummary(){
       try{const r=await fetch("/api/admin/feedback/summary",{headers:this.getAuthHeaders()});const d=await r.json();if(d.code===200)this.aiSummary=d.data}catch(e){}
     },
-    barPct(v,total){const m=Math.max(...this.grouped.map(g=>g.helpful+g.unhelpful),1);return Math.round(v/m*100)+'%'},
+    barPct(v){const m=Math.max(...this.grouped.map(g=>g.helpful+g.unhelpful),1);return Math.round(v/m*100)+'%'},
     sourceShort(s){const m={knowledge:'📚本地',ai_knowledge:'🤖AI库',ai_search:'🌐联网',ai_web:'💡AI答',fallback:'⚠️降级',rejected:'🚫拒绝'};return m[s]||s||'-'},
     async addToGap(item){
       try{
