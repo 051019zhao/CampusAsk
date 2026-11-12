@@ -71,14 +71,15 @@ public class RagService {
     }
     private synchronized void syncKnowledge() {
         if (System.currentTimeMillis()-syncedAt<30_000) return;
+        Map<String,String> known=store.publicFingerprints();
         Set<String> ids=new HashSet<>();
         for (Knowledge k : knowledge.listAll()) {
             String id="K"+k.getId(); ids.add(id);
             String text=knowledgeText(k);
             String fingerprint=hash(text+model.embeddingVersion());
-            if (!store.unchanged(id,fingerprint)) store.replace(id,"PUBLIC","",k.getTitle(),fingerprint,index(id,k.getTitle(),text));
+            if (!fingerprint.equals(known.get(id))) store.replace(id,"PUBLIC","",k.getTitle(),fingerprint,index(id,k.getTitle(),text));
         }
-        store.pruneKnowledge(ids); syncedAt=System.currentTimeMillis();
+        store.pruneKnowledge(known.keySet(),ids); syncedAt=System.currentTimeMillis();
     }
     private String bounded(String text,int size) { return text.length()<=size?text:text.substring(0,size); }
     public Map<String,Object> ask(String question, String sessionId, boolean useMemory) {

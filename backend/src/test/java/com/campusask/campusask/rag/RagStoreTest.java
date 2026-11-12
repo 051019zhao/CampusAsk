@@ -28,6 +28,15 @@ class RagStoreTest {
         assertEquals("我住五山",restarted.recent("USER:alice","s1").get(0).question());
         assertTrue(restarted.summary("USER:alice","s1").contains("五山"));
     }
+    @Test void publicFingerprintSnapshotPrunesOnlyRemovedKnowledge() {
+        document("K1","PUBLIC",""); document("K2","PUBLIC","");
+        document("D1","USER:alice","s1");
+        Map<String,String> snapshot=store.publicFingerprints();
+        assertEquals(Map.of("K1","hash","K2","hash"),snapshot);
+        store.pruneKnowledge(snapshot.keySet(),Set.of("K1"));
+        assertEquals(Set.of("K1","D1"),new HashSet<>(
+                store.chunks("USER:alice","s1").stream().map(RagStore.Chunk::documentId).toList()));
+    }
     @Test void retrievalOnlySeesPublicAndOwnSessionDocuments() {
         document("K1","PUBLIC",""); document("D1","USER:alice","s1");
         document("D2","USER:bob","s1"); document("D3","USER:alice","s2");

@@ -60,11 +60,17 @@ public class RagStore {
                     chunks.stream().map(c -> new Object[]{c.id(),id,c.ordinal(),c.text(),c.vector(),c.model()}).toList());
         });
     }
-    public void pruneKnowledge(Set<String> ids) {
-        for (Map<String,Object> row : db.queryForList("SELECT id FROM rag_document WHERE owner='PUBLIC'")) {
-            String id = row.get("id").toString();
-            if (!ids.contains(id)) db.update("DELETE FROM rag_document WHERE id=? AND owner='PUBLIC'", id);
-        }
+    public Map<String,String> publicFingerprints() {
+        return db.query("SELECT id,fingerprint FROM rag_document WHERE owner='PUBLIC'", rows -> {
+            Map<String,String> fingerprints=new HashMap<>();
+            while (rows.next()) fingerprints.put(rows.getString(1),rows.getString(2));
+            return fingerprints;
+        });
+    }
+    public void pruneKnowledge(Set<String> knownIds, Set<String> currentIds) {
+        List<Object[]> stale=knownIds.stream().filter(id -> !currentIds.contains(id))
+                .map(id -> new Object[]{id}).toList();
+        if (!stale.isEmpty()) db.batchUpdate("DELETE FROM rag_document WHERE id=? AND owner='PUBLIC'",stale);
     }
     public List<Chunk> chunks(String owner, String session) {
         return db.query("""

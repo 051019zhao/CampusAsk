@@ -22,6 +22,7 @@ class RagCoreTest {
         KnowledgeMapper knowledge=mock(KnowledgeMapper.class);
         when(knowledge.listAll()).thenReturn(List.of());
         when(model.embeddingsEnabled()).thenReturn(true);
+        when(store.publicFingerprints()).thenReturn(Map.of());
         when(model.embeddingVersion()).thenReturn("test-v1");
         when(model.embed(anyString())).thenReturn(new double[]{1,0});
         when(model.answer(anyString(),anyString())).thenReturn("请参考 [S1]。");
@@ -101,6 +102,7 @@ class RagCoreTest {
         RagService indexed=new RagService(store,model,new DocumentLoader(),knowledge);
         indexed.ask("奖学金", "session", false);
         verify(model).embed(contains("分类：学生资助\n关键词：助学金,奖学金"));
+        verify(store,never()).unchanged(eq("K7"),anyString());
         verify(store).replace(eq("K7"),eq("PUBLIC"),eq(""),eq("奖助咨询"),anyString(),
                 argThat(chunks -> chunks.size()==1 && chunks.get(0).text().contains("关键词：助学金,奖学金")));
     }
