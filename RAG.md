@@ -22,6 +22,8 @@
 
 保留原有提问记录与统计入口；关闭旧流程的启动预热，避免新流程启动时产生旧回答和额外调用。原有联网搜索代码仍保留，但新 RAG 回答只使用已检索资料，不自动把网络搜索结果写入知识库。
 
+知识条目的标题、分类、关键词和正文共同参与嵌入与关键词检索；更新分类或关键词也会触发增量重建。回答提示要求按事实标注真实支持的来源；无相关资料或资料冲突时说明依据不足和待核实条件。知识内容编写建议见 [知识库内容指南](docs/knowledge-authoring.md)。
+
 ## 长时记忆策略
 
 1. **近期窗口**：MySQL 保存成功问答，生成时读取当前会话最近 6 轮，按时间顺序加入提示。
@@ -40,6 +42,8 @@
 需要 Java 17、MySQL，以及现有项目的登录、数据库等配置。仓库没有提交原有 `application.yml`，请继续使用你本机的配置；不要把密码或 API key 写入代码。
 
 数据库账号需要有创建四张 RAG 表的权限。启动时会执行幂等建表，也可由数据库管理员预先执行 `db/rag.sql`。不会修改或删除已有业务表。
+
+新建 RAG 表包含 `rag_document_expiry(created_at)` 与 `rag_turn_expiry(created_at)` 索引，用于 90 天过期清理。若已有 RAG 表在本次更新前创建，`CREATE TABLE IF NOT EXISTS` 不会补加索引；请先用 `SHOW INDEX FROM rag_document` 和 `SHOW INDEX FROM rag_turn` 检查，再由数据库管理员按需执行 `ALTER TABLE rag_document ADD INDEX rag_document_expiry(created_at)`、`ALTER TABLE rag_turn ADD INDEX rag_turn_expiry(created_at)`。
 
 复制以下配置到现有配置文件中，或启用新增的 `rag` profile：
 
@@ -95,7 +99,7 @@ npm run serve
 
 2026-11-10 已执行：
 
-- 后端 Java 17 完整验证与 59 项测试通过：`mvn verify`。
+- 后端 Java 17 完整验证与 61 项测试通过：`mvn verify`。
 - 存储测试使用 H2 的 MySQL 兼容模式，验证重新创建服务对象后读取历史、事务回滚、用户/会话隔离、级联删除、窗口截取和过期清理。
 - HTTP 测试使用本地测试服务器，验证真实请求序列化、向量解析、带引号与换行的回答、空响应与服务错误。
 - CSV、DOCX 段落/表格、文件限制、跨话题召回、关闭记忆、失败不写半成品等核心行为有测试覆盖。
