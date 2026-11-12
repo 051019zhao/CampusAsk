@@ -22,6 +22,9 @@ public interface UserMapper {
     @org.apache.ibatis.annotations.Update("UPDATE user SET password = #{password} WHERE username = #{username}")
     int updatePassword(@org.apache.ibatis.annotations.Param("username") String username, @org.apache.ibatis.annotations.Param("password") String password);
 
+    @org.apache.ibatis.annotations.Update("UPDATE user SET password=#{password} WHERE username=#{username} AND password=#{oldHash}")
+    int upgradePassword(@org.apache.ibatis.annotations.Param("username") String username,@org.apache.ibatis.annotations.Param("oldHash") String oldHash,@org.apache.ibatis.annotations.Param("password") String password);
+
     /** V4: 查询所有用户 */
     @Select("SELECT * FROM user ORDER BY created_at DESC")
     java.util.List<User> findAll();

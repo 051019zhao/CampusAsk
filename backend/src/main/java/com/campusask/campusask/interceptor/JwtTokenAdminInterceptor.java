@@ -27,6 +27,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        BaseContext.clear();
         // 判断当前拦截到的是Controller的方法还是其他资源（如静态页面、Swagger等）
         if (!(handler instanceof HandlerMethod)) {
             return true;
@@ -60,7 +61,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
 
         // 2、校验令牌
         try {
-            log.info("开始进行 JWT 权限校验，获取到的 Token 为: {}", token);
+            log.info("开始进行 JWT 权限校验");
 
             // 解析 Token
             Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);

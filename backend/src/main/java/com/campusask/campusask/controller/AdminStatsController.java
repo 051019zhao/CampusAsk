@@ -7,7 +7,6 @@ import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.mapper.QuestionLogMapper;
 import com.campusask.campusask.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -77,11 +76,11 @@ public class AdminStatsController {
     /** V4: 管理员重置用户密码 */
     @PutMapping("/users/{username}/reset-pwd")
     public Result<String> resetUserPwd(@PathVariable String username, @RequestBody Map<String, String> body) {
-        String newPwd = body.getOrDefault("password", "123456");
-        // MD5 加密后再存入数据库，与登录验证逻辑保持一致
-        String encryptedPwd = DigestUtils.md5DigestAsHex(newPwd.getBytes());
+        String newPwd = body.get("password");
+        com.campusask.campusask.utils.PasswordHasher.validateNew(newPwd);
+        String encryptedPwd = com.campusask.campusask.utils.PasswordHasher.hash(newPwd);
         userMapper.updatePassword(username, encryptedPwd);
-        return Result.success("密码已重置为 " + newPwd);
+        return Result.success("密码已重置");
     }
 
     /** V4: 删除用户 */

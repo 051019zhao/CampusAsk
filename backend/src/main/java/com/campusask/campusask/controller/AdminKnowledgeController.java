@@ -28,7 +28,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/knowledge")
-@CrossOrigin(origins = "http://localhost:8080")
 @Validated  // 启用请求参数校验
 public class AdminKnowledgeController {
 

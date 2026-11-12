@@ -53,7 +53,7 @@
           <input
               v-model="formData.newPassword"
               type="password"
-              placeholder="新密码长度不能少于 6 位"
+              placeholder="新密码长度不能少于 8 位"
           />
         </div>
 
@@ -73,6 +73,10 @@
     </div>
   </div>
 </template>
+
+<script>
+export default { name: 'UserProfile' }
+</script>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
@@ -145,8 +149,8 @@ const handleSubmit = async () => {
       toastError('修改密码时，原密码、新密码和确认密码均不能为空')
       return
     }
-    if (formData.newPassword.length < 6) {
-      toastError('新密码长度不能少于 6 位')
+    if (formData.newPassword.length < 8) {
+      toastError('新密码长度不能少于 8 位')
       return
     }
     if (formData.newPassword !== formData.confirmPassword) {

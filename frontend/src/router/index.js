@@ -2,21 +2,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // 1. 引入你和队友的页面组件
-import UserCenter from '@/components/UserCenter.vue'
-import QaPage from '../components/QaPage.vue' // 假设这是你队友写的首页
-import UserAuth from '../components/UserAuth.vue' // 你写的登录注册页
-import ContributePage from '../components/ContributePage.vue' // 你的贡献页
-import Profile from '@/components/Profile.vue'
-import TeaTalkPage from '@/components/TeaTalkPage.vue' // 茶话会页面
-import MyInteraction from '@/components/MyInteractions.vue'//点赞评论
+const UserCenter = () => import('@/components/UserCenter.vue')
+const QaPage = () => import('../components/QaPage.vue')
+const UserAuth = () => import('../components/UserAuth.vue')
+const ContributePage = () => import('../components/ContributePage.vue')
+const Profile = () => import('@/components/Profile.vue')
+const TeaTalkPage = () => import('@/components/TeaTalkPage.vue')
+const MyInteraction = () => import('@/components/MyInteractions.vue')
 // 队友新增的后台管理组件
-import AdminLayout from "../views/admin/AdminLayout.vue";
-import KnowledgeImport from "../views/admin/KnowledgeImport.vue";
-import ContributionReview from "../views/admin/ContributionReview.vue";
-import AdminStats from "../views/admin/AdminStats.vue";
-import FeedbackReview from "../views/admin/FeedbackReview.vue";
-import GapReview from "../views/admin/GapReview.vue";
-import UserManage from "../views/admin/UserManage.vue";
+const AdminLayout = () => import('../views/admin/AdminLayout.vue')
+const KnowledgeImport = () => import('../views/admin/KnowledgeImport.vue')
+const ContributionReview = () => import('../views/admin/ContributionReview.vue')
+const AdminStats = () => import('../views/admin/AdminStats.vue')
+const FeedbackReview = () => import('../views/admin/FeedbackReview.vue')
+const GapReview = () => import('../views/admin/GapReview.vue')
+const UserManage = () => import('../views/admin/UserManage.vue')
 
 const routes = [
     {
@@ -60,6 +60,7 @@ const routes = [
         path: "/admin",
         component: AdminLayout,
         children: [
+            { path: "crawler", name: "CrawlReview", component: () => import("../views/admin/CrawlReview.vue") },
             {
                 path: "stats",
                 name: "AdminStats",

@@ -16,7 +16,8 @@ import com.campusask.campusask.utils.OssUtil;
 import com.campusask.campusask.vo.UserLoginVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.util.DigestUtils;
+import com.campusask.campusask.utils.PasswordHasher;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,7 +28,6 @@ import java.util.Map;
 @RestController
 @RequestMapping
 @Slf4j
-@CrossOrigin
 public class UserController {
 
     @Autowired
@@ -44,15 +44,20 @@ public class UserController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Value("${app.admin.registration-key:}")
+    private String adminRegistrationKey;
+    @Value("${app.admin.reset-key:}")
+    private String adminResetKey;
     /**
      * 用户注册接口
      */
     @PostMapping("/auth/register")
     public Result register(@RequestBody UserDTO userDTO){
-        log.info("用户注册：{}",userDTO);
+        log.info("registration_requested");
         // V4: 管理员注册需验证密钥
         if ("1".equals(userDTO.getRole())) {
-            if (userDTO.getRegisterKey() == null || !userDTO.getRegisterKey().equals("@3265585758")) {
+            if (adminRegistrationKey.isBlank() || !adminRegistrationKey.equals(userDTO.getRegisterKey())) {
                 return Result.error("管理员注册密钥错误，请联系管理员获取");
             }
         }
@@ -65,7 +70,7 @@ public class UserController {
      */
     @PostMapping("/auth/login")
     public Result<UserLoginVO> login(@RequestBody UserDTO userDTO){
-        log.info("用户登录：{}",userDTO);
+        log.info("login_requested");
         User user = userService.login(userDTO);
 
         // 登录成功，生成jwt令牌
@@ -208,19 +213,18 @@ public class UserController {
         return Result.success(commentsList);
     }
 
-    /** V4: 密码重置（需要验证 Key @3265585758） */
+    /** Optional operator-key recovery; disabled unless configured outside the source tree. */
     @PostMapping("/auth/reset-password")
     public Result<String> resetPassword(@RequestBody Map<String, String> body) {
         String username = body.get("username");
         String resetKey = body.get("resetKey");
         String newPassword = body.get("newPassword");
         if (username == null || username.isBlank()) return Result.error("请输入学号/工号");
-        if (resetKey == null || !resetKey.equals("@3265585758")) return Result.error("重置密钥错误");
-        if (newPassword == null || newPassword.length() < 6) return Result.error("新密码至少6位");
+        if (adminResetKey.isBlank() || !adminResetKey.equals(resetKey)) return Result.error("重置功能未启用或密钥错误");
+        PasswordHasher.validateNew(newPassword);
         User user = userService.getByUsername(username);
         if (user == null) return Result.error("用户不存在");
-        // MD5 加密后再存入数据库，与登录验证逻辑保持一致
-        String encryptedPwd = DigestUtils.md5DigestAsHex(newPassword.getBytes());
+        String encryptedPwd = PasswordHasher.hash(newPassword);
         userMapper.updatePassword(username, encryptedPwd);
         return Result.success("密码重置成功，请重新登录");
     }

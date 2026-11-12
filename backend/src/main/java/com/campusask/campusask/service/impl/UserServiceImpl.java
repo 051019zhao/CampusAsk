@@ -18,7 +18,7 @@ import exception.exception.RoleErrorException;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
+import com.campusask.campusask.utils.PasswordHasher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +39,8 @@ public class UserServiceImpl implements UserService {
         // 优先校验用户名格式（必须是12位数字）
         // 1. 获取身份标识（假设 userDTO 中有 role 字段）
         String role = userDTO.getRole();
+        if(role==null) {role="0";userDTO.setRole(role);}
+        if(!role.equals("0")&&!role.equals("1")) throw new IllegalArgumentException("无效的用户身份");
 
         if (username == null) {
             throw new AccountFormatException("注册失败：用户名不能为空");
@@ -73,6 +75,7 @@ public class UserServiceImpl implements UserService {
         if (existingUser != null) {
             throw new AccountExistException("账号已存在");
         }
+        PasswordHasher.validateNew(userDTO.getPassword());
 
         // 账号可用，开始创建并封装新用户对象
         User newUser = new User();
@@ -83,7 +86,7 @@ public class UserServiceImpl implements UserService {
 
         // 第四步：密码加密
         if (newUser.getPassword() != null) {
-            String encryptedPwd = DigestUtils.md5DigestAsHex(newUser.getPassword().getBytes());
+            String encryptedPwd = PasswordHasher.hash(newUser.getPassword());
             newUser.setPassword(encryptedPwd);
         }
 
@@ -107,6 +110,7 @@ public class UserServiceImpl implements UserService {
 
         String username = userDTO.getUsername();
         String password = userDTO.getPassword();
+        if(username==null || username.isBlank() || password==null || password.isBlank() || password.length()>128) throw new AccountFormatException("请输入有效账号和密码");
 
         // 新增 1：一进登录，先拦截检查是否处于 15 分钟锁定状态
         if (lockTimeMap.containsKey(username)) {
@@ -134,9 +138,8 @@ public class UserServiceImpl implements UserService {
         }
 
         //密码比对
-        //跟前端传过来的密码比对MD5铭文加密
-        password = DigestUtils.md5DigestAsHex(password.getBytes());
-        if(!password.equals(user.getPassword())){
+        // Verify current salted hashes or the legacy representation.
+        if(!PasswordHasher.matches(password,user.getPassword())){
             // 修改 2：密码对不上了，触发错误计数器逻辑
             int currentRetry = retryCountMap.getOrDefault(username, 0) + 1;
             retryCountMap.put(username, currentRetry);
@@ -154,6 +157,11 @@ public class UserServiceImpl implements UserService {
         // 新增 3：密码正确登录成功
         retryCountMap.remove(username);
         lockTimeMap.remove(username);
+
+        if(PasswordHasher.legacy(user.getPassword())) {
+            String upgraded=PasswordHasher.hash(password);
+            if(userMapper.upgradePassword(username,user.getPassword(),upgraded)==1) user.setPassword(upgraded);
+        }
 
         return user;
     }
@@ -186,18 +194,15 @@ public class UserServiceImpl implements UserService {
             if (oldPwd == null || oldPwd.isEmpty() || newPwd == null || newPwd.isEmpty()) {
                 throw new IllegalArgumentException("修改密码时，原密码和新密码均不能为空");
             }
-            if (newPwd.length() < 6) {
-                throw new IllegalArgumentException("新密码长度不能少于 6 位");
-            }
+            PasswordHasher.validateNew(newPwd);
 
-            // 复用你之前的 MD5 加密对比老密码
-            String encryptedOldPwd = DigestUtils.md5DigestAsHex(oldPwd.getBytes());
-            if (!encryptedOldPwd.equals(user.getPassword())) {
+            // Verify either the current or legacy stored hash.
+            if (!PasswordHasher.matches(oldPwd,user.getPassword())) {
                 throw new IllegalArgumentException("原密码错误，请重新输入");
             }
 
-            // 新密码同样用 MD5 加密后存入数据库
-            String encryptedNewPwd = DigestUtils.md5DigestAsHex(newPwd.getBytes());
+            // All newly set passwords use a salted, versioned hash.
+            String encryptedNewPwd = PasswordHasher.hash(newPwd);
             user.setPassword(encryptedNewPwd);
         }
 

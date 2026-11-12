@@ -46,8 +46,8 @@ export default {
     async load(){try{const r=await fetch('/api/admin/stats/users',{headers:this.getAuthHeaders()});const d=await r.json();if(d.code===200)this.list=d.data||[]}catch(e){}},
     openPwdModal(u){this.pwdModal=u;this.newPwd=''},
     async doResetPwd(){
-      const pwd=this.newPwd.trim();if(!pwd||pwd.length<6) return alert('密码至少6位')
-      try{const r=await fetch(`/api/admin/stats/users/${this.pwdModal.username}/reset-pwd`,{method:'PUT',headers:{'Content-Type':'application/json',...this.getAuthHeaders()},body:JSON.stringify({password:pwd})});const d=await r.json();this.toast=d.code===200?('密码已重置为 '+pwd):'操作失败';this.pwdModal=null;setTimeout(()=>this.toast='',2000)}catch(e){this.toast='操作失败'}
+      const pwd=this.newPwd.trim();if(!pwd||pwd.length<8) return alert('密码至少8位')
+      try{const r=await fetch(`/api/admin/stats/users/${this.pwdModal.username}/reset-pwd`,{method:'PUT',headers:{'Content-Type':'application/json',...this.getAuthHeaders()},body:JSON.stringify({password:pwd})});const d=await r.json();this.toast=d.code===200?'密码已重置':'操作失败';this.pwdModal=null;setTimeout(()=>this.toast='',2000)}catch(e){this.toast='操作失败'}
     },
     async delUser(u){
       if(!confirm(`确定删除用户 ${u.username} 吗？此操作不可撤销！`)) return

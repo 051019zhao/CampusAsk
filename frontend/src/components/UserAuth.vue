@@ -20,7 +20,7 @@
         <div class="form-item">
           <label>新密码</label>
           <div class="input-wrap">
-            <input v-model="resetForm.newPassword" :type="showResetPwd ? 'text' : 'password'" placeholder="请输入新密码（至少6位）" required />
+            <input v-model="resetForm.newPassword" :type="showResetPwd ? 'text' : 'password'" placeholder="请输入新密码（至少8位）" required />
             <span class="pwd-toggle" @click="showResetPwd=!showResetPwd">{{ showResetPwd ? '🙈' : '👁' }}</span>
           </div>
         </div>
@@ -145,7 +145,7 @@ const handleRegister = async () => {
 }
 
 const handleReset = async () => {
-  if (resetForm.newPassword.length < 6) { errorMsg.value = '新密码至少6位'; return }
+  if (resetForm.newPassword.length < 8) { errorMsg.value = '新密码至少8位'; return }
   submitting.value = true; errorMsg.value = ''
   try {
     const res = await request({ url: '/auth/reset-password', method: 'post', data: resetForm })
