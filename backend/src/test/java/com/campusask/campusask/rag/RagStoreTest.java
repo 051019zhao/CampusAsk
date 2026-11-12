@@ -79,6 +79,15 @@ class RagStoreTest {
         assertEquals("",store.summary("USER:alice","s1"));
         assertEquals(1,store.chunks("USER:alice","s1").size());
     }
+    @Test void expiryKeepsSummariesOfUnaffectedSessions() {
+        store.remember("USER:alice","old","过期问题","旧回答","[1,0]","v1");
+        store.remember("USER:bob","current","当前问题","当前回答","[1,0]","v1");
+        java.sql.Timestamp old=java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(91)));
+        db.update("UPDATE rag_turn SET created_at=? WHERE owner=?",old,"USER:alice");
+        store.expire();
+        assertEquals("",store.summary("USER:alice","old"));
+        assertTrue(store.summary("USER:bob","current").contains("当前问题"));
+    }
     @Test void expiredDataCannotBeReadBeforeMaintenanceRuns() {
         document("D1","USER:alice","s1");store.remember("USER:alice","s1","过期用户背景","旧回答","[1,0]","v1");
         java.sql.Timestamp old=java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(91)));

@@ -63,12 +63,18 @@ public class RagService {
         store.replace(id,owner,session,title,fingerprint,chunks);
         return Map.of("id",id,"title",title,"chunks",chunks.size(),"duplicate",false);
     }
+    private String knowledgeText(Knowledge item) {
+        StringBuilder text = new StringBuilder(Objects.toString(item.getTitle(), ""));
+        if (item.getCategory()!=null && !item.getCategory().isBlank()) text.append("\n分类：").append(item.getCategory());
+        if (item.getKeywords()!=null && !item.getKeywords().isBlank()) text.append("\n关键词：").append(item.getKeywords());
+        return text.append("\n").append(Objects.toString(item.getContent(), "")).toString();
+    }
     private synchronized void syncKnowledge() {
         if (System.currentTimeMillis()-syncedAt<30_000) return;
         Set<String> ids=new HashSet<>();
         for (Knowledge k : knowledge.listAll()) {
             String id="K"+k.getId(); ids.add(id);
-            String text=k.getTitle()+"\n"+k.getContent();
+            String text=knowledgeText(k);
             String fingerprint=hash(text+model.embeddingVersion());
             if (!store.unchanged(id,fingerprint)) store.replace(id,"PUBLIC","",k.getTitle(),fingerprint,index(id,k.getTitle(),text));
         }
@@ -94,7 +100,7 @@ public class RagService {
             candidates.removeIf(c->c.documentId().startsWith("K"));
             for(Knowledge k:knowledge.listAll()) {
                 int ordinal=0;
-                for(String text:TextChunks.split(k.getTitle()+"\n"+k.getContent()))
+                for(String text:TextChunks.split(knowledgeText(k)))
                     candidates.add(new RagStore.Chunk("K"+k.getId()+"-"+ordinal,"K"+k.getId(),k.getTitle(),++ordinal,text,"[]","lexical"));
             }
         }

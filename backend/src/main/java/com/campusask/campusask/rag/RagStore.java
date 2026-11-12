@@ -23,7 +23,7 @@ public class RagStore {
               id VARCHAR(64) PRIMARY KEY, owner VARCHAR(128) NOT NULL, session_id VARCHAR(100) NOT NULL,
               title VARCHAR(255) NOT NULL, fingerprint VARCHAR(64) NOT NULL,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX rag_owner_session(owner,session_id))
+              INDEX rag_owner_session(owner,session_id), INDEX rag_document_expiry(created_at))
             """);
         db.execute("""
             CREATE TABLE IF NOT EXISTS rag_chunk (
@@ -38,7 +38,7 @@ public class RagStore {
               session_id VARCHAR(100) NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
               embedding MEDIUMTEXT NOT NULL, model VARCHAR(512) NOT NULL,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX rag_turn_owner(owner,session_id,id))
+              INDEX rag_turn_owner(owner,session_id,id), INDEX rag_turn_expiry(created_at))
             """);
         db.execute("""
             CREATE TABLE IF NOT EXISTS rag_summary (
@@ -68,8 +68,13 @@ public class RagStore {
     }
     public List<Chunk> chunks(String owner, String session) {
         return db.query("""
-            SELECT c.*, d.title FROM rag_chunk c JOIN rag_document d ON d.id=c.document_id
-            WHERE d.owner='PUBLIC' OR (d.owner=? AND d.session_id=? AND d.created_at>=?)
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_document d JOIN rag_chunk c ON c.document_id=d.id
+            WHERE d.owner='PUBLIC'
+            UNION ALL
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_document d JOIN rag_chunk c ON c.document_id=d.id
+            WHERE d.owner=? AND d.session_id=? AND d.created_at>=?
             """, (r,n) -> new Chunk(r.getString("id"),r.getString("document_id"),r.getString("title"),r.getInt("ordinal"),r.getString("content"),r.getString("embedding"),r.getString("model")),owner,session,retentionCutoff());
     }
     public boolean deleteDocument(String owner, String session, String id) {
@@ -119,17 +124,19 @@ public class RagStore {
     }
     public void expire() {
         java.sql.Timestamp cutoff = java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(90)));
+        // Only sessions with expired turns need their extractive summaries rebuilt.
+        List<Map<String,Object>> affected=db.queryForList(
+                "SELECT DISTINCT owner,session_id FROM rag_turn WHERE created_at < ?",cutoff);
         db.update("DELETE FROM rag_turn WHERE created_at < ?",cutoff);
-        // Summaries are reconstructible; rebuild after retention deletes to remove expired facts too.
-        for (Map<String,Object> row: db.queryForList("SELECT owner,session_id FROM rag_summary")) {
+        for (Map<String,Object> row: affected) {
             String owner=row.get("owner").toString(), session=row.get("session_id").toString();
             List<String> questions=db.queryForList("SELECT question FROM rag_turn WHERE owner=? AND session_id=? ORDER BY id DESC LIMIT 20",String.class,owner,session);
             Collections.reverse(questions);
             String summary=String.join("\n用户：",questions);
             if (summary.length()>2400) summary=summary.substring(summary.length()-2400);
-            db.update("UPDATE rag_summary SET content=? WHERE owner=? AND session_id=?",summary,owner,session);
+            if (questions.isEmpty()) db.update("DELETE FROM rag_summary WHERE owner=? AND session_id=?",owner,session);
+            else db.update("UPDATE rag_summary SET content=? WHERE owner=? AND session_id=?",summary,owner,session);
         }
-        db.update("DELETE FROM rag_summary WHERE NOT EXISTS (SELECT 1 FROM rag_turn t WHERE t.owner=rag_summary.owner AND t.session_id=rag_summary.session_id)");
         db.update("DELETE FROM rag_document WHERE owner<>'PUBLIC' AND created_at < ?",cutoff);
     }
 }

@@ -44,6 +44,8 @@ class RagModelClientTest {
         response="{\"choices\":[{\"message\":{\"content\":\"第一行\\n\\\"第二行\\\" [S1]\"}}]}";
         assertEquals("第一行\n\"第二行\" [S1]",client.answer("问题","[S1] 资料"));
         assertTrue(request.get().contains("\"max_tokens\":1200"));
+        assertTrue(request.get().contains("不要引用不存在的编号"));
+        assertTrue(request.get().contains("历史记忆和最近对话只用于理解用户意图与偏好"));
     }
     @Test void modelErrorsAreNotAnswers() {
         status=429; response="{\"error\":\"rate limited\"}";

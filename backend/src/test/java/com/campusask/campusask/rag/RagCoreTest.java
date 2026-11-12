@@ -2,6 +2,7 @@ package com.campusask.campusask.rag;
 
 import com.campusask.campusask.context.BaseContext;
 import com.campusask.campusask.mapper.KnowledgeMapper;
+import com.campusask.campusask.entity.Knowledge;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.*;
 import org.springframework.mock.web.MockMultipartFile;
@@ -90,6 +91,18 @@ class RagCoreTest {
         verify(store,never()).summary(anyString(),anyString());
         verify(store,never()).memories(anyString());
         verify(store,never()).remember(anyString(),anyString(),anyString(),anyString(),anyString(),anyString());
+    }
+    @Test void approvedKnowledgeMetadataParticipatesInIndexing() {
+        Knowledge item=new Knowledge();
+        item.setId(7L); item.setTitle("奖助咨询"); item.setContent("请以官网公告为准");
+        item.setCategory("学生资助"); item.setKeywords("助学金,奖学金");
+        KnowledgeMapper knowledge=mock(KnowledgeMapper.class);
+        when(knowledge.listAll()).thenReturn(List.of(item));
+        RagService indexed=new RagService(store,model,new DocumentLoader(),knowledge);
+        indexed.ask("奖学金", "session", false);
+        verify(model).embed(contains("分类：学生资助\\n关键词：助学金,奖学金"));
+        verify(store).replace(eq("K7"),eq("PUBLIC"),eq(""),eq("奖助咨询"),anyString(),
+                argThat(chunks -> chunks.size()==1 && chunks.get(0).text().contains("关键词：助学金,奖学金")));
     }
     @Test void retrievesSemanticMatchAndReturnsTraceableCitation() {
         when(store.chunks("USER:alice","session")).thenReturn(List.of(new RagStore.Chunk("c1","d1","校园资料",2,"自习室位于二楼","[1,0]","test-v1")));
