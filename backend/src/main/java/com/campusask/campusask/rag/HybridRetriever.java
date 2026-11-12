@@ -14,10 +14,16 @@ public class HybridRetriever {
         return chunks.stream().map(c -> {
             Set<String> words=TextChunks.terms(c.title()+"\n"+c.text());
             double lexical=terms.stream().filter(words::contains).count()/(double)Math.max(1,terms.size());
-            double[] candidate;
-            try {candidate=json.readValue(c.vector(),double[].class);} catch(Exception ignored) {candidate=new double[0];}
-            boolean compatible=vector.length>0 && vector.length==candidate.length && version.equals(c.model());
-            double score=compatible?.8*Math.max(0,TextChunks.cosine(vector,candidate))+.2*lexical:lexical;
+            double score=lexical;
+            if (vector.length>0 && version.equals(c.model())) {
+                try {
+                    double[] candidate=json.readValue(c.vector(),double[].class);
+                    if (vector.length==candidate.length) {
+                        double semantic=Math.max(0,TextChunks.cosine(vector,candidate));
+                        score=Math.max(lexical,.8*semantic+.2*lexical);
+                    }
+                } catch (Exception ignored) { /* Keep lexical retrieval for invalid stored vectors. */ }
+            }
             return new Hit(c,score);
         }).filter(h->h.score()>=.30).sorted(Comparator.comparingDouble(Hit::score).reversed()).limit(limit).toList();
     }
