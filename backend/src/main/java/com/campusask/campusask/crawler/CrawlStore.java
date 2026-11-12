@@ -13,6 +13,8 @@ import java.util.*;
 
 @Repository
 public class CrawlStore {
+    // MySQL TIMESTAMP cannot represent Unix epoch itself after timezone conversion.
+    private static final java.time.Instant RELEASED_AT = java.time.Instant.parse("2000-01-01T00:00:00Z");
     public record Candidate(String id,String url,String title,String content,String fingerprint,String status,Long knowledgeId,String fetchedAt) {}
     private final JdbcTemplate db;
     private final TransactionTemplate tx;
@@ -39,7 +41,7 @@ public class CrawlStore {
             CREATE TABLE IF NOT EXISTS crawl_lease (
               id INT PRIMARY KEY, holder VARCHAR(36) NOT NULL, expires_at TIMESTAMP NOT NULL)
             """);
-        db.update("INSERT INTO crawl_lease(id,holder,expires_at) VALUES(1,'',?) ON DUPLICATE KEY UPDATE id=id",Timestamp.from(java.time.Instant.EPOCH));
+        db.update("INSERT INTO crawl_lease(id,holder,expires_at) VALUES(1,'',?) ON DUPLICATE KEY UPDATE id=id",Timestamp.from(RELEASED_AT));
     }
     public boolean acquire(String run) {
         boolean acquired=db.update("UPDATE crawl_lease SET holder=?,expires_at=? WHERE id=1 AND expires_at<CURRENT_TIMESTAMP",run,
@@ -47,7 +49,7 @@ public class CrawlStore {
         if(acquired) db.update("UPDATE crawl_run SET status='ABANDONED',finished_at=CURRENT_TIMESTAMP,detail='Previous worker lease expired' WHERE status='RUNNING' AND started_at<?",Timestamp.from(java.time.Instant.now().minusSeconds(900)));
         return acquired;
     }
-    public void release(String run) { db.update("UPDATE crawl_lease SET expires_at=? WHERE id=1 AND holder=?",Timestamp.from(java.time.Instant.EPOCH),run); }
+    public void release(String run) { db.update("UPDATE crawl_lease SET expires_at=? WHERE id=1 AND holder=?",Timestamp.from(RELEASED_AT),run); }
     public void start(String run) { db.update("INSERT INTO crawl_run(id,status) VALUES(?,'RUNNING')",run); }
     public void finish(String run,int visited,int changed,int failed,String detail) {
         db.update("UPDATE crawl_run SET status=?,finished_at=CURRENT_TIMESTAMP,visited=?,changed_count=?,failed=?,detail=? WHERE id=?",

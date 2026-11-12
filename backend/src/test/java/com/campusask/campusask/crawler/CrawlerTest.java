@@ -90,6 +90,16 @@ class CrawlerTest {
         assertThrows(ResponseStatusException.class,()->store.approve(c.id(),c.fingerprint(),c.title(),c.content(),"公告",1L));
         assertTrue(store.stage(article("新内容")));assertEquals(c.id(),first("PENDING").id());
     }
+    @Test void releasedLeaseUsesMysqlSafeTimestamp() {
+        java.time.Instant lowerBound=java.time.Instant.parse("1971-01-01T00:00:00Z");
+        java.sql.Timestamp initial=db.queryForObject("SELECT expires_at FROM crawl_lease WHERE id=1",java.sql.Timestamp.class);
+        assertTrue(initial.toInstant().isAfter(lowerBound));
+        assertTrue(store.acquire("run-1"));
+        store.release("run-1");
+        java.sql.Timestamp released=db.queryForObject("SELECT expires_at FROM crawl_lease WHERE id=1",java.sql.Timestamp.class);
+        assertTrue(released.toInstant().isAfter(lowerBound));
+        assertTrue(store.acquire("run-2"));
+    }
     @Test void databaseLeasePreventsOverlapAndCannotBeReleasedByOtherOwner() {
         assertTrue(store.acquire("run-1"));assertFalse(store.acquire("run-2"));store.release("run-2");assertFalse(store.acquire("run-2"));store.release("run-1");assertTrue(store.acquire("run-2"));
     }
