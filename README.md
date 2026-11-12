@@ -45,7 +45,7 @@ npm ci
 npm run serve
 ```
 
-前端代理 `/api` 和 `/auth` 到 `localhost:8080`。使用前端命令显示的本机地址访问页面。反向代理部署可使用同源请求；跨域部署需设置 `CORS_ALLOWED_ORIGINS`，多个完整 origin 用逗号分隔。
+前端代理 `/api` 和 `/auth` 到 `localhost:8080`。本地默认允许 `localhost` 和 `127.0.0.1` 的 8081、8082 端口；更改 CORS 配置后需重启后端。反向代理部署可使用同源请求；跨域部署需设置 `CORS_ALLOWED_ORIGINS`，多个完整 origin 用逗号分隔。
 
 首次 RAG 请求会增量建立公开知识的向量索引。资料上传需要有效的向量接口和登录身份，支持 CSV、DOCX、TXT、Markdown。详细格式及记忆策略见 [RAG.md](RAG.md)。
 
