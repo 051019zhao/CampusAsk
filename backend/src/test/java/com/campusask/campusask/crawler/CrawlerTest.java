@@ -84,6 +84,18 @@ class CrawlerTest {
         assertTrue(db.queryForObject("SELECT content FROM knowledge WHERE id=?",String.class,first).contains(url.toString()));
         assertEquals(7,db.queryForObject("SELECT reviewed_by FROM crawl_candidate WHERE id=?",Integer.class,c.id()));
     }
+    @Test void existingCrawlerTableGainsSourceLookupIndexOnlyOnce() {
+        db.execute("DROP INDEX crawl_knowledge_source");
+        store.initialize();
+        store.initialize();
+        Boolean indexed=db.execute((org.springframework.jdbc.core.ConnectionCallback<Boolean>) connection -> {
+            try(var indexes=connection.getMetaData().getIndexInfo(connection.getCatalog(),connection.getSchema(),"CRAWL_CANDIDATE",false,false)) {
+                while(indexes.next()) if("crawl_knowledge_source".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) return true;
+            }
+            return false;
+        });
+        assertEquals(true,indexed);
+    }
     @Test void rejectedVersionStaysRejectedUntilContentChanges() {
         store.stage(article("旧内容"));CrawlStore.Candidate c=first("PENDING");store.reject(c.id(),c.fingerprint(),1L);
         assertFalse(store.stage(article("旧内容")));assertEquals(c.id(),first("REJECTED").id());

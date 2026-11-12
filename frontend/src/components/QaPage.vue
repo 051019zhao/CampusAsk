@@ -65,6 +65,17 @@
               <!-- V3: bot 回答用 Markdown 渲染，user 消息纯文本 -->
               <div v-if="message.role === 'bot'" class="chat-text" v-html="renderMd(message.text)"></div>
               <div v-else class="chat-text">{{ message.text }}</div>
+              <div v-if="linkedSources(message.citations).length" class="source-links">
+                <span class="source-links-title">📎 原文来源</span>
+                <a
+                  v-for="source in linkedSources(message.citations)"
+                  :key="source.url"
+                  :href="source.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="source-link"
+                >{{ source.ids.join(' ') }} {{ source.title }} ↗</a>
+              </div>
               <details v-if="message.citations && message.citations.length" class="rag-sources">
                 <summary>查看检索来源（{{ message.citations.length }}）</summary>
                 <div v-for="citation in message.citations" :key="citation.id">
@@ -625,6 +636,18 @@ export default {
       // 知识库标题 → 加"？"变成问句
       if (s.length <= 15) return s + '？'
       return s
+    },
+    linkedSources(citations) {
+      const links = new Map()
+      for (const citation of citations || []) {
+        try {
+          const url = new URL(citation.url)
+          if (url.protocol !== 'https:' || url.username || url.password) continue
+          if (!links.has(url.href)) links.set(url.href, { url: url.href, title: citation.title, ids: [] })
+          links.get(url.href).ids.push(`[${citation.id}]`)
+        } catch { /* User uploads have no external source URL. */ }
+      }
+      return [...links.values()]
     },
     sourceLabel(source) {
       const map = {

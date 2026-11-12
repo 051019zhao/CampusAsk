@@ -37,6 +37,13 @@ class RagStoreTest {
         assertEquals(Set.of("K1","D1"),new HashSet<>(
                 store.chunks("USER:alice","s1").stream().map(RagStore.Chunk::documentId).toList()));
     }
+    @Test void citedKnowledgeResolvesOnlySafeCrawlerLinks() {
+        db.execute("CREATE TABLE crawl_candidate(id VARCHAR(64) PRIMARY KEY,knowledge_id BIGINT,url VARCHAR(1024),reviewed_at TIMESTAMP)");
+        db.update("INSERT INTO crawl_candidate(id,knowledge_id,url,reviewed_at) VALUES('a',1,'https://campus.example.edu/news/1.html',CURRENT_TIMESTAMP)");
+        db.update("INSERT INTO crawl_candidate(id,knowledge_id,url,reviewed_at) VALUES('b',2,'http://campus.example.edu/news/2.html',CURRENT_TIMESTAMP)");
+        assertEquals(Map.of("K1","https://campus.example.edu/news/1.html"),store.sourceUrls(Set.of("K1","K2","D1","Kbad")));
+        assertTrue(store.sourceUrls(Set.of("D1")).isEmpty());
+    }
     @Test void retrievalOnlySeesPublicAndOwnSessionDocuments() {
         document("K1","PUBLIC",""); document("D1","USER:alice","s1");
         document("D2","USER:bob","s1"); document("D3","USER:alice","s2");

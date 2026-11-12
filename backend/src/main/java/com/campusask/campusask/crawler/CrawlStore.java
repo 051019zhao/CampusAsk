@@ -2,6 +2,7 @@ package com.campusask.campusask.crawler;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.*;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -28,8 +29,9 @@ public class CrawlStore {
               status VARCHAR(20) NOT NULL, knowledge_id BIGINT NULL,
               fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               reviewed_at TIMESTAMP NULL, reviewed_by BIGINT NULL,
-              INDEX crawl_review(status,fetched_at))
+              INDEX crawl_review(status,fetched_at), INDEX crawl_knowledge_source(knowledge_id))
             """);
+        ensureKnowledgeSourceIndex();
         db.execute("""
             CREATE TABLE IF NOT EXISTS crawl_run (
               id VARCHAR(36) PRIMARY KEY, status VARCHAR(20) NOT NULL,
@@ -42,6 +44,25 @@ public class CrawlStore {
               id INT PRIMARY KEY, holder VARCHAR(36) NOT NULL, expires_at TIMESTAMP NOT NULL)
             """);
         db.update("INSERT INTO crawl_lease(id,holder,expires_at) VALUES(1,'',?) ON DUPLICATE KEY UPDATE id=id",Timestamp.from(RELEASED_AT));
+    }
+    private void ensureKnowledgeSourceIndex() {
+        if (hasKnowledgeSourceIndex()) return;
+        try { db.execute("CREATE INDEX crawl_knowledge_source ON crawl_candidate(knowledge_id)"); }
+        catch (DataAccessException ex) {
+            // Another instance may have created it after the metadata check.
+            if (!hasKnowledgeSourceIndex()) throw ex;
+        }
+    }
+    private boolean hasKnowledgeSourceIndex() {
+        return Boolean.TRUE.equals(db.execute((ConnectionCallback<Boolean>) connection -> {
+            DatabaseMetaData metadata=connection.getMetaData();
+            String table=metadata.storesUpperCaseIdentifiers()?"CRAWL_CANDIDATE":"crawl_candidate";
+            try(ResultSet indexes=metadata.getIndexInfo(connection.getCatalog(),connection.getSchema(),table,false,false)) {
+                while(indexes.next())
+                    if ("crawl_knowledge_source".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) return true;
+            }
+            return false;
+        }));
     }
     public boolean acquire(String run) {
         boolean acquired=db.update("UPDATE crawl_lease SET holder=?,expires_at=? WHERE id=1 AND expires_at<CURRENT_TIMESTAMP",run,

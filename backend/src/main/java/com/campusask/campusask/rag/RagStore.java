@@ -67,6 +67,31 @@ public class RagStore {
             return fingerprints;
         });
     }
+    /** Resolve links only for knowledge articles actually selected as answer citations. */
+    public Map<String,String> sourceUrls(Set<String> documentIds) {
+        List<Long> ids=new ArrayList<>();
+        for (String id:documentIds) {
+            if (id==null || !id.matches("K[1-9][0-9]*")) continue;
+            try { ids.add(Long.parseLong(id.substring(1))); }
+            catch (NumberFormatException ignored) { /* Ignore malformed document IDs. */ }
+        }
+        if (ids.isEmpty()) return Map.of();
+        String placeholders=String.join(",",Collections.nCopies(ids.size(),"?"));
+        return db.query("SELECT knowledge_id,url FROM crawl_candidate WHERE knowledge_id IN ("+placeholders+") ORDER BY reviewed_at DESC",
+                rows -> {
+                    Map<String,String> urls=new HashMap<>();
+                    while (rows.next()) {
+                        String url=rows.getString("url");
+                        if (url==null) continue;
+                        try {
+                            java.net.URI parsed=java.net.URI.create(url);
+                            if ("https".equalsIgnoreCase(parsed.getScheme()) && parsed.getHost()!=null && parsed.getUserInfo()==null)
+                                urls.putIfAbsent("K"+rows.getLong("knowledge_id"),url);
+                        } catch (IllegalArgumentException ignored) { /* Never expose invalid links. */ }
+                    }
+                    return urls;
+                },ids.toArray());
+    }
     public void pruneKnowledge(Set<String> knownIds, Set<String> currentIds) {
         List<Object[]> stale=knownIds.stream().filter(id -> !currentIds.contains(id))
                 .map(id -> new Object[]{id}).toList();
