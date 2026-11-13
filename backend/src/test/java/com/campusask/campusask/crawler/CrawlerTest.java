@@ -38,6 +38,15 @@ class CrawlerTest {
         config.setAllowedHosts(List.of("127.0.0.1"));
         assertThrows(IllegalArgumentException.class,()->policy.validateNetwork(URI.create("https://127.0.0.1/")));
     }
+    @Test void pathPrefixLimitsTheCrawlButStillAllowsRobots() {
+        config.setAllowedPathPrefixes(List.of("/student/"));
+        assertEquals("https://campus.example.edu/student/xxgg/list.htm",
+                policy.canonical("https://campus.example.edu/student/xxgg/list.htm").toString());
+        assertEquals("https://campus.example.edu/robots.txt",
+                policy.canonical("https://campus.example.edu/robots.txt").toString());
+        assertThrows(IllegalArgumentException.class,
+                ()->policy.canonical("https://campus.example.edu/other/page.htm"));
+    }
     @Test void robotsUsesSpecificGroupsAndLongestAllowRule() {
         RobotsRules rules=new RobotsRules("User-agent: *\nDisallow: /\n\nUser-agent: CampusAskBot\nDisallow: /private\nAllow: /private/public\nDisallow: /*?secret=*$");
         assertTrue(rules.allowed("/news/a.html")); assertFalse(rules.allowed("/private/a")); assertTrue(rules.allowed("/private/public/a")); assertFalse(rules.allowed("/news?secret=123"));
@@ -51,6 +60,34 @@ class CrawlerTest {
         CrawlExtractor.Article result=extractor.extract(url,html.getBytes(StandardCharsets.UTF_8));
         assertTrue(result.content().contains("图书馆"));assertFalse(result.content().contains("导航垃圾"));assertFalse(result.content().contains("恶意脚本"));
         assertEquals(url.toString(),result.url());assertEquals(List.of("https://campus.example.edu/news/b.html"),result.links());
+    }
+    @Test void articleBodySelectorTakesPriorityOverOuterMain() throws Exception {
+        String html="<html><title>公告</title><main><p>栏目导航和其他无关信息。</p><div class='wp_articlecontent'>这是一篇来自学校官网的完整公告正文。</div></main></html>";
+        CrawlExtractor.Article result=extractor.extract(url,html.getBytes(StandardCharsets.UTF_8));
+        assertEquals("这是一篇来自学校官网的完整公告正文。",result.content());
+    }
+    @Test void listSeedDiscoversArticleWithoutStagingTheList() throws Exception {
+        URI list=URI.create("https://campus.example.edu/student/xxgg/list.htm");
+        URI notice=URI.create("https://campus.example.edu/student/2026/1112/c9326a640151/page.htm");
+        String navigation=java.util.stream.IntStream.range(1,15)
+                .mapToObj(i->"<a href='/student/xxgg/list"+i+".htm'>第 "+i+" 页</a>")
+                .collect(java.util.stream.Collectors.joining());
+        String listing="<html><title>信息公告</title><main>"+"栏目说明和公告列表内容。".repeat(12)
+                +navigation+"<a href='"+notice+"'>奖学金公告</a></main></html>";
+        String articleHtml="<html><title>奖学金公告</title><div class='wp_articlecontent'>这是学校发布的奖学金申报通知正文。</div></html>";
+        CrawlFetcher fetcher=mock(CrawlFetcher.class);
+        when(fetcher.fetch(any())).thenAnswer(invocation -> {
+            URI uri=invocation.getArgument(0);
+            if(uri.getPath().equals("/robots.txt")) return new CrawlFetcher.Page(404,"text/plain",new byte[0]);
+            String html=uri.equals(list)?listing:articleHtml;
+            return new CrawlFetcher.Page(200,"text/html",html.getBytes(StandardCharsets.UTF_8));
+        });
+        try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
+            store.start("list-run");runner.service.run("list-run",List.of(list));
+            assertEquals(1L,store.candidates("PENDING",1).get("total"));
+            assertEquals(notice.toString(),first("PENDING").url());
+            assertEquals(0,store.runs().get(0).get("failed"));
+        }
     }
     @Test void noindexAndMissingBodyAreNotStaged() {
         assertThrows(IllegalArgumentException.class,()->extractor.extract(url,"<meta name='robots' content='noindex'><main>正文正文正文正文正文正文</main>".getBytes(StandardCharsets.UTF_8)));
@@ -84,11 +121,33 @@ class CrawlerTest {
         assertTrue(db.queryForObject("SELECT content FROM knowledge WHERE id=?",String.class,first).contains(url.toString()));
         assertEquals(7,db.queryForObject("SELECT reviewed_by FROM crawl_candidate WHERE id=?",Integer.class,c.id()));
     }
+    @Test void existingCrawlerTableGainsSourceLookupIndexOnlyOnce() {
+        db.execute("DROP INDEX crawl_knowledge_source");
+        store.initialize();
+        store.initialize();
+        Boolean indexed=db.execute((org.springframework.jdbc.core.ConnectionCallback<Boolean>) connection -> {
+            try(var indexes=connection.getMetaData().getIndexInfo(connection.getCatalog(),connection.getSchema(),"CRAWL_CANDIDATE",false,false)) {
+                while(indexes.next()) if("crawl_knowledge_source".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) return true;
+            }
+            return false;
+        });
+        assertEquals(true,indexed);
+    }
     @Test void rejectedVersionStaysRejectedUntilContentChanges() {
         store.stage(article("旧内容"));CrawlStore.Candidate c=first("PENDING");store.reject(c.id(),c.fingerprint(),1L);
         assertFalse(store.stage(article("旧内容")));assertEquals(c.id(),first("REJECTED").id());
         assertThrows(ResponseStatusException.class,()->store.approve(c.id(),c.fingerprint(),c.title(),c.content(),"公告",1L));
         assertTrue(store.stage(article("新内容")));assertEquals(c.id(),first("PENDING").id());
+    }
+    @Test void releasedLeaseUsesMysqlSafeTimestamp() {
+        java.time.Instant lowerBound=java.time.Instant.parse("1971-01-01T00:00:00Z");
+        java.sql.Timestamp initial=db.queryForObject("SELECT expires_at FROM crawl_lease WHERE id=1",java.sql.Timestamp.class);
+        assertTrue(initial.toInstant().isAfter(lowerBound));
+        assertTrue(store.acquire("run-1"));
+        store.release("run-1");
+        java.sql.Timestamp released=db.queryForObject("SELECT expires_at FROM crawl_lease WHERE id=1",java.sql.Timestamp.class);
+        assertTrue(released.toInstant().isAfter(lowerBound));
+        assertTrue(store.acquire("run-2"));
     }
     @Test void databaseLeasePreventsOverlapAndCannotBeReleasedByOtherOwner() {
         assertTrue(store.acquire("run-1"));assertFalse(store.acquire("run-2"));store.release("run-2");assertFalse(store.acquire("run-2"));store.release("run-1");assertTrue(store.acquire("run-2"));
@@ -103,6 +162,18 @@ class CrawlerTest {
         try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
             store.start("test-run");runner.service.run("test-run",List.of(url));
             verify(fetcher,times(1)).fetch(any());assertEquals(0L,store.candidates("PENDING",1).get("total"));
+            assertTrue(store.runs().get(0).get("detail").toString().contains("/news/a.html：robots.txt 禁止抓取"));
+        }
+    }
+    @Test void interruptedCrawlReleasesLeaseBeforeRestoringInterrupt() throws Exception {
+        CrawlFetcher fetcher=mock(CrawlFetcher.class);
+        when(fetcher.fetch(any())).thenThrow(new InterruptedException("stopped"));
+        try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
+            assertTrue(store.acquire("interrupted-run"));store.start("interrupted-run");
+            runner.service.run("interrupted-run",List.of(url));
+            assertTrue(Thread.interrupted());
+            assertTrue(store.acquire("next-run"));
+            store.release("next-run");
         }
     }
     @Test void byteLimitCancelsOversizedResponses() {

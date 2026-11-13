@@ -2,6 +2,7 @@ package com.campusask.campusask.crawler;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.*;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -13,6 +14,8 @@ import java.util.*;
 
 @Repository
 public class CrawlStore {
+    // MySQL TIMESTAMP cannot represent Unix epoch itself after timezone conversion.
+    private static final java.time.Instant RELEASED_AT = java.time.Instant.parse("2000-01-01T00:00:00Z");
     public record Candidate(String id,String url,String title,String content,String fingerprint,String status,Long knowledgeId,String fetchedAt) {}
     private final JdbcTemplate db;
     private final TransactionTemplate tx;
@@ -26,8 +29,9 @@ public class CrawlStore {
               status VARCHAR(20) NOT NULL, knowledge_id BIGINT NULL,
               fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               reviewed_at TIMESTAMP NULL, reviewed_by BIGINT NULL,
-              INDEX crawl_review(status,fetched_at))
+              INDEX crawl_review(status,fetched_at), INDEX crawl_knowledge_source(knowledge_id))
             """);
+        ensureKnowledgeSourceIndex();
         db.execute("""
             CREATE TABLE IF NOT EXISTS crawl_run (
               id VARCHAR(36) PRIMARY KEY, status VARCHAR(20) NOT NULL,
@@ -39,7 +43,26 @@ public class CrawlStore {
             CREATE TABLE IF NOT EXISTS crawl_lease (
               id INT PRIMARY KEY, holder VARCHAR(36) NOT NULL, expires_at TIMESTAMP NOT NULL)
             """);
-        db.update("INSERT INTO crawl_lease(id,holder,expires_at) VALUES(1,'',?) ON DUPLICATE KEY UPDATE id=id",Timestamp.from(java.time.Instant.EPOCH));
+        db.update("INSERT INTO crawl_lease(id,holder,expires_at) VALUES(1,'',?) ON DUPLICATE KEY UPDATE id=id",Timestamp.from(RELEASED_AT));
+    }
+    private void ensureKnowledgeSourceIndex() {
+        if (hasKnowledgeSourceIndex()) return;
+        try { db.execute("CREATE INDEX crawl_knowledge_source ON crawl_candidate(knowledge_id)"); }
+        catch (DataAccessException ex) {
+            // Another instance may have created it after the metadata check.
+            if (!hasKnowledgeSourceIndex()) throw ex;
+        }
+    }
+    private boolean hasKnowledgeSourceIndex() {
+        return Boolean.TRUE.equals(db.execute((ConnectionCallback<Boolean>) connection -> {
+            DatabaseMetaData metadata=connection.getMetaData();
+            String table=metadata.storesUpperCaseIdentifiers()?"CRAWL_CANDIDATE":"crawl_candidate";
+            try(ResultSet indexes=metadata.getIndexInfo(connection.getCatalog(),connection.getSchema(),table,false,false)) {
+                while(indexes.next())
+                    if ("crawl_knowledge_source".equalsIgnoreCase(indexes.getString("INDEX_NAME"))) return true;
+            }
+            return false;
+        }));
     }
     public boolean acquire(String run) {
         boolean acquired=db.update("UPDATE crawl_lease SET holder=?,expires_at=? WHERE id=1 AND expires_at<CURRENT_TIMESTAMP",run,
@@ -47,7 +70,7 @@ public class CrawlStore {
         if(acquired) db.update("UPDATE crawl_run SET status='ABANDONED',finished_at=CURRENT_TIMESTAMP,detail='Previous worker lease expired' WHERE status='RUNNING' AND started_at<?",Timestamp.from(java.time.Instant.now().minusSeconds(900)));
         return acquired;
     }
-    public void release(String run) { db.update("UPDATE crawl_lease SET expires_at=? WHERE id=1 AND holder=?",Timestamp.from(java.time.Instant.EPOCH),run); }
+    public void release(String run) { db.update("UPDATE crawl_lease SET expires_at=? WHERE id=1 AND holder=?",Timestamp.from(RELEASED_AT),run); }
     public void start(String run) { db.update("INSERT INTO crawl_run(id,status) VALUES(?,'RUNNING')",run); }
     public void finish(String run,int visited,int changed,int failed,String detail) {
         db.update("UPDATE crawl_run SET status=?,finished_at=CURRENT_TIMESTAMP,visited=?,changed_count=?,failed=?,detail=? WHERE id=?",

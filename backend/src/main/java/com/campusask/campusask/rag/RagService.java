@@ -71,14 +71,15 @@ public class RagService {
     }
     private synchronized void syncKnowledge() {
         if (System.currentTimeMillis()-syncedAt<30_000) return;
+        Map<String,String> known=store.publicFingerprints();
         Set<String> ids=new HashSet<>();
         for (Knowledge k : knowledge.listAll()) {
             String id="K"+k.getId(); ids.add(id);
             String text=knowledgeText(k);
             String fingerprint=hash(text+model.embeddingVersion());
-            if (!store.unchanged(id,fingerprint)) store.replace(id,"PUBLIC","",k.getTitle(),fingerprint,index(id,k.getTitle(),text));
+            if (!fingerprint.equals(known.get(id))) store.replace(id,"PUBLIC","",k.getTitle(),fingerprint,index(id,k.getTitle(),text));
         }
-        store.pruneKnowledge(ids); syncedAt=System.currentTimeMillis();
+        store.pruneKnowledge(known.keySet(),ids); syncedAt=System.currentTimeMillis();
     }
     private String bounded(String text,int size) { return text.length()<=size?text:text.substring(0,size); }
     public Map<String,Object> ask(String question, String sessionId, boolean useMemory) {
@@ -105,12 +106,29 @@ public class RagService {
             }
         }
         List<HybridRetriever.Hit> hits=retriever.retrieve(retrievalQuery,queryVector,candidates,model.embeddingVersion(),6);
+        Set<String> citedDocuments=new LinkedHashSet<>();
+        for (HybridRetriever.Hit hit:hits)
+            if (hit.chunk().documentId().startsWith("K")) citedDocuments.add(hit.chunk().documentId());
+        Map<String,String> sourceUrls=Map.of();
+        if (!citedDocuments.isEmpty()) try {
+            Map<String,String> found=store.sourceUrls(citedDocuments);
+            if (found!=null) sourceUrls=found;
+        } catch (RuntimeException ex) {
+            org.slf4j.LoggerFactory.getLogger(RagService.class).warn("rag_source_lookup_failed type={}",ex.getClass().getSimpleName());
+        }
         StringBuilder context=new StringBuilder("<检索资料>\n");
         List<Map<String,Object>> citations=new ArrayList<>();
         for (int i=0;i<hits.size();i++) {
             RagStore.Chunk c=hits.get(i).chunk(); String label="S"+(i+1);
-            context.append('[').append(label).append("] ").append(c.title()).append(" / 片段 ").append(c.ordinal()).append('\n').append(c.text()).append('\n');
-            citations.add(Map.of("id",label,"documentId",c.documentId(),"title",c.title(),"chunk",c.ordinal(),"excerpt",c.text(),"score",hits.get(i).score()));
+            String sourceUrl=sourceUrls.get(c.documentId());
+            context.append('[').append(label).append("] ").append(c.title()).append(" / 片段 ").append(c.ordinal()).append('\n');
+            if (sourceUrl!=null) context.append("原文链接：").append(sourceUrl).append('\n');
+            context.append(c.text()).append('\n');
+            Map<String,Object> citation=new LinkedHashMap<>();
+            citation.put("id",label); citation.put("documentId",c.documentId()); citation.put("title",c.title());
+            citation.put("chunk",c.ordinal()); citation.put("excerpt",c.text()); citation.put("score",hits.get(i).score());
+            if (sourceUrl!=null) citation.put("url",sourceUrl);
+            citations.add(citation);
         }
         context.append("</检索资料>\n");
         if (useMemory) {

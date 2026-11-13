@@ -14,18 +14,32 @@ public class CrawlExtractor {
     public record Article(String url,String title,String content,String fingerprint,List<String> links) {}
     private final CrawlerProperties config;
     public CrawlExtractor(CrawlerProperties config) { this.config=config; }
+    public boolean isListingPage(URI uri) {
+        String path=uri.getPath();
+        return path!=null && path.matches("(?i).*/list(?:_?\\d+)?\\.html?");
+    }
     public List<String> links(URI uri,byte[] bytes) throws IOException {
         return Jsoup.parse(new ByteArrayInputStream(bytes),null,uri.toString()).select("a[href]").stream()
-                .map(a->a.absUrl("href")).filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$")).distinct().limit(100).toList();
+                .map(a->a.absUrl("href")).filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$"))
+                .distinct().sorted(Comparator.comparingInt(this::linkPriority)).limit(1000).toList();
+    }
+    private int linkPriority(String url) {
+        if(url.matches("(?i).*/page\\.html?(?:[?#].*)?$")) return 0;
+        if(url.matches("(?i).*/list(?:_?\\d+)?\\.html?(?:[?#].*)?$")) return 2;
+        return 1;
     }
     public Article extract(URI uri,byte[] bytes) throws IOException {
+        if(isListingPage(uri)) throw new IllegalArgumentException("栏目列表页不作为知识正文");
         Document doc=Jsoup.parse(new ByteArrayInputStream(bytes),null,uri.toString());
         if(!doc.select("meta[name=robots][content~=(?i)(noindex|noarchive)]").isEmpty())
             throw new IllegalArgumentException("页面声明不允许索引或归档");
         List<String> links=doc.select("a[href]").stream().map(a->a.absUrl("href"))
                 .filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$")).distinct().limit(100).toList();
         doc.select("script,style,nav,header,footer,aside,form,noscript").remove();
-        Element main=doc.selectFirst(config.getContentSelector());
+        Element main=null;
+        for(String selector:config.getContentSelector().split(",")) {
+            if(!selector.isBlank() && (main=doc.selectFirst(selector.trim()))!=null) break;
+        }
         if(main==null) throw new IllegalArgumentException("未找到正文区域，请配置该站点的正文选择器");
         String title=Optional.ofNullable(doc.selectFirst("h1")).map(Element::text).filter(s->!s.isBlank()).orElse(doc.title());
         String text=main.wholeText().replaceAll("[ \\t\\x0B\\f]+"," ").replaceAll("\\n{3,}","\n\n").trim();

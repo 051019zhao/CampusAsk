@@ -57,7 +57,10 @@ public class UserController {
         log.info("registration_requested");
         // V4: 管理员注册需验证密钥
         if ("1".equals(userDTO.getRole())) {
-            if (adminRegistrationKey.isBlank() || !adminRegistrationKey.equals(userDTO.getRegisterKey())) {
+            if (adminRegistrationKey.isBlank()) {
+                return Result.error("管理员自助注册未启用，请联系管理员");
+            }
+            if (!adminRegistrationKey.equals(userDTO.getRegisterKey())) {
                 return Result.error("管理员注册密钥错误，请联系管理员获取");
             }
         }

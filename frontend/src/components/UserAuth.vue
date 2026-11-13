@@ -15,7 +15,7 @@
         </div>
         <div class="form-item">
           <label>重置密钥</label>
-          <input v-model="resetForm.resetKey" type="text" placeholder="请输入管理员提供的密钥" required />
+          <input v-model="resetForm.resetKey" type="password" autocomplete="off" placeholder="请输入管理员提供的密钥" required />
         </div>
         <div class="form-item">
           <label>新密码</label>
@@ -52,7 +52,7 @@
         <!-- V4: 管理员注册密钥 -->
         <div v-if="!isLogin && formData.role == 1" class="form-item">
           <label>管理员注册密钥</label>
-          <input v-model="formData.registerKey" type="text" placeholder="请输入管理员注册密钥" required />
+          <input v-model="formData.registerKey" type="password" autocomplete="off" placeholder="请输入管理员注册密钥" required />
         </div>
         <div class="form-item">
           <label>登录身份</label>
@@ -125,7 +125,7 @@ const handleLogin = async () => {
       router.push('/')
     }
   } catch (error) {
-    errorMsg.value = error.response?.data?.message || '账号或密码错误'
+    errorMsg.value = error.response?.data?.message || error.message || '账号或密码错误'
   } finally { submitting.value = false }
 }
 
@@ -140,7 +140,7 @@ const handleRegister = async () => {
     isLogin.value = true; errorMsg.value = ''
     formData.username = ''; formData.password = ''; formData.confirmPassword = ''; formData.role = 0; formData.registerKey = ''
   } catch (error) {
-    errorMsg.value = error.response?.data?.message || '注册失败，请检查信息'
+    errorMsg.value = error.response?.data?.message || error.message || '注册失败，请检查信息'
   } finally { submitting.value = false }
 }
 
@@ -151,7 +151,7 @@ const handleReset = async () => {
     const res = await request({ url: '/auth/reset-password', method: 'post', data: resetForm })
     if (res.code === 200) { isReset.value = false; resetForm.username = ''; resetForm.resetKey = ''; resetForm.newPassword = '' }
     else errorMsg.value = res.message || '重置失败'
-  } catch (e) { errorMsg.value = e.response?.data?.message || '网络错误' }
+  } catch (e) { errorMsg.value = e.response?.data?.message || e.message || '网络错误' }
   finally { submitting.value = false }
 }
 </script>

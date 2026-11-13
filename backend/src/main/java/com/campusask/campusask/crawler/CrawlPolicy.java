@@ -16,6 +16,10 @@ public class CrawlPolicy {
                 || (uri.getPort()!=-1 && uri.getPort()!=443)) throw new IllegalArgumentException("仅允许 HTTPS 官网地址");
         String host=uri.getHost().toLowerCase(Locale.ROOT);
         if (config.getAllowedHosts().stream().noneMatch(h -> host.equalsIgnoreCase(h))) throw new IllegalArgumentException("地址不在抓取白名单");
+        String path=uri.getPath().isEmpty()?"/":uri.getPath();
+        if (!path.equals("/robots.txt") && !config.getAllowedPathPrefixes().isEmpty()
+                && config.getAllowedPathPrefixes().stream().noneMatch(path::startsWith))
+            throw new IllegalArgumentException("地址不在抓取路径范围");
         try { return new URI("https",null,host,-1,uri.getPath().isEmpty()?"/":uri.getPath(),uri.getQuery(),null); }
         catch (URISyntaxException e) { throw new IllegalArgumentException("地址格式不正确",e); }
     }

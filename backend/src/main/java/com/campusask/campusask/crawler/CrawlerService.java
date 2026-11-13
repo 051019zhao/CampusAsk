@@ -61,14 +61,30 @@ public class CrawlerService {
                         if(queue.size()>=100) break;
                         try { URI next=policy.canonical(link); if(!seen.contains(next)) queue.addLast(next); } catch(IllegalArgumentException ignored) { /* Out-of-scope link. */ }
                     }
+                    if(extractor.isListingPage(uri)) continue;
                     CrawlExtractor.Article article=extractor.extract(uri,page.body());
                     if(store.stage(article)) changed++;
                 } catch(InterruptedException e) { Thread.currentThread().interrupt(); failed++; detail="任务已中断"; break; }
-                catch(Exception e) { failed++; detail=uri.getHost()+"："+e.getClass().getSimpleName()+"（请检查页面或抓取配置）"; }
+                catch(Exception e) {
+                    failed++;
+                    if(detail.isEmpty()) {
+                        String reason=e instanceof IllegalArgumentException && e.getMessage()!=null
+                                ? e.getMessage() : e.getClass().getSimpleName();
+                        String summary=uri.getPath()+"："+reason;
+                        detail=summary.substring(0,Math.min(200,summary.length()));
+                    }
+                }
             }
         } finally {
+            boolean interrupted=Thread.interrupted();
             try { store.finish(id,visited,changed,failed,detail); }
-            finally { try { store.release(id); } finally { running.set(false); } }
+            finally {
+                try { store.release(id); }
+                finally {
+                    running.set(false);
+                    if(interrupted) Thread.currentThread().interrupt();
+                }
+            }
         }
     }
     public Map<String,Object> status() { return Map.of("enabled",config.isEnabled(),"running",running.get(),"seeds",config.getSeeds(),"runs",store.runs()); }
