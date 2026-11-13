@@ -61,6 +61,7 @@ public class CrawlerService {
                         if(queue.size()>=100) break;
                         try { URI next=policy.canonical(link); if(!seen.contains(next)) queue.addLast(next); } catch(IllegalArgumentException ignored) { /* Out-of-scope link. */ }
                     }
+                    if(extractor.isListingPage(uri)) continue;
                     CrawlExtractor.Article article=extractor.extract(uri,page.body());
                     if(store.stage(article)) changed++;
                 } catch(InterruptedException e) { Thread.currentThread().interrupt(); failed++; detail="任务已中断"; break; }

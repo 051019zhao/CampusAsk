@@ -9,13 +9,16 @@
 ```powershell
 $env:CRAWLER_ENABLED = 'true'
 $env:CRAWLER_ALLOWED_HOSTS = '你已确认可采集的官网完整主机名'
+$env:CRAWLER_ALLOWED_PATH_PREFIXES = '/允许抓取的栏目路径/'
 $env:CRAWLER_SEEDS = '对应公告栏目或文章的完整HTTPS地址'
 $env:CRAWLER_CRON = '0 30 2 * * *'
 ```
 
-上面的主机和地址为占位提示，必须替换。允许主机采用精确匹配，配置某个主机不会自动允许其子域名。多个主机或入口用逗号分隔。计划默认按 Asia/Shanghai 时区每天 02:30 执行，也可由管理员点击「立即抓取」。
+上面的主机和地址为占位提示，必须替换。允许主机采用精确匹配，配置某个主机不会自动允许其子域名。路径前缀可将同一主机下的抓取范围限制到指定栏目，`robots.txt` 仍可读取；多个主机、路径前缀或入口用逗号分隔。计划默认按 Asia/Shanghai 时区每天 02:30 执行，也可由管理员点击「立即抓取」。
 
-配置文件中的 `crawler.content-selector` 使用 CSS 选择器，默认 `article, main, .wp_articlecontent, .article-content`。不同官网页面结构不同，应先确认正文容器，再在测试环境手动执行一轮。无正文容器或正文少于 100 字符的页面不会入待审区；列表页仍可发现同一白名单范围内的 `.htm/.html` 文章链接。
+华南理工大学学生工作部「信息公告」可作为示例入口：主机 `www2.scut.edu.cn`，路径前缀 `/student/`，种子 `https://www2.scut.edu.cn/student/xxgg/list.htm`。本机忽略 Git 跟踪的 `application.properties` 已按此配置启用；修改配置后需重启后端。抓取器会在每轮先检查该主机的 `robots.txt`，如不可用或禁止抓取则不会写入候选。部署到其他环境时须单独配置。
+
+配置文件中的 `crawler.content-selector` 使用按优先级排列的 CSS 选择器，默认 `.wp_articlecontent, .article-content, article, main`。不同官网页面结构不同，应先确认正文容器，再在测试环境手动执行一轮。无正文容器或正文少于 100 字符的页面不会入待审区；`list.htm`、`list1.htm` 等栏目列表页只发现同一白名单范围内的 `.htm/.html` 文章链接，不暂存为知识。
 
 ## 抓取约束
 
@@ -48,4 +51,4 @@ $env:CRAWLER_CRON = '0 30 2 * * *'
 
 `SUCCESS` 表示本轮已访问页面均处理成功；`PARTIAL` 表示部分失败；`FAILED` 表示本轮访问全部失败。没有新增内容是正常结果，不表示任务失败。使用管理员手动执行与记录检查验证配置，不要靠增加频率解决解析问题。
 
-本次没有启用真实校园站点抓取，没有向你的生产数据库写入任何爬取数据。
+首次执行后，在管理后台检查任务结果、候选原文和来源链接，再逐条审核。审核通过的知识会在后续问答中带上原文链接。`crawler.enabled=true` 只表示允许执行，不表示官网已成功抓取或候选已审核。
