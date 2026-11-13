@@ -20,7 +20,13 @@ public class CrawlExtractor {
     }
     public List<String> links(URI uri,byte[] bytes) throws IOException {
         return Jsoup.parse(new ByteArrayInputStream(bytes),null,uri.toString()).select("a[href]").stream()
-                .map(a->a.absUrl("href")).filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$")).distinct().limit(100).toList();
+                .map(a->a.absUrl("href")).filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$"))
+                .distinct().sorted(Comparator.comparingInt(this::linkPriority)).limit(1000).toList();
+    }
+    private int linkPriority(String url) {
+        if(url.matches("(?i).*/page\\.html?(?:[?#].*)?$")) return 0;
+        if(url.matches("(?i).*/list(?:_?\\d+)?\\.html?(?:[?#].*)?$")) return 2;
+        return 1;
     }
     public Article extract(URI uri,byte[] bytes) throws IOException {
         if(isListingPage(uri)) throw new IllegalArgumentException("栏目列表页不作为知识正文");

@@ -69,8 +69,11 @@ class CrawlerTest {
     @Test void listSeedDiscoversArticleWithoutStagingTheList() throws Exception {
         URI list=URI.create("https://campus.example.edu/student/xxgg/list.htm");
         URI notice=URI.create("https://campus.example.edu/student/2026/1112/c9326a640151/page.htm");
+        String navigation=java.util.stream.IntStream.range(1,15)
+                .mapToObj(i->"<a href='/student/xxgg/list"+i+".htm'>第 "+i+" 页</a>")
+                .collect(java.util.stream.Collectors.joining());
         String listing="<html><title>信息公告</title><main>"+"栏目说明和公告列表内容。".repeat(12)
-                +"<a href='"+notice+"'>奖学金公告</a></main></html>";
+                +navigation+"<a href='"+notice+"'>奖学金公告</a></main></html>";
         String articleHtml="<html><title>奖学金公告</title><div class='wp_articlecontent'>这是学校发布的奖学金申报通知正文。</div></html>";
         CrawlFetcher fetcher=mock(CrawlFetcher.class);
         when(fetcher.fetch(any())).thenAnswer(invocation -> {
@@ -159,6 +162,18 @@ class CrawlerTest {
         try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
             store.start("test-run");runner.service.run("test-run",List.of(url));
             verify(fetcher,times(1)).fetch(any());assertEquals(0L,store.candidates("PENDING",1).get("total"));
+            assertTrue(store.runs().get(0).get("detail").toString().contains("/news/a.html：robots.txt 禁止抓取"));
+        }
+    }
+    @Test void interruptedCrawlReleasesLeaseBeforeRestoringInterrupt() throws Exception {
+        CrawlFetcher fetcher=mock(CrawlFetcher.class);
+        when(fetcher.fetch(any())).thenThrow(new InterruptedException("stopped"));
+        try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
+            assertTrue(store.acquire("interrupted-run"));store.start("interrupted-run");
+            runner.service.run("interrupted-run",List.of(url));
+            assertTrue(Thread.interrupted());
+            assertTrue(store.acquire("next-run"));
+            store.release("next-run");
         }
     }
     @Test void byteLimitCancelsOversizedResponses() {
