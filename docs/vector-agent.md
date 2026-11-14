@@ -36,6 +36,16 @@ $env:RAG_MILVUS_COLLECTION = 'campusask_chunks_v1'
 
 将 `rag.milvus.*` 配置复制到本机 `application.properties`，或使用 `application-rag.properties` 的 `rag` profile。不要提交密钥。生产环境使用 HTTPS 或私有网络，并限制 Milvus 端口。首次启用时已有 MySQL 切片会排队导入；资料越多，首次同步越久。`rag_vector_job` 清空表示已确认同步，问答在同步期间可能仍按旧路径降级。更换 embedding 模型或维度时使用新的 collection 名称，删除 `rag_vector_state` 中的 `bootstrapped` 标记后重建公开知识索引；旧模型的私人附件需重新上传才能参加新模型的 Milvus 检索。若 Milvus 数据卷丢失，先恢复备份，再清除该标记并重新启动同步；在验证新集合前不要删除 MySQL 中的切片和向量。
 
+不依赖真实 embedding 模型也可先验证 Java 与本机 Milvus 的同步链路。该测试使用隔离的 H2 数据库、临时 collection 和固定测试向量，结束时删除自己的 collection：
+
+```powershell
+$env:JAVA_TOOL_OPTIONS = '-Djdk.net.unixdomain.tmpdir=C:\Windows\Temp' # 仅 Codex Windows 终端需要
+$env:MILVUS_LIVE_URL = 'http://127.0.0.1:19530'
+$env:MILVUS_LIVE_TOKEN = '你的本机 Milvus 令牌'
+cd backend
+.\mvnw.cmd '-Dtest=MilvusLiveSmokeTest' test
+```
+
 ## LangGraph Agent
 
 Java Spring Boot 仍负责账户、审核、知识检索、模型密钥和对外 API。`agent/` 是独立的 Python LangGraph 服务，状态图执行「模型决定工具 → 调用只读工具 → 模型总结」。目前工具为校园知识检索、当前会话附件列表、北京时间；最多四轮模型调用、四次工具调用、两次知识检索。回答必须有可核实的检索来源。Agent 故障时 Java 回退到现有 RAG 问答。当前 Agent 模式不读写长时记忆，不执行发帖、知识审核或外部写操作。

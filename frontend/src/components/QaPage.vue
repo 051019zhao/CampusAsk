@@ -137,7 +137,7 @@
 
         <div class="composer">
           <div class="rag-toolbar">
-            <label><input type="checkbox" v-model="agentEnabled" :disabled="loading" /> Agent 模式</label>
+            <label><input type="checkbox" v-model="agentEnabled" :disabled="loading || !!qaImageUrl" /> Agent 模式</label>
             <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading || agentEnabled" /> 使用长时记忆</label>
             <button :disabled="loading || documentLoading" @click="forgetMemory">删除我的历史记忆</button>
             <span>{{ agentEnabled ? 'Agent 模式会调用只读工具检索资料；本轮不使用长时记忆。' : '登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。' }}</span>
@@ -153,7 +153,7 @@
           <div class="composer-actions">
             <div class="composer-left">
               <input type="file" accept="image/*" ref="qaImageInput" hidden @change="handleQaImage" />
-              <button class="img-btn" @click="$refs.qaImageInput.click()" title="上传图片">📷</button>
+              <button class="img-btn" :disabled="agentEnabled" @click="$refs.qaImageInput.click()" title="上传图片">📷</button>
               <input ref="documentInput" type="file" accept=".csv,.docx,.txt,.md" hidden @change="uploadDocument" />
               <button :disabled="loading || documentLoading" class="img-btn" @click="$refs.documentInput.click()">{{ documentLoading ? '正在导入…' : '导入资料' }}</button>
               <span v-if="qaUploading" class="uploading-hint">上传中...</span>

@@ -182,5 +182,5 @@ def ask(request: AskRequest, x_agent_key: str | None = Header(default=None)):
         return {"answer": result["answer"], "citations": result["citations"],
                 "agentSteps": result["steps"], "retrievalMode": result["mode"], "fallback": False}
     except (httpx.HTTPError, ValueError, KeyError, RuntimeError) as exc:
-        log.exception("agent_fallback reason=%s", type(exc).__name__)
+        log.warning("agent_fallback reason=%s", type(exc).__name__)
         return {"fallback": True}
