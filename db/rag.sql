@@ -22,3 +22,11 @@ CREATE TABLE IF NOT EXISTS rag_turn (
 CREATE TABLE IF NOT EXISTS rag_summary (
   owner VARCHAR(128) NOT NULL, session_id VARCHAR(100) NOT NULL,
   content TEXT NOT NULL, PRIMARY KEY(owner,session_id));
+
+CREATE TABLE IF NOT EXISTS rag_vector_job (
+  chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,
+  version BIGINT NOT NULL DEFAULT 1, queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX rag_vector_job_queue(queued_at));
+
+CREATE TABLE IF NOT EXISTS rag_vector_state (
+  name VARCHAR(64) PRIMARY KEY, state_value VARCHAR(255) NOT NULL);

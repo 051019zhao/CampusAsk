@@ -28,6 +28,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 // 放行静态资源
                 .excludePathPatterns("/static/**", "/favicon.ico")
                 // 放行OSS测试接口
-                .excludePathPatterns("/test/**");
+                .excludePathPatterns("/test/**", "/internal/agent/**");
     }
 }

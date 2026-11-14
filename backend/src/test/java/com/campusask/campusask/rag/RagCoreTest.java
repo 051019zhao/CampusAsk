@@ -123,6 +123,29 @@ class RagCoreTest {
         assertEquals(url,citation.get("url"));
         verify(model).answer(eq("图书馆开放时间"),contains("原文链接："+url));
     }
+    @Test void agentEvidenceSearchUsesCurrentOwnerAndDoesNotGenerateAnswer() {
+        when(store.chunks("USER:alice","session")).thenReturn(List.of(
+                new RagStore.Chunk("c7","K7","校园通知",1,"奖学金申请见公告","[1,0]","test-v1")));
+        when(store.sourceUrls(Set.of("K7"))).thenReturn(Map.of("K7","https://campus.example.edu/notice.htm"));
+        RagService.SearchResult result=service.search("奖学金","session");
+        assertEquals(1,result.citations().size());
+        assertEquals("https://campus.example.edu/notice.htm",result.citations().get(0).get("url"));
+        verify(model,never()).answer(anyString(),anyString());
+        verify(store).chunks("USER:alice","session");
+    }
+    @Test void milvusCandidatesAvoidFullMysqlChunkScan() {
+        MilvusIndex index=mock(MilvusIndex.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"milvus",index);
+        when(index.enabled()).thenReturn(true);
+        when(index.search(any(double[].class),eq("USER:alice"),eq("session"),eq("test-v1"),eq(40)))
+                .thenReturn(List.of("c7"));
+        when(store.chunksByIds("USER:alice","session",List.of("c7"))).thenReturn(List.of(
+                new RagStore.Chunk("c7","K7","校园通知",1,"奖学金申请见公告","[1,0]","test-v1")));
+        RagService.SearchResult result=service.search("奖学金","session");
+        assertEquals("milvus",result.retrievalMode());
+        assertEquals(1,result.citations().size());
+        verify(store,never()).chunks(anyString(),anyString());
+    }
     @Test void remembersAndRecallsPersistedUserHistoryAcrossSessions() {
         when(store.memories("USER:alice")).thenReturn(List.of(new RagStore.Chunk("M1","old-session","历史对话",0,"我住五山校区","[1,0]","test-v1")));
         service.ask("我住哪个校区","new-session",true);
