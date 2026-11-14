@@ -4,14 +4,11 @@ import com.fasterxml.jackson.databind.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import java.net.URI;
-import java.net.http.*;
-import java.time.Duration;
 import java.util.*;
 
 @Component
 public class RagModelClient {
     private final ObjectMapper json = new ObjectMapper();
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     @Value("${rag.embedding.url:}") private String embeddingUrl;
     @Value("${rag.embedding.key:}") private String embeddingKey;
     @Value("${rag.embedding.model:}") private String embeddingModel;
@@ -53,16 +50,25 @@ public class RagModelClient {
         if (answer.isBlank()) throw new IllegalStateException("回答模型返回空结果");
         return answer;
     }
+    /** The LangGraph service owns the tool loop; this method only performs one model turn. */
+    public JsonNode agentTurn(List<Object> messages,List<Map<String,Object>> tools) {
+        if(chatKey.isBlank()) throw new IllegalStateException("未配置回答模型");
+        if(messages.isEmpty() || messages.size()>20 || tools.isEmpty() || tools.size()>4)
+            throw new IllegalArgumentException("Agent 消息或工具数量无效");
+        JsonNode result=post(chatUrl,chatKey,Map.of("model",chatModel,"temperature",0.1,
+                "max_tokens",1200,"messages",messages,"tools",tools,"tool_choice","auto"));
+        JsonNode message=result.path("choices").path(0).path("message");
+        if(!message.isObject() || (message.path("content").asText("").isBlank()
+                && message.path("tool_calls").isEmpty()))
+            throw new IllegalStateException("Agent 模型返回无效消息");
+        return message;
+    }
     private JsonNode post(String url, String key, Object body) {
         try {
-            HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30))
-                    .header("Content-Type", "application/json");
-            if (!key.isBlank()) request.header("Authorization", "Bearer " + key);
-            HttpResponse<String> response = http.send(request.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) throw new IllegalStateException("模型服务不可用（" + response.statusCode() + "）");
+            Map<String,String> headers=key.isBlank()?Map.of():Map.of("Authorization","Bearer "+key);
+            JsonHttp.Response response=JsonHttp.post(URI.create(url),json.writeValueAsBytes(body),headers,30_000);
+            if(response.status()!=200) throw new IllegalStateException("模型服务不可用（"+response.status()+"）");
             return json.readTree(response.body());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); throw new IllegalStateException("模型请求已中断", e);
         } catch (Exception e) { throw new IllegalStateException("模型请求失败", e); }
     }
 }

@@ -22,6 +22,9 @@ public class QaController {
     private com.campusask.campusask.rag.RagService ragService;
 
     @Autowired
+    private com.campusask.campusask.rag.LangGraphGateway langGraphGateway;
+
+    @Autowired
     private QaService qaService;
 
     @Autowired
@@ -45,6 +48,15 @@ public class QaController {
         if (sessionId == null || sessionId.isBlank()) sessionId = java.util.UUID.randomUUID().toString();
         Map<String, Object> data = ragService.ask(keyword, sessionId, !Boolean.FALSE.equals(body.memoryEnabled()));
         qaService.recordRagQuestion(keyword, String.valueOf(data.get("source")));
+        return Result.success(data);
+    }
+
+    @PostMapping("/agent/ask")
+    public Result<Map<String,Object>> agentAsk(@jakarta.validation.Valid @RequestBody com.campusask.campusask.dto.AskRequest body) {
+        String sessionId=body.sessionId();
+        if(sessionId==null || sessionId.isBlank()) sessionId=java.util.UUID.randomUUID().toString();
+        Map<String,Object> data=langGraphGateway.ask(body.keyword(),sessionId);
+        qaService.recordRagQuestion(body.keyword(),String.valueOf(data.get("source")));
         return Result.success(data);
     }
 

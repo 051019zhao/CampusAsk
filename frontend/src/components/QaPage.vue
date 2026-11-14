@@ -83,7 +83,8 @@
                   <pre>{{ citation.excerpt }}</pre>
                 </div>
               </details>
-              <small v-if="message.role === 'bot' && message.memorySaved === false && memoryEnabled">本轮未保存到长时记忆。</small>
+              <small v-if="message.agentSteps && message.agentSteps.length">工具步骤：{{ message.agentSteps.join(' → ') }}</small>
+              <small v-if="message.role === 'bot' && message.memorySaved === false && message.requestedMemory">本轮未保存到长时记忆。</small>
               <div v-if="message.role === 'bot'" class="msg-actions">
                 <button class="copy-btn" @click="copyText(message.text)" title="复制回答">📋</button>
               </div>
@@ -136,9 +137,10 @@
 
         <div class="composer">
           <div class="rag-toolbar">
-            <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading" /> 使用长时记忆</label>
+            <label><input type="checkbox" v-model="agentEnabled" :disabled="loading" /> Agent 模式</label>
+            <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading || agentEnabled" /> 使用长时记忆</label>
             <button :disabled="loading || documentLoading" @click="forgetMemory">删除我的历史记忆</button>
-            <span>登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。</span>
+            <span>{{ agentEnabled ? 'Agent 模式会调用只读工具检索资料；本轮不使用长时记忆。' : '登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。' }}</span>
           </div>
           <div v-for="doc in documents" :key="doc.id" class="rag-document">
             <span>📄 {{ doc.title }}</span>
@@ -256,6 +258,7 @@ export default {
       documentLoading: false,
       documentStatus: '',
       memoryEnabled: true,
+      agentEnabled: false,
       suggestedQuestions: [],  // V3: 相关问题推荐
       qaImageUrl: '',          // V4: 问答图片
       qaUploading: false,      // V4: 图片上传中
@@ -420,15 +423,18 @@ export default {
       let searchUrls = []
       let citations = []
       let memorySaved = true
+      let agentSteps = []
+      const useAgent = this.agentEnabled && !this.qaImageUrl
+      const requestedMemory = !useAgent && this.memoryEnabled
       try {
         const token = localStorage.getItem('token')
         const headers = { 'Content-Type': 'application/json' }
         if (token) headers['token'] = token
         // V3: 传递 sessionId 支持多轮对话; V4: 图片URL
-        const res = await fetch('/api/qa/ask', {
+        const res = await fetch(useAgent ? '/api/qa/agent/ask' : '/api/qa/ask', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ keyword: question, sessionId: this.sessionId, imageUrl: this.qaImageUrl, memoryEnabled: this.memoryEnabled })
+          body: JSON.stringify({ keyword: question, sessionId: this.sessionId, imageUrl: this.qaImageUrl, memoryEnabled: requestedMemory })
         })
         const data = await res.json()
         if (data.code === 200 && data.data) {
@@ -436,6 +442,7 @@ export default {
           searchUrls = data.data.searchUrls || []
           citations = data.data.citations || []
           memorySaved = data.data.memorySaved !== false
+          agentSteps = data.data.agentSteps || []
           // V3: 接收推荐问题
           if (data.data.suggestions && Array.isArray(data.data.suggestions)) {
             this.suggestedQuestions = data.data.suggestions
@@ -467,6 +474,8 @@ export default {
             urls: searchUrls,
             citations,
             memorySaved,
+            agentSteps,
+            requestedMemory,
             question: question  // 绑定对应的问题
           })
         }
@@ -658,6 +667,7 @@ export default {
         fallback:     '⚠️ AI不可用·本地兜底',
         rejected:     '🚫 超出服务范围',
         ai:           '🤖 AI回答',
+        agent:        '🤖 Agent 工具问答',
       }
       return map[source] || source
     },

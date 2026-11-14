@@ -60,6 +60,25 @@ class RagStoreTest {
         assertTrue(store.deleteDocument("USER:alice","s1","D1"));
         assertTrue(store.chunks("USER:alice","s1").isEmpty());
     }
+    @Test void vectorJobsReplayExistingChunksAndTrackDeletion() {
+        document("D1","USER:alice","s1");
+        store.bootstrapVectorJobs();
+        assertEquals("UPSERT",store.vectorJobs(10).get(0).operation());
+        RagStore.VectorJob upsert=store.vectorJobs(10).get(0);
+        assertEquals("CD1",store.vectorChunk(upsert.chunkId()).id());
+        assertEquals(new RagStore.VectorScope("USER:alice","s1"),store.vectorScope("D1"));
+        store.finishVectorJob(upsert);
+        assertTrue(store.vectorJobs(10).isEmpty());
+        assertTrue(store.deleteDocument("USER:alice","s1","D1"));
+        assertEquals("DELETE",store.vectorJobs(10).get(0).operation());
+        assertNull(store.vectorChunk("CD1"));
+    }
+    @Test void vectorResultsAreRecheckedAgainstMysqlPermissions() {
+        document("K1","PUBLIC",""); document("D1","USER:alice","s1");
+        document("D2","USER:bob","s1"); document("D3","USER:alice","s2");
+        assertEquals(Set.of("CK1","CD1"),new HashSet<>(store.chunksByIds("USER:alice","s1",List.of("CK1","CD1","CD2","CD3"))
+                .stream().map(RagStore.Chunk::id).toList()));
+    }
     @Test void forgetDeletesOnlyCurrentUserMemory() {
         store.remember("USER:alice","s1","a","b","[1,0]","v1");
         store.remember("USER:bob","s1","c","d","[1,0]","v1");
