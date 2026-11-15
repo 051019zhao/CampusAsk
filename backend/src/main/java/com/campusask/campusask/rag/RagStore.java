@@ -45,6 +45,16 @@ public class RagStore {
               owner VARCHAR(128) NOT NULL, session_id VARCHAR(100) NOT NULL,
               content TEXT NOT NULL, PRIMARY KEY(owner,session_id))
             """);
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS rag_vector_job (
+              chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,
+              version BIGINT NOT NULL DEFAULT 1, queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX rag_vector_job_queue(queued_at))
+            """);
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS rag_vector_state (
+              name VARCHAR(64) PRIMARY KEY, state_value VARCHAR(255) NOT NULL)
+            """);
     }
     public List<Map<String,Object>> documents(String owner, String session) {
         return db.queryForList("SELECT id,title,created_at FROM rag_document WHERE owner=? AND session_id=? AND created_at>=? ORDER BY created_at", owner,session,retentionCutoff());
@@ -54,11 +64,72 @@ public class RagStore {
     }
     public void replace(String id, String owner, String session, String title, String fingerprint, List<Chunk> chunks) {
         tx.executeWithoutResult(status -> {
+            queueDocumentDeletion(id);
             db.update("DELETE FROM rag_document WHERE id=?",id);
             db.update("INSERT INTO rag_document(id,owner,session_id,title,fingerprint) VALUES(?,?,?,?,?)",id,owner,session,title,fingerprint);
             db.batchUpdate("INSERT INTO rag_chunk(id,document_id,ordinal,content,embedding,model) VALUES(?,?,?,?,?,?)",
                     chunks.stream().map(c -> new Object[]{c.id(),id,c.ordinal(),c.text(),c.vector(),c.model()}).toList());
+            for (Chunk chunk:chunks) queueVector(chunk.id(),"UPSERT");
         });
+    }
+    private void queueVector(String chunkId,String operation) {
+        db.update("""
+            INSERT INTO rag_vector_job(chunk_id,operation) VALUES(?,?)
+            ON DUPLICATE KEY UPDATE operation=VALUES(operation),version=version+1,queued_at=CURRENT_TIMESTAMP
+            """,chunkId,operation);
+    }
+    private void queueDocumentDeletion(String documentId) {
+        for (String id:db.queryForList("SELECT id FROM rag_chunk WHERE document_id=?",String.class,documentId))
+            queueVector(id,"DELETE");
+    }
+    public record VectorJob(String chunkId,String operation,long version) {}
+    public List<VectorJob> vectorJobs(int limit) {
+        return db.query("SELECT chunk_id,operation,version FROM rag_vector_job ORDER BY queued_at,chunk_id LIMIT ?",
+                (r,n)->new VectorJob(r.getString(1),r.getString(2),r.getLong(3)),limit);
+    }
+    public boolean hasPendingVectorJobs() {
+        return !db.queryForList("SELECT chunk_id FROM rag_vector_job LIMIT 1").isEmpty();
+    }
+    public void finishVectorJob(VectorJob job) {
+        db.update("DELETE FROM rag_vector_job WHERE chunk_id=? AND version=?",job.chunkId(),job.version());
+    }
+    public Chunk vectorChunk(String id) {
+        List<Chunk> found=db.query("""
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_chunk c JOIN rag_document d ON d.id=c.document_id WHERE c.id=?
+            """,(r,n)->new Chunk(r.getString(1),r.getString(2),r.getString(7),r.getInt(3),r.getString(4),r.getString(5),r.getString(6)),id);
+        return found.isEmpty()?null:found.get(0);
+    }
+    public record VectorScope(String owner,String session) {}
+    public VectorScope vectorScope(String documentId) {
+        List<VectorScope> found=db.query("SELECT owner,session_id FROM rag_document WHERE id=?",
+                (r,n)->new VectorScope(r.getString(1),r.getString(2)),documentId);
+        return found.isEmpty()?null:found.get(0);
+    }
+    /** Idempotent, one-time migration of existing MySQL chunks into the durable job queue. */
+    public void bootstrapVectorJobs() {
+        tx.executeWithoutResult(status -> {
+            if (!db.queryForList("SELECT name FROM rag_vector_state WHERE name='bootstrapped'").isEmpty()) return;
+            db.update("""
+                INSERT INTO rag_vector_job(chunk_id,operation)
+                SELECT c.id,'UPSERT' FROM rag_chunk c
+                WHERE NOT EXISTS (SELECT 1 FROM rag_vector_job j WHERE j.chunk_id=c.id)
+                """);
+            db.update("INSERT INTO rag_vector_state(name,state_value) VALUES('bootstrapped','1')");
+        });
+    }
+    public List<Chunk> chunksByIds(String owner,String session,Collection<String> ids) {
+        if(ids.isEmpty()) return List.of();
+        List<String> valid=ids.stream().filter(id->id!=null && id.matches("[A-Za-z0-9-]{1,64}"))
+                .distinct().limit(100).toList();
+        if(valid.isEmpty()) return List.of();
+        String placeholders=String.join(",",Collections.nCopies(valid.size(),"?"));
+        List<Object> params=new ArrayList<>(valid); params.add(owner);params.add(session);params.add(retentionCutoff());
+        return db.query("""
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_chunk c JOIN rag_document d ON d.id=c.document_id
+            WHERE c.id IN (%s) AND (d.owner='PUBLIC' OR (d.owner=? AND d.session_id=? AND d.created_at>=?))
+            """.formatted(placeholders),(r,n)->new Chunk(r.getString(1),r.getString(2),r.getString(7),r.getInt(3),r.getString(4),r.getString(5),r.getString(6)),params.toArray());
     }
     public Map<String,String> publicFingerprints() {
         return db.query("SELECT id,fingerprint FROM rag_document WHERE owner='PUBLIC'", rows -> {
@@ -95,7 +166,10 @@ public class RagStore {
     public void pruneKnowledge(Set<String> knownIds, Set<String> currentIds) {
         List<Object[]> stale=knownIds.stream().filter(id -> !currentIds.contains(id))
                 .map(id -> new Object[]{id}).toList();
-        if (!stale.isEmpty()) db.batchUpdate("DELETE FROM rag_document WHERE id=? AND owner='PUBLIC'",stale);
+        if (!stale.isEmpty()) tx.executeWithoutResult(status -> {
+            for(Object[] row:stale) queueDocumentDeletion(row[0].toString());
+            db.batchUpdate("DELETE FROM rag_document WHERE id=? AND owner='PUBLIC'",stale);
+        });
     }
     public List<Chunk> chunks(String owner, String session) {
         return db.query("""
@@ -109,7 +183,11 @@ public class RagStore {
             """, (r,n) -> new Chunk(r.getString("id"),r.getString("document_id"),r.getString("title"),r.getInt("ordinal"),r.getString("content"),r.getString("embedding"),r.getString("model")),owner,session,retentionCutoff());
     }
     public boolean deleteDocument(String owner, String session, String id) {
-        return db.update("DELETE FROM rag_document WHERE id=? AND owner=? AND session_id=?",id,owner,session)>0;
+        return tx.execute(status -> {
+            if(db.queryForList("SELECT id FROM rag_document WHERE id=? AND owner=? AND session_id=?",id,owner,session).isEmpty()) return false;
+            queueDocumentDeletion(id);
+            return db.update("DELETE FROM rag_document WHERE id=? AND owner=? AND session_id=?",id,owner,session)>0;
+        });
     }
     public List<Turn> recent(String owner, String session) {
         List<Turn> turns = db.query("SELECT question,answer FROM rag_turn WHERE owner=? AND session_id=? AND created_at>=? ORDER BY id DESC LIMIT 6",
@@ -148,6 +226,8 @@ public class RagStore {
     }
     public void clearSession(String owner, String session) {
         tx.executeWithoutResult(status -> {
+            for(String id:db.queryForList("SELECT id FROM rag_document WHERE owner=? AND session_id=?",String.class,owner,session))
+                queueDocumentDeletion(id);
             db.update("DELETE FROM rag_turn WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_summary WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_document WHERE owner=? AND session_id=?",owner,session);
@@ -168,6 +248,10 @@ public class RagStore {
             if (questions.isEmpty()) db.update("DELETE FROM rag_summary WHERE owner=? AND session_id=?",owner,session);
             else db.update("UPDATE rag_summary SET content=? WHERE owner=? AND session_id=?",summary,owner,session);
         }
-        db.update("DELETE FROM rag_document WHERE owner<>'PUBLIC' AND created_at < ?",cutoff);
+        tx.executeWithoutResult(status -> {
+            for(String id:db.queryForList("SELECT id FROM rag_document WHERE owner<>'PUBLIC' AND created_at < ?",String.class,cutoff))
+                queueDocumentDeletion(id);
+            db.update("DELETE FROM rag_document WHERE owner<>'PUBLIC' AND created_at < ?",cutoff);
+        });
     }
 }

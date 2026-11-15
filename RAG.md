@@ -1,5 +1,7 @@
 # CampusAsk RAG 升级说明
 
+> 本文记录原有 MySQL 检索实现。新增的可选 Milvus 索引、Python LangGraph 服务和本机运行步骤见 [MySQL + Milvus 与 LangGraph](docs/vector-agent.md)。启用 Milvus 后，语义候选由 Milvus 返回，再经 MySQL 权限校验；MySQL 扫描只用于未启用、同步尚未完成或故障降级。
+
 基于 `051019zhao/CampusAsk` 的 `main` 提交 `b457d78c72ab08c60384fb2e9d542b2a3c6ff243`。
 
 ## 已实现的行为

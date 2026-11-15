@@ -5,6 +5,7 @@ import com.campusask.campusask.mapper.KnowledgeMapper;
 import com.campusask.campusask.entity.Knowledge;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -18,6 +19,7 @@ public class RagService {
     private final KnowledgeMapper knowledge;
     private final ObjectMapper json = new ObjectMapper();
     private final HybridRetriever retriever=new HybridRetriever();
+    @Autowired(required=false) private MilvusIndex milvus;
     private volatile long syncedAt;
     public RagService(RagStore store, RagModelClient model, DocumentLoader loader, KnowledgeMapper knowledge) {
         this.store=store; this.model=model; this.loader=loader; this.knowledge=knowledge;
@@ -82,22 +84,53 @@ public class RagService {
         store.pruneKnowledge(known.keySet(),ids); syncedAt=System.currentTimeMillis();
     }
     private String bounded(String text,int size) { return text.length()<=size?text:text.substring(0,size); }
-    public Map<String,Object> ask(String question, String sessionId, boolean useMemory) {
-        boolean authenticated=BaseContext.getCurrentUsername()!=null && !BaseContext.getCurrentUsername().isBlank();
-        String owner=authenticated?owner():"GUEST",session=session(sessionId);
-        useMemory=useMemory && authenticated;
-        if (question==null || question.isBlank() || question.length()>2000) throw new IllegalArgumentException("问题需为 1～2000 字符");
+    public record SearchResult(List<Map<String,Object>> citations,String retrievalMode) {}
+    private record Retrieval(List<HybridRetriever.Hit> hits,double[] vector,Map<String,String> sourceUrls,String mode) {}
+
+    /** Read-only evidence retrieval for the agent. Identity and session come from the server context. */
+    public SearchResult search(String query,String sessionId) {
+        String username=BaseContext.getCurrentUsername();
+        String owner=username==null || username.isBlank()?"GUEST":"USER:"+username;
+        return searchForOwner(query,owner,sessionId);
+    }
+    SearchResult searchForOwner(String query,String owner,String sessionId) {
+        if(query==null || query.isBlank() || query.length()>500) throw new IllegalArgumentException("检索词需为 1～500 字符");
+        if(owner==null || !(owner.equals("GUEST") || owner.matches("USER:[^\\p{Cntrl}]{1,120}")))
+            throw new IllegalArgumentException("检索身份无效");
+        Retrieval result=retrieve(query,owner,session(sessionId));
+        List<Map<String,Object>> citations=new ArrayList<>();
+        for(int i=0;i<result.hits().size();i++) {
+            HybridRetriever.Hit hit=result.hits().get(i);
+            RagStore.Chunk c=hit.chunk();
+            Map<String,Object> citation=new LinkedHashMap<>();
+            citation.put("id","S"+(i+1)); citation.put("documentId",c.documentId());
+            citation.put("title",c.title()); citation.put("chunk",c.ordinal());
+            citation.put("excerpt",c.text()); citation.put("score",hit.score());
+            String url=result.sourceUrls().get(c.documentId());
+            if(url!=null) citation.put("url",url);
+            citations.add(citation);
+        }
+        return new SearchResult(citations,result.mode());
+    }
+
+    private Retrieval retrieve(String query,String owner,String session) {
         boolean indexed=false;
         if(model.embeddingsEnabled()) try {syncKnowledge();indexed=true;}
         catch(RuntimeException ex) {org.slf4j.LoggerFactory.getLogger(RagService.class).warn("rag_index_refresh_failed type={}",ex.getClass().getSimpleName());}
-        List<RagStore.Turn> recent=useMemory?store.recent(owner,session):List.of();
-        String retrievalQuery=question;
-        // Resolve short follow-up questions using the most recent user turn.
-        if (!recent.isEmpty() && question.length()<30) retrievalQuery=recent.get(recent.size()-1).question()+"\n"+question;
         double[] queryVector=new double[0];
-        if(model.embeddingsEnabled()) try {queryVector=model.embed(retrievalQuery);} catch(IllegalStateException ignored) { /* Continue with lexical retrieval. */ }
-        List<RagStore.Chunk> candidates=new ArrayList<>(store.chunks(owner,session));
-        if(!indexed) {
+        if(model.embeddingsEnabled()) try {queryVector=model.embed(query);} catch(IllegalStateException ignored) { /* Continue with lexical retrieval. */ }
+        List<RagStore.Chunk> candidates;
+        boolean vectorSearch=false;
+        if(milvus!=null && milvus.enabled() && queryVector.length>0 && !store.hasPendingVectorJobs()) {
+            try {
+                candidates=store.chunksByIds(owner,session,milvus.search(queryVector,owner,session,model.embeddingVersion(),40));
+                vectorSearch=true;
+            } catch(RuntimeException ex) {
+                org.slf4j.LoggerFactory.getLogger(RagService.class).warn("milvus_search_failed type={}",ex.getClass().getSimpleName());
+                candidates=new ArrayList<>(store.chunks(owner,session));
+            }
+        } else candidates=new ArrayList<>(store.chunks(owner,session));
+        if(!indexed && !vectorSearch) {
             candidates.removeIf(c->c.documentId().startsWith("K"));
             for(Knowledge k:knowledge.listAll()) {
                 int ordinal=0;
@@ -105,17 +138,33 @@ public class RagService {
                     candidates.add(new RagStore.Chunk("K"+k.getId()+"-"+ordinal,"K"+k.getId(),k.getTitle(),++ordinal,text,"[]","lexical"));
             }
         }
-        List<HybridRetriever.Hit> hits=retriever.retrieve(retrievalQuery,queryVector,candidates,model.embeddingVersion(),6);
+        List<HybridRetriever.Hit> hits=retriever.retrieve(query,queryVector,candidates,model.embeddingVersion(),6);
         Set<String> citedDocuments=new LinkedHashSet<>();
-        for (HybridRetriever.Hit hit:hits)
-            if (hit.chunk().documentId().startsWith("K")) citedDocuments.add(hit.chunk().documentId());
+        for(HybridRetriever.Hit hit:hits)
+            if(hit.chunk().documentId().startsWith("K")) citedDocuments.add(hit.chunk().documentId());
         Map<String,String> sourceUrls=Map.of();
-        if (!citedDocuments.isEmpty()) try {
+        if(!citedDocuments.isEmpty()) try {
             Map<String,String> found=store.sourceUrls(citedDocuments);
-            if (found!=null) sourceUrls=found;
-        } catch (RuntimeException ex) {
+            if(found!=null) sourceUrls=found;
+        } catch(RuntimeException ex) {
             org.slf4j.LoggerFactory.getLogger(RagService.class).warn("rag_source_lookup_failed type={}",ex.getClass().getSimpleName());
         }
+        return new Retrieval(hits,queryVector,sourceUrls,vectorSearch?"milvus":queryVector.length>0?"hybrid":"lexical");
+    }
+
+    public Map<String,Object> ask(String question, String sessionId, boolean useMemory) {
+        boolean authenticated=BaseContext.getCurrentUsername()!=null && !BaseContext.getCurrentUsername().isBlank();
+        String owner=authenticated?owner():"GUEST",session=session(sessionId);
+        useMemory=useMemory && authenticated;
+        if (question==null || question.isBlank() || question.length()>2000) throw new IllegalArgumentException("问题需为 1～2000 字符");
+        List<RagStore.Turn> recent=useMemory?store.recent(owner,session):List.of();
+        String retrievalQuery=question;
+        // Resolve short follow-up questions using the most recent user turn.
+        if (!recent.isEmpty() && question.length()<30) retrievalQuery=recent.get(recent.size()-1).question()+"\n"+question;
+        Retrieval retrieval=retrieve(retrievalQuery,owner,session);
+        double[] queryVector=retrieval.vector();
+        List<HybridRetriever.Hit> hits=retrieval.hits();
+        Map<String,String> sourceUrls=retrieval.sourceUrls();
         StringBuilder context=new StringBuilder("<检索资料>\n");
         List<Map<String,Object>> citations=new ArrayList<>();
         for (int i=0;i<hits.size();i++) {
@@ -156,7 +205,7 @@ public class RagService {
             }
         }
         return Map.of("source",generated?"ai_knowledge":"fallback","answer",answer,"citations",citations,
-                "retrievalMode",queryVector.length>0?"hybrid":"lexical","memoryEnabled",useMemory,"memorySaved",saved);
+                "retrievalMode",retrieval.mode(),"memoryEnabled",useMemory,"memorySaved",saved);
     }
     public List<Map<String,Object>> documents(String id) { return store.documents(owner(),session(id)); }
     public boolean delete(String id,String documentId) { return store.deleteDocument(owner(),session(id),documentId); }
