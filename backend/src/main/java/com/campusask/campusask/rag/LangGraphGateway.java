@@ -20,6 +20,9 @@ public class LangGraphGateway {
     public LangGraphGateway(RagService rag,RagStore store) { this.rag=rag;this.store=store; }
 
     public Map<String,Object> ask(String question,String sessionId) {
+        return ask(question,sessionId,false);
+    }
+    public Map<String,Object> ask(String question,String sessionId,boolean useMemory) {
         if(question==null || question.isBlank() || question.length()>2000)
             throw new IllegalArgumentException("问题需为 1～2000 字符");
         String session=rag.session(sessionId);
@@ -35,7 +38,9 @@ public class LangGraphGateway {
                     || !("https".equalsIgnoreCase(uri.getScheme())
                     || ("http".equalsIgnoreCase(uri.getScheme()) && isLoopback(uri.getHost()))))
                 throw new IllegalArgumentException("Agent 服务地址必须为 HTTPS 或本机 HTTP");
-            byte[] body=json.writeValueAsBytes(Map.of("question",question,"sessionId",session,"owner",owner));
+            boolean memoryEnabled=useMemory && owner.startsWith("USER:");
+            byte[] body=json.writeValueAsBytes(Map.of("question",question,"sessionId",session,"owner",owner,
+                    "memoryEnabled",memoryEnabled));
             JsonHttp.Response response=JsonHttp.post(uri,body,Map.of("X-Agent-Key",sharedKey),100_000);
             if(response.status()!=200) throw new IllegalStateException("Agent 服务不可用");
             JsonNode data=json.readTree(response.body());
@@ -64,8 +69,13 @@ public class LangGraphGateway {
             if(owner.startsWith("USER:")) try { store.agentRemember(owner,session,question,answer); }
             catch(RuntimeException ex) { org.slf4j.LoggerFactory.getLogger(LangGraphGateway.class)
                     .warn("agent_history_save_failed type={}",ex.getClass().getSimpleName()); }
+            boolean memorySaved=false;
+            if(memoryEnabled) try { store.agentRememberLongTerm(owner,session,question); memorySaved=true; }
+            catch(RuntimeException ex) { org.slf4j.LoggerFactory.getLogger(LangGraphGateway.class)
+                    .warn("agent_memory_save_failed type={}",ex.getClass().getSimpleName()); }
             return audited(Map.of("source","agent","answer",answer,"citations",citations,"agentSteps",steps,
-                    "retrievalMode",data.path("retrievalMode").asText("lexical"),"memoryEnabled",false,"memorySaved",false),
+                    "retrievalMode",data.path("retrievalMode").asText("lexical"),
+                    "memoryEnabled",memoryEnabled,"memorySaved",memorySaved),
                     runId,owner,session,started,data.path("modelTurns").asInt(0),data.path("toolCalls").asInt(0));
         } catch(Exception ex) {
             org.slf4j.LoggerFactory.getLogger(LangGraphGateway.class).warn("langgraph_unavailable type={}",ex.getClass().getSimpleName());

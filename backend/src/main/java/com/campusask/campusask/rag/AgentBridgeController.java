@@ -18,6 +18,7 @@ public class AgentBridgeController {
     public record SearchRequest(String owner,String sessionId,String query) {}
     public record DocumentsRequest(String owner,String sessionId) {}
     public record SourceRequest(String owner,String sessionId,String documentId) {}
+    public record VerifyRequest(String answer,List<Map<String,String>> citations) {}
     private final RagService rag;
     private final RagStore store;
     private final RagModelClient model;
@@ -63,5 +64,19 @@ public class AgentBridgeController {
                 || request.owner().matches("USER:[^\\p{Cntrl}]{1,120}")))
             throw new IllegalArgumentException("检索身份无效");
         return store.agentRecent(request.owner(),rag.session(request.sessionId()));
+    }
+    @PostMapping("/memory")
+    public List<String> memory(@RequestHeader(value="X-Agent-Key",required=false) String key,
+                               @RequestBody DocumentsRequest request) {
+        authorize(key);
+        if(request.owner()==null || !request.owner().matches("USER:[^\\p{Cntrl}]{1,120}"))
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"请先登录");
+        return store.agentMemories(request.owner(),rag.session(request.sessionId()));
+    }
+    @PostMapping("/verify")
+    public Map<String,Object> verify(@RequestHeader(value="X-Agent-Key",required=false) String key,
+                                     @RequestBody VerifyRequest request) {
+        authorize(key);
+        return model.verifyAgentAnswer(request.answer(),request.citations());
     }
 }

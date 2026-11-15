@@ -141,9 +141,9 @@
         <div class="composer">
           <div class="rag-toolbar">
             <label><input type="checkbox" v-model="agentEnabled" :disabled="loading || !!qaImageUrl" /> 多步查证</label>
-            <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading || agentEnabled" /> 使用长时记忆</label>
+            <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading" /> 使用长时记忆</label>
             <button :disabled="loading || documentLoading" @click="forgetMemory">删除我的历史记忆</button>
-            <span>{{ agentEnabled ? '可追踪检索步骤；登录后会记住本话题的追问，不使用跨话题记忆。' : '登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。' }}</span>
+            <span>登录后可跨话题召回过往提问，保存 90 天；关闭后本轮不读取或保存长时记忆。</span>
           </div>
           <div v-for="doc in documents" :key="doc.id" class="rag-document">
             <span>资料 · {{ doc.title }}</span>
@@ -428,7 +428,7 @@ export default {
       let memorySaved = true
       let agentSteps = []
       const useAgent = this.agentEnabled && !this.qaImageUrl
-      const requestedMemory = !useAgent && this.memoryEnabled
+      const requestedMemory = this.memoryEnabled
       try {
         const token = localStorage.getItem('token')
         const headers = { 'Content-Type': 'application/json' }

@@ -32,6 +32,18 @@ class RagStoreTest {
         assertEquals("我住五山",restarted.recent("USER:alice","s1").get(0).question());
         assertTrue(restarted.summary("USER:alice","s1").contains("五山"));
     }
+    @Test void agentLongTermMemoryIsIsolatedAndDeletable() {
+        store.agentRememberLongTerm("USER:alice","s1","五山校区图书馆开放时间");
+        store.agentRememberLongTerm("USER:bob","s1","我的私人问题");
+        assertEquals(List.of("五山校区图书馆开放时间"),store.agentMemories("USER:alice","s2"));
+        assertTrue(store.agentMemories("USER:alice","s1").isEmpty());
+        assertTrue(store.agentMemories("GUEST","s2").isEmpty());
+        store.clearSession("USER:alice","s1");
+        assertTrue(store.agentMemories("USER:alice","s2").isEmpty());
+        assertEquals(List.of("我的私人问题"),store.agentMemories("USER:bob","s2"));
+        store.forget("USER:bob");
+        assertTrue(store.agentMemories("USER:bob","s2").isEmpty());
+    }
     @Test void publicFingerprintSnapshotPrunesOnlyRemovedKnowledge() {
         document("K1","PUBLIC",""); document("K2","PUBLIC","");
         document("D1","USER:alice","s1");

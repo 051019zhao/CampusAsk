@@ -15,6 +15,8 @@ class FakeBridge:
         self.calls.append((path, body))
         if path == "history":
             return []
+        if path == "verify":
+            return {"unsupported": []}
         if path == "model" and len([x for x in self.calls if x[0] == "model"]) == 1:
             return {"role": "assistant", "content": None, "tool_calls": [{
                 "id": "call-1", "type": "function", "function": {
@@ -45,7 +47,8 @@ class AgentTest(unittest.TestCase):
                               {"role": "user", "content": "图书馆几点开？宿舍几点关门？"}],
                  "owner": "GUEST", "session_id": "session", "turns": 0,
                  "tool_count": 0, "search_count": 0, "citations": [],
-                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
+                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False,
+                 "memory_enabled": False, "verification_attempts": 0}
         result = build_graph(bridge).invoke(state)
         self.assertEqual(2, result["search_count"])
         self.assertEqual(1, len(result["citations"]))
@@ -58,13 +61,13 @@ class AgentTest(unittest.TestCase):
                  "owner": "USER:alice", "session_id": "session", "turns": 0,
                  "tool_count": 0, "search_count": 0, "citations": [],
                  "steps": [], "answer": "", "mode": "lexical",
-                 "history": [], "verified": False}
+                 "history": [], "verified": False, "memory_enabled": False, "verification_attempts": 0}
         result = build_graph(bridge).invoke(state)
         self.assertEqual("请查看公告 [S1]。", result["answer"])
         self.assertTrue(result["verified"])
         self.assertEqual("milvus", result["mode"])
         self.assertEqual("https://example.edu/notice", result["citations"][0]["url"])
-        self.assertEqual(["history", "model", "search", "model"], [x[0] for x in bridge.calls])
+        self.assertEqual(["history", "model", "search", "model", "verify"], [x[0] for x in bridge.calls])
         self.assertIn("选择查证工具", result["steps"])
 
     def test_short_followup_uses_session_history_and_repairs_bad_citation(self):
@@ -86,7 +89,7 @@ class AgentTest(unittest.TestCase):
                  "owner": "USER:alice", "session_id": "session", "turns": 0,
                  "tool_count": 0, "search_count": 0, "citations": [],
                  "steps": [], "answer": "", "mode": "lexical",
-                 "history": [], "verified": False}
+                 "history": [], "verified": False, "memory_enabled": False, "verification_attempts": 0}
         result = build_graph(bridge).invoke(state)
         self.assertTrue(result["verified"])
         self.assertEqual("开放时间见公告 [S1]。", result["answer"])
@@ -161,7 +164,7 @@ class AgentTest(unittest.TestCase):
                  "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
         result = build_graph(bridge).invoke(state)
         self.assertTrue(result["verified"])
-        self.assertEqual(["history", "model", "search", "model", "source", "model"],
+        self.assertEqual(["history", "model", "search", "model", "source", "model", "verify"],
                          [entry[0] for entry in bridge.calls])
         self.assertIn("图书馆具体开放安排", result["citations"][0]["excerpt"])
         self.assertIn("阅读来源详情", result["steps"])
@@ -192,6 +195,57 @@ class AgentTest(unittest.TestCase):
         self.assertNotIn("source", [entry[0] for entry in bridge.calls])
         self.assertIn('"error": "ValueError"',
                       result["messages"][-2]["content"] if result["messages"][-2]["role"] == "tool" else "")
+
+    def test_long_term_memory_is_opt_in_and_never_used_as_evidence(self):
+        class MemoryBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "memory":
+                    self.calls.append((path, body))
+                    return ["图书馆开放时间是全天，且我常在五山校区学习"]
+                return super().post(path, body)
+
+        bridge = MemoryBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "五山校区图书馆开放时间"}],
+                 "owner": "USER:alice", "session_id": "new-session", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [], "steps": [],
+                 "answer": "", "mode": "lexical", "history": [], "verified": False,
+                 "memory_enabled": True, "verification_attempts": 0}
+        result = build_graph(bridge).invoke(state)
+        self.assertTrue(result["verified"])
+        self.assertIn("memory", [path for path, _ in bridge.calls])
+        self.assertIn("召回相关过往提问", result["steps"])
+        self.assertEqual(["S1"], [source["id"] for source in result["citations"]])
+        bridge2 = MemoryBridge()
+        build_graph(bridge2).invoke({**state, "memory_enabled": False})
+        self.assertNotIn("memory", [path for path, _ in bridge2.calls])
+
+    def test_unsupported_fact_is_rewritten_before_return(self):
+        class ReviewBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "model":
+                    self.calls.append((path, body))
+                    turn = sum(name == "model" for name, _ in self.calls)
+                    return {"role": "assistant", "content":
+                            "图书馆全天开放 [S1]。" if turn == 2 else "开放时间请查看公告 [S1]。"}
+                if path == "verify":
+                    self.calls.append((path, body))
+                    if "全天" in body["answer"]:
+                        return {"unsupported": [{"sentence": "图书馆全天开放 [S1]。", "reason": "来源未写全天"}]}
+                    return {"unsupported": []}
+                return super().post(path, body)
+
+        bridge = ReviewBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "图书馆几点开"}],
+                 "owner": "GUEST", "session_id": "s", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [], "steps": [],
+                 "answer": "", "mode": "lexical", "history": [], "verified": False,
+                 "memory_enabled": False, "verification_attempts": 0}
+        result = build_graph(bridge).invoke(state)
+        self.assertTrue(result["verified"])
+        self.assertNotIn("全天", result["answer"])
+        self.assertIn("修正未获证实的表述", result["steps"])
 
 
 if __name__ == "__main__":
