@@ -83,6 +83,10 @@ public class RagService {
         }
         store.pruneKnowledge(known.keySet(),ids); syncedAt=System.currentTimeMillis();
     }
+    /** Refresh in the background so routine questions do not scan the knowledge table. */
+    public void refreshKnowledgeIndex() {
+        if(model.embeddingsEnabled()) syncKnowledge();
+    }
     private String bounded(String text,int size) { return text.length()<=size?text:text.substring(0,size); }
     public record SearchResult(List<Map<String,Object>> citations,String retrievalMode) {}
     private record Retrieval(List<HybridRetriever.Hit> hits,double[] vector,Map<String,String> sourceUrls,String mode) {}
@@ -115,15 +119,22 @@ public class RagService {
 
     private Retrieval retrieve(String query,String owner,String session) {
         boolean indexed=false;
-        if(model.embeddingsEnabled()) try {syncKnowledge();indexed=true;}
+        if(model.embeddingsEnabled()) try {if(syncedAt==0) syncKnowledge();indexed=true;}
         catch(RuntimeException ex) {org.slf4j.LoggerFactory.getLogger(RagService.class).warn("rag_index_refresh_failed type={}",ex.getClass().getSimpleName());}
         double[] queryVector=new double[0];
         if(model.embeddingsEnabled()) try {queryVector=model.embed(query);} catch(IllegalStateException ignored) { /* Continue with lexical retrieval. */ }
         List<RagStore.Chunk> candidates;
         boolean vectorSearch=false;
-        if(milvus!=null && milvus.enabled() && queryVector.length>0 && !store.hasPendingVectorJobs()) {
+        if(milvus!=null && milvus.enabled() && queryVector.length>0) {
             try {
-                candidates=store.chunksByIds(owner,session,milvus.search(queryVector,owner,session,model.embeddingVersion(),40));
+                List<RagStore.Chunk> pending=store.pendingChunks(owner,session,101);
+                if(pending.size()>100) throw new IllegalStateException("向量待同步切片超过增量检索上限");
+                Map<String,RagStore.Chunk> merged=new LinkedHashMap<>();
+                for(RagStore.Chunk chunk:store.chunksByIds(owner,session,
+                        milvus.search(queryVector,owner,session,model.embeddingVersion(),40)))
+                    merged.put(chunk.id(),chunk);
+                for(RagStore.Chunk chunk:pending) merged.put(chunk.id(),chunk);
+                candidates=new ArrayList<>(merged.values());
                 vectorSearch=true;
             } catch(RuntimeException ex) {
                 org.slf4j.LoggerFactory.getLogger(RagService.class).warn("milvus_search_failed type={}",ex.getClass().getSimpleName());

@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS rag_summary (
   owner VARCHAR(128) NOT NULL, session_id VARCHAR(100) NOT NULL,
   content TEXT NOT NULL, PRIMARY KEY(owner,session_id));
 
+CREATE TABLE IF NOT EXISTS rag_agent_turn (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY, owner VARCHAR(128) NOT NULL,
+  session_id VARCHAR(100) NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX rag_agent_session(owner,session_id,id), INDEX rag_agent_expiry(created_at));
+
 CREATE TABLE IF NOT EXISTS rag_vector_job (
   chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,
   version BIGINT NOT NULL DEFAULT 1, queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

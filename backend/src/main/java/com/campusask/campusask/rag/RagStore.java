@@ -46,6 +46,13 @@ public class RagStore {
               content TEXT NOT NULL, PRIMARY KEY(owner,session_id))
             """);
         db.execute("""
+            CREATE TABLE IF NOT EXISTS rag_agent_turn (
+              id BIGINT AUTO_INCREMENT PRIMARY KEY, owner VARCHAR(128) NOT NULL,
+              session_id VARCHAR(100) NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX rag_agent_session(owner,session_id,id), INDEX rag_agent_expiry(created_at))
+            """);
+        db.execute("""
             CREATE TABLE IF NOT EXISTS rag_vector_job (
               chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,
               version BIGINT NOT NULL DEFAULT 1, queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -106,17 +113,33 @@ public class RagStore {
                 (r,n)->new VectorScope(r.getString(1),r.getString(2)),documentId);
         return found.isEmpty()?null:found.get(0);
     }
-    /** Idempotent, one-time migration of existing MySQL chunks into the durable job queue. */
-    public void bootstrapVectorJobs() {
+    /** Queue a rebuild whenever the target collection or embedding model changes. */
+    public void bootstrapVectorJobs(String indexKey) {
         tx.executeWithoutResult(status -> {
-            if (!db.queryForList("SELECT name FROM rag_vector_state WHERE name='bootstrapped'").isEmpty()) return;
+            List<String> state=db.queryForList("SELECT state_value FROM rag_vector_state WHERE name='bootstrapped'",String.class);
+            if (state.contains(indexKey)) return;
             db.update("""
                 INSERT INTO rag_vector_job(chunk_id,operation)
                 SELECT c.id,'UPSERT' FROM rag_chunk c
-                WHERE NOT EXISTS (SELECT 1 FROM rag_vector_job j WHERE j.chunk_id=c.id)
+                ON DUPLICATE KEY UPDATE operation='UPSERT',version=version+1,queued_at=CURRENT_TIMESTAMP
                 """);
-            db.update("INSERT INTO rag_vector_state(name,state_value) VALUES('bootstrapped','1')");
+            db.update("""
+                INSERT INTO rag_vector_state(name,state_value) VALUES('bootstrapped',?)
+                ON DUPLICATE KEY UPDATE state_value=VALUES(state_value)
+                """,indexKey);
         });
+    }
+    /** New or changed chunks are included while the asynchronous vector index catches up. */
+    public List<Chunk> pendingChunks(String owner,String session,int limit) {
+        return db.query("""
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_vector_job j JOIN rag_chunk c ON c.id=j.chunk_id
+            JOIN rag_document d ON d.id=c.document_id
+            WHERE j.operation='UPSERT' AND
+              (d.owner='PUBLIC' OR (d.owner=? AND d.session_id=? AND d.created_at>=?))
+            ORDER BY j.queued_at,j.chunk_id LIMIT ?
+            """,(r,n)->new Chunk(r.getString(1),r.getString(2),r.getString(7),r.getInt(3),
+                    r.getString(4),r.getString(5),r.getString(6)),owner,session,retentionCutoff(),limit);
     }
     public List<Chunk> chunksByIds(String owner,String session,Collection<String> ids) {
         if(ids.isEmpty()) return List.of();
@@ -194,6 +217,27 @@ public class RagStore {
                 (r,n) -> new Turn(r.getString(1),r.getString(2)),owner,session,retentionCutoff());
         Collections.reverse(turns); return turns;
     }
+    public List<Turn> agentRecent(String owner,String session) {
+        if(!owner.startsWith("USER:")) return List.of();
+        List<Turn> turns=db.query("""
+            SELECT question,answer FROM rag_agent_turn
+            WHERE owner=? AND session_id=? AND created_at>=? ORDER BY id DESC LIMIT 4
+            """,(r,n)->new Turn(r.getString(1),r.getString(2)),owner,session,retentionCutoff());
+        Collections.reverse(turns); return turns;
+    }
+    public void agentRemember(String owner,String session,String question,String answer) {
+        if(!owner.startsWith("USER:")) return;
+        tx.executeWithoutResult(status -> {
+            db.update("INSERT INTO rag_agent_turn(owner,session_id,question,answer) VALUES(?,?,?,?)",
+                    owner,session,question,answer);
+            List<Long> cutoff=db.queryForList("""
+                SELECT id FROM rag_agent_turn WHERE owner=? AND session_id=?
+                ORDER BY id DESC LIMIT 1 OFFSET 19
+                """,Long.class,owner,session);
+            if(!cutoff.isEmpty()) db.update("DELETE FROM rag_agent_turn WHERE owner=? AND session_id=? AND id<?",
+                    owner,session,cutoff.get(0));
+        });
+    }
     public List<Chunk> memories(String owner) {
         return db.query("SELECT * FROM rag_turn WHERE owner=? AND created_at>=? ORDER BY id DESC LIMIT 200",(r,n) -> new Chunk("M"+r.getLong("id"),r.getString("session_id"),"历史对话",0,r.getString("question")+"\n"+r.getString("answer"),r.getString("embedding"),r.getString("model")),owner,retentionCutoff());
     }
@@ -222,6 +266,7 @@ public class RagStore {
         tx.executeWithoutResult(status -> {
             db.update("DELETE FROM rag_turn WHERE owner=?",owner);
             db.update("DELETE FROM rag_summary WHERE owner=?",owner);
+            db.update("DELETE FROM rag_agent_turn WHERE owner=?",owner);
         });
     }
     public void clearSession(String owner, String session) {
@@ -229,12 +274,14 @@ public class RagStore {
             for(String id:db.queryForList("SELECT id FROM rag_document WHERE owner=? AND session_id=?",String.class,owner,session))
                 queueDocumentDeletion(id);
             db.update("DELETE FROM rag_turn WHERE owner=? AND session_id=?",owner,session);
+            db.update("DELETE FROM rag_agent_turn WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_summary WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_document WHERE owner=? AND session_id=?",owner,session);
         });
     }
     public void expire() {
         java.sql.Timestamp cutoff = java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(90)));
+        db.update("DELETE FROM rag_agent_turn WHERE created_at < ?",cutoff);
         // Only sessions with expired turns need their extractive summaries rebuilt.
         List<Map<String,Object>> affected=db.queryForList(
                 "SELECT DISTINCT owner,session_id FROM rag_turn WHERE created_at < ?",cutoff);

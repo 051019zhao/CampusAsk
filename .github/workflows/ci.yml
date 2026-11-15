@@ -22,7 +22,7 @@ jobs:
           cache-dependency-path: backend/pom.xml
       - name: Run full suite with isolated test database
         working-directory: backend
-        run: bash mvnw --batch-mode --no-transfer-progress verify
+        run: mvn --batch-mode --no-transfer-progress verify
       - uses: actions/upload-artifact@v4
         if: always()
         with:

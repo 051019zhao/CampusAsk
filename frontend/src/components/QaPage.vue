@@ -3,10 +3,10 @@
     <div class="qa-shell">
       <aside class="side-panel">
         <div class="brand">
-          <img src="/favicon.png" class="brand-badge" />
+          <span class="brand-badge" aria-hidden="true">问</span>
           <div>
             <div class="brand-title">CampusAsk</div>
-            <div class="brand-sub">校园智能问答</div>
+            <div class="brand-sub">校园生活指南</div>
           </div>
         </div>
         <nav class="side-nav">
@@ -14,7 +14,8 @@
             v-for="item in visibleNavItems"
             :key="item.label"
             class="nav-item"
-            :class="{ 'nav-item-admin': item.admin }"
+            :class="{ 'nav-item-admin': item.admin, 'is-current': $route.path === item.route }"
+            :aria-current="$route.path === item.route ? 'page' : undefined"
             @click="onNavClick(item)"
           >
             <span class="nav-icon">{{ item.icon }}</span>
@@ -24,9 +25,9 @@
         <div class="side-group">
           <div class="side-title">最近搜索</div>
           <div class="side-list">
-            <div v-for="item in recentList" :key="item" class="side-chip" @click="applyHot(item)">
+            <button v-for="item in recentList" :key="item" type="button" class="side-chip" @click="applyHot(item)">
               {{ item }}
-            </div>
+            </button>
           </div>
         </div>
         <button class="contribute-btn" @click="goContribute">我要投稿</button>
@@ -34,18 +35,20 @@
 
       <main class="content-panel">
         <div v-if="chatMessages.length === 0" class="card hero-card">
-          <div class="hero-title">今天想问什么？</div>
-          <div class="hero-desc">输入问题，系统会匹配校园知识与 AI 建议</div>
+          <div class="hero-kicker">CAMPUSASK <span>·</span> 校园问答</div>
+          <div class="hero-title">在校园，<br>找到答案<span class="hero-stop">。</span></div>
+          <div class="hero-desc">课程、办事、校园生活。用一个问题，找到有出处的回答。</div>
+          <div class="hero-rule"><span>从这里开始提问</span><span>↘</span></div>
         </div>
 
         <!-- V3: 首页快捷提问卡片 -->
         <div v-if="chatMessages.length === 0" class="quick-cards">
-          <button v-for="q in quickQuestions" :key="q" class="quick-card" @click="applyHot(q)">{{ q }}</button>
+          <button v-for="(q, index) in quickQuestions" :key="q" class="quick-card" @click="applyHot(q)"><span class="quick-number">{{ String(index + 1).padStart(2, '0') }}</span><span>{{ q }}</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
         </div>
 
         <div class="chat-panel">
           <div class="chat-header">
-            <div class="chat-title">对话</div>
+            <div class="chat-title">问答记录 <span class="chat-title-en">CONVERSATION</span></div>
             <button v-if="chatMessages.length > 0" :disabled="loading || documentLoading" class="new-topic-btn" @click="newTopic" title="开启新话题">＋ 新话题</button>
           </div>
           <div class="chat-list">
@@ -66,7 +69,7 @@
               <div v-if="message.role === 'bot'" class="chat-text" v-html="renderMd(message.text)"></div>
               <div v-else class="chat-text">{{ message.text }}</div>
               <div v-if="linkedSources(message.citations).length" class="source-links">
-                <span class="source-links-title">📎 原文来源</span>
+                <span class="source-links-title">原文出处</span>
                 <a
                   v-for="source in linkedSources(message.citations)"
                   :key="source.url"
@@ -83,10 +86,10 @@
                   <pre>{{ citation.excerpt }}</pre>
                 </div>
               </details>
-              <small v-if="message.agentSteps && message.agentSteps.length">工具步骤：{{ message.agentSteps.join(' → ') }}</small>
+              <small v-if="message.agentSteps && message.agentSteps.length" class="agent-steps">查证过程 · {{ message.agentSteps.join(' → ') }}</small>
               <small v-if="message.role === 'bot' && message.memorySaved === false && message.requestedMemory">本轮未保存到长时记忆。</small>
               <div v-if="message.role === 'bot'" class="msg-actions">
-                <button class="copy-btn" @click="copyText(message.text)" title="复制回答">📋</button>
+                <button class="copy-btn" @click="copyText(message.text)" title="复制回答">复制</button>
               </div>
               <div v-if="message.role === 'bot'" class="feedback-row">
                 <button
@@ -104,7 +107,7 @@
                 <span v-if="message.rated" class="fb-done">已反馈</span>
               </div>
               <div v-if="message.urls && message.urls.length" class="source-links">
-                <span class="source-links-title">📎 参考来源</span>
+                <span class="source-links-title">参考来源</span>
                 <a
                   v-for="(u, i) in message.urls.slice(0,3)"
                   :key="i"
@@ -115,7 +118,7 @@
               </div>
               <!-- V3: 相关问题推荐（在最后一条 bot 消息内展示） -->
               <div v-if="message.role === 'bot' && suggestedQuestions.length > 0 && message.id === lastBotId" class="suggestions-box">
-                <div class="suggestions-label">💡 你可能还想问：</div>
+                <div class="suggestions-label">继续了解</div>
                 <div class="suggestions-list">
                   <button
                     v-for="(sq, i) in suggestedQuestions"
@@ -127,39 +130,39 @@
               </div>
             </div>
             <div v-if="loading" class="chat-bubble bot loading-bubble">
-              正在查询...
+              正在查找资料…
             </div>
             <div v-if="!loading && chatMessages.length === 0" class="chat-empty">
-              输入问题开始对话
+              你的问题会出现在这里
             </div>
           </div>
         </div>
 
         <div class="composer">
           <div class="rag-toolbar">
-            <label><input type="checkbox" v-model="agentEnabled" :disabled="loading || !!qaImageUrl" /> Agent 模式</label>
+            <label><input type="checkbox" v-model="agentEnabled" :disabled="loading || !!qaImageUrl" /> 多步查证</label>
             <label><input type="checkbox" v-model="memoryEnabled" :disabled="loading || agentEnabled" /> 使用长时记忆</label>
             <button :disabled="loading || documentLoading" @click="forgetMemory">删除我的历史记忆</button>
-            <span>{{ agentEnabled ? 'Agent 模式会调用只读工具检索资料；本轮不使用长时记忆。' : '登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。' }}</span>
+            <span>{{ agentEnabled ? '可追踪检索步骤；登录后会记住本话题的追问，不使用跨话题记忆。' : '登录后可跨话题召回，保存 90 天；关闭后本轮不读取或保存记忆。' }}</span>
           </div>
           <div v-for="doc in documents" :key="doc.id" class="rag-document">
-            <span>📄 {{ doc.title }}</span>
+            <span>资料 · {{ doc.title }}</span>
             <button :disabled="loading || documentLoading" @click="removeDocument(doc.id)">移除</button>
           </div>
           <div v-if="documentStatus" role="status" class="rag-status">{{ documentStatus }}</div>
-          <textarea v-model="keyword" placeholder="输入你的问题……" rows="2" @keyup.enter.exact.prevent="search"></textarea>
+          <textarea v-model="keyword" aria-label="输入校园问题" placeholder="写下你想了解的校园问题…" rows="2" @keyup.enter.exact.prevent="search"></textarea>
           <!-- V4: 图片预览 -->
           <img v-if="qaImageUrl" :src="qaImageUrl" class="qa-preview-img" @click="qaImageUrl=''" title="点击移除" />
           <div class="composer-actions">
             <div class="composer-left">
               <input type="file" accept="image/*" ref="qaImageInput" hidden @change="handleQaImage" />
-              <button class="img-btn" :disabled="agentEnabled" @click="$refs.qaImageInput.click()" title="上传图片">📷</button>
+              <button class="img-btn" :disabled="agentEnabled" @click="$refs.qaImageInput.click()" title="上传图片">图片</button>
               <input ref="documentInput" type="file" accept=".csv,.docx,.txt,.md" hidden @change="uploadDocument" />
               <button :disabled="loading || documentLoading" class="img-btn" @click="$refs.documentInput.click()">{{ documentLoading ? '正在导入…' : '导入资料' }}</button>
               <span v-if="qaUploading" class="uploading-hint">上传中...</span>
             </div>
             <div class="composer-hint">按 Enter 发送，Shift + Enter 换行</div>
-            <button class="send-btn" :disabled="loading || documentLoading" @click="search">发送</button>
+            <button class="send-btn" :disabled="loading || documentLoading || !keyword.trim()" @click="search">发送 <span aria-hidden="true">↗</span></button>
           </div>
         </div>
       </main>
@@ -175,14 +178,14 @@
               </div>
               <div class="user-meta">
                 <span class="user-name">{{ userInfo.nickname || userInfo.username || '用户' }}</span>
-                <span class="user-role-tag">{{ isAdmin ? '👑 管理员' : '🎓 学生' }}</span>
+                <span class="user-role-tag">{{ isAdmin ? '管理员' : '校园用户' }}</span>
               </div>
             </div>
             <button class="logout-btn" type="button" @click="logout">退出登录</button>
           </div>
           <!-- V4: 通知铃铛 -->
           <div v-if="isLoggedIn" class="notif-bell" @click="showNotifs=!showNotifs" title="通知">
-            🔔<span v-if="unreadCount>0" class="notif-badge">{{ unreadCount }}</span>
+            通知<span v-if="unreadCount>0" class="notif-badge">{{ unreadCount }}</span>
           </div>
           <button v-else class="login-btn" @click="$router.push('/login')">登录</button>
         </div>
@@ -194,7 +197,7 @@
         </div>
 
         <div class="hot-title">
-          🔥 常见问题排行榜
+          大家在问 <span class="hot-title-en">TRENDING</span>
           <div class="hot-tabs">
             <button :class="{active: selectedRange==='today'}" @click="changeRange('today')">今日</button>
             <button :class="{active: selectedRange==='7d'}" @click="changeRange('7d')">近7日</button>
@@ -276,9 +279,9 @@ export default {
       ],
       DEFAULT_QUICK_QUESTIONS: null,  // 保存默认值用于兜底
       navItems: [
-        { label: '茶话会',   icon: '💬', route: '/teatalk' },
-        { label: '校园问答', icon: '🏠', route: '/' },
-        { label: '个人中心', icon: '👤', route: '/user-center' },
+        { label: '茶话会',   icon: '01', route: '/teatalk' },
+        { label: '校园问答', icon: '02', route: '/' },
+        { label: '个人中心', icon: '03', route: '/user-center' },
       ],
       userInfo: {
         nickname: localStorage.getItem('nickname') || '',
@@ -303,7 +306,7 @@ export default {
       if (!this.isAdmin) return this.navItems
       return [
         ...this.navItems,
-        { label: '管理员统计', icon: '📊', route: '/admin/stats', admin: true }
+        { label: '管理员统计', icon: '04', route: '/admin/stats', admin: true }
       ]
     },
     avatarInitial() {
@@ -500,7 +503,7 @@ export default {
       }
       if (Array.isArray(this.results) && this.results.length > 0) {
         return this.results
-          .map((item) => `📌 ${item.title}\n${item.content}`)
+          .map((item) => `${item.title}\n${item.content}`)
           .join('\n\n')
       }
       if (this.noResult) return '暂无相关答案，请尝试其他关键词'
@@ -660,14 +663,14 @@ export default {
     },
     sourceLabel(source) {
       const map = {
-        knowledge:    '📚 数据库关键词检索',
-        ai_knowledge: '📚 RAG 资料问答',
-        ai_search:    '🌐 AI联网搜索(华南理工)',
-        ai_web:       '💡 AI自主回答',
-        fallback:     '⚠️ AI不可用·本地兜底',
-        rejected:     '🚫 超出服务范围',
-        ai:           '🤖 AI回答',
-        agent:        '🤖 Agent 工具问答',
+        knowledge:    '知识库',
+        ai_knowledge: '资料回答',
+        ai_search:    '联网检索',
+        ai_web:       '智能回答',
+        fallback:     '检索片段',
+        rejected:     '超出范围',
+        ai:           '智能回答',
+        agent:        '多步查证',
       }
       return map[source] || source
     },
@@ -721,10 +724,7 @@ export default {
       }
     },
     rankMedal(index) {
-      if (index === 0) return '🥇'
-      if (index === 1) return '🥈'
-      if (index === 2) return '🥉'
-      return index + 1
+      return String(index + 1).padStart(2, '0')
     },
     rankingBarWidth(item) {
       const max = this.questionRanking[0]?.value || 1
@@ -1628,4 +1628,260 @@ export default {
 .rag-sources { margin-top: 8px; font-size: 12px; border-top: 1px solid #d5dce3; padding-top: 8px; }
 .rag-sources pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; max-height: 220px; overflow-y: auto; }
 button:disabled { opacity: .55; cursor: wait; }
+
+/* CampusAsk editorial palette: paper, ink and a restrained campus green. */
+.qa-page {
+  --paper: #f7f5ef;
+  --surface: #fffefa;
+  --ink: #22322d;
+  --muted: #68766c;
+  --line: #d8ddd2;
+  --forest: #315b49;
+  --accent: #ba8140;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.qa-shell {
+  grid-template-columns: 236px minmax(0, 1fr) 260px;
+  gap: 0;
+  padding: 0;
+  background: var(--paper);
+  box-shadow: none;
+}
+.side-panel, .hot-panel {
+  top: 0;
+  height: 100vh;
+  border-radius: 0;
+  overflow-y: auto;
+}
+.side-panel {
+  background: #e9eee6;
+  color: var(--ink);
+  border-right: 1px solid var(--line);
+  padding: 29px 18px 22px;
+  gap: 34px;
+}
+.brand { gap: 11px; padding: 0 8px 24px; border-bottom: 1px solid #cdd8cc; }
+.brand-badge {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--forest);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--forest);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Songti SC", "SimSun", serif;
+  font-size: 23px;
+  flex-shrink: 0;
+}
+.brand-title { font-size: 18px; font-weight: 700; letter-spacing: -.035em; }
+.brand-sub { font-size: 10px; letter-spacing: .17em; color: var(--muted); opacity: 1; }
+.side-nav { gap: 3px; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: transparent;
+  border-radius: 3px;
+  padding: 12px 13px;
+  color: #4f6155;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, color .15s;
+}
+.nav-item:hover, .nav-item.is-current { background: var(--forest); color: #fffefa; }
+.nav-icon { width: 19px; margin: 0; font-size: 10px; letter-spacing: .08em; opacity: .72; }
+.side-title { color: var(--muted); opacity: 1; font-size: 11px; letter-spacing: .12em; }
+.side-list { gap: 0; }
+.side-chip {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d5ded3;
+  border-radius: 0;
+  padding: 10px 2px;
+  text-align: left;
+  color: #475b4d;
+  cursor: pointer;
+}
+.side-chip:hover { color: var(--forest); background: #e0e9de; }
+.contribute-btn {
+  background: transparent;
+  color: var(--forest);
+  border: 1px solid #aabfac;
+  border-radius: 3px;
+  text-align: left;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+.contribute-btn:hover { background: #dfe9dd; }
+.content-panel {
+  height: 100vh;
+  gap: 0;
+  padding: 0 30px 22px;
+  background: var(--surface);
+}
+.hero-card {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 28px 0 22px;
+  padding: 22px 25px 15px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--forest);
+  border-radius: 2px;
+  background: #f3f5ee;
+  box-shadow: none;
+  gap: 12px;
+}
+.card:hover { box-shadow: none; }
+.hero-kicker { font-size: 10px; letter-spacing: .22em; font-weight: 700; color: var(--forest); }
+.hero-kicker span { color: var(--accent); margin: 0 4px; }
+.hero-title {
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: clamp(28px, 3vw, 45px);
+  line-height: 1.23;
+  letter-spacing: -.055em;
+  font-weight: 700;
+  color: var(--ink);
+}
+.hero-stop { color: var(--accent); }
+.hero-desc { font-size: 12px; color: #617166; letter-spacing: .02em; }
+.hero-rule {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #d5ded1;
+  padding-top: 10px;
+  margin-top: 5px;
+  color: var(--forest);
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+.quick-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; margin-bottom: 16px; }
+.quick-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  padding: 11px 2px;
+  box-shadow: none;
+  font-size: 12px;
+}
+.quick-card:hover { background: #f2f5ef; border-color: var(--forest); box-shadow: none; transform: none; }
+.quick-number { color: var(--accent); font-size: 10px; letter-spacing: .1em; }
+.quick-arrow { margin-left: auto; color: var(--forest); font-size: 16px; }
+.chat-panel { background: transparent; padding: 4px 0 12px; gap: 0; }
+.chat-header { background: var(--surface); padding: 8px 0 12px; border-bottom: 1px solid var(--line); }
+.chat-title { color: var(--ink); font-size: 13px; letter-spacing: .04em; }
+.chat-title-en { margin-left: 8px; color: #9ba99c; font-size: 9px; letter-spacing: .16em; }
+.new-topic-btn { border-radius: 2px; border-color: var(--line); color: var(--forest); }
+.new-topic-btn:hover { background: #eef2e9; border-color: var(--forest); color: var(--forest); }
+.chat-list { gap: 17px; padding: 16px 4px 8px 0; }
+.chat-bubble { box-shadow: none; border-radius: 2px; line-height: 1.75; font-size: 13px; }
+.chat-bubble.user { background: var(--forest); border-radius: 2px; color: #fffefa; padding: 11px 16px; }
+.chat-bubble.bot { max-width: 92%; background: #f5f6f0; border-left: 2px solid var(--accent); color: var(--ink); padding: 14px 18px; }
+.chat-empty { font-size: 12px; color: #9aa89b; padding: 22px 3px; }
+.source-tag { background: transparent !important; color: var(--forest) !important; padding: 0; border-radius: 0; font-size: 10px; letter-spacing: .1em; font-weight: 700; }
+.source-links { border-color: var(--line); gap: 8px; }
+.source-links-title, .suggestions-label { color: var(--muted); font-size: 11px; }
+.source-link { color: var(--forest); background: #e9eee5; border-radius: 2px; padding: 5px 8px; }
+.source-link:hover { background: #dce8db; }
+.agent-steps { display: block; color: var(--muted); font-size: 11px; margin-top: 8px; }
+.rag-sources { border-color: var(--line); color: #4e6153; }
+.rag-sources summary { cursor: pointer; }
+.suggestions-box { background: #f3f5ee; border: 1px solid var(--line); border-radius: 2px; }
+.suggestion-chip { border-radius: 2px; color: var(--forest); border-color: var(--line); }
+.suggestion-chip:hover { background: #e7eee4; border-color: var(--forest); }
+.copy-btn, .fb-btn { opacity: 1; border-radius: 2px; border-color: var(--line); color: var(--forest); }
+.fb-btn.active { border-color: var(--forest); color: var(--forest); }
+.composer {
+  background: #f1f3ec;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 12px 15px;
+  box-shadow: none;
+  gap: 10px;
+}
+.rag-toolbar { color: var(--muted); gap: 7px 18px; }
+.rag-toolbar label { cursor: pointer; }
+.rag-toolbar input { accent-color: var(--forest); }
+.rag-toolbar span { color: #7c8b7e; font-size: 10px; }
+.rag-toolbar button, .rag-document button, .img-btn { border-color: var(--line); border-radius: 2px; color: var(--forest); background: var(--surface); }
+.rag-document { background: #e6ede3; border-radius: 2px; }
+.composer textarea { color: var(--ink); font-size: 13px; min-height: 45px; }
+.composer textarea::placeholder { color: #91a091; }
+.composer-hint { color: #8c998e; font-size: 10px; }
+.send-btn { background: var(--forest); border-radius: 2px; padding: 9px 17px; font-weight: 600; }
+.send-btn:hover { background: #234735; }
+.send-btn span { margin-left: 12px; }
+.hot-panel {
+  background: #eeeae0;
+  border-left: 1px solid #ddd7c8;
+  color: var(--ink);
+  padding: 28px 18px;
+  gap: 28px;
+}
+.user-block { background: transparent; border: 1px solid #d9d3c5; border-radius: 2px; padding: 12px; }
+.user-avatar { background: var(--forest); }
+.user-name { color: var(--ink); }
+.user-role-tag { color: var(--muted); }
+.logout-btn, .login-btn { background: transparent; color: var(--forest); border: 1px solid #c6cbbd; border-radius: 2px; }
+.logout-btn:hover, .login-btn:hover { background: #e1e8db; }
+.notif-bell { font-size: 11px; color: var(--forest); }
+.hot-title { color: var(--ink); font-family: "Songti SC", "SimSun", serif; font-size: 20px; gap: 15px; }
+.hot-title-en { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--accent); font-size: 9px; letter-spacing: .18em; }
+.hot-tabs { border-bottom: 1px solid #d4cfbf; gap: 14px; }
+.hot-tabs button, .hot-tabs button:hover:not(.active) { background: transparent; color: var(--muted); border-radius: 0; padding: 8px 0; }
+.hot-tabs button.active { background: transparent; color: var(--forest); border-bottom: 2px solid var(--forest); }
+.ranking-card, .hot-item { background: transparent; border: 0; border-bottom: 1px solid #dbd7cb; border-radius: 0; color: var(--ink); padding: 11px 2px; }
+.ranking-card:hover, .hot-item:hover { background: #e7e8db; }
+.hot-rank, .hot-rank.rank-1, .hot-rank.rank-2, .hot-rank.rank-3 { background: transparent; color: var(--accent); font-family: Georgia, serif; font-size: 12px; width: 19px; }
+.ranking-name { font-size: 12px; }
+.ranking-count, .hot-count { color: var(--muted); background: transparent; font-size: 10px; }
+.ranking-bar-track { height: 2px; border-radius: 0; background: #d8dccf; }
+.ranking-bar-fill { border-radius: 0; background: var(--forest); }
+.hot-state { background: transparent; color: var(--muted); }
+.qa-page button:focus-visible, .qa-page textarea:focus-visible, .qa-page a:focus-visible,
+.qa-page summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1180px) {
+  .qa-shell { grid-template-columns: 210px minmax(0, 1fr); }
+  .hot-panel { display: none; }
+}
+@media (max-width: 760px) {
+  .qa-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100dvh; }
+  .side-panel { position: static; height: auto; padding: 11px 14px; gap: 8px; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { padding: 0; border: 0; }
+  .brand-badge { width: 31px; height: 31px; font-size: 17px; }
+  .brand-title { font-size: 15px; }
+  .brand-sub { display: none; }
+  .side-nav { display: flex; gap: 3px; overflow-x: auto; }
+  .nav-item { white-space: nowrap; padding: 7px 8px; font-size: 11px; }
+  .nav-icon { display: none; }
+  .side-group, .contribute-btn { display: none; }
+  .content-panel { height: auto; min-height: 0; padding: 0 15px 13px; }
+  .hero-card { margin: 14px 0 10px; padding: 13px 15px; gap: 7px; }
+  .hero-title { font-size: 28px; }
+  .hero-rule { display: none; }
+  .quick-cards { gap: 0 10px; margin-bottom: 7px; }
+  .quick-card { padding: 8px 1px; gap: 7px; font-size: 11px; }
+  .chat-title-en, .composer-hint { display: none; }
+  .chat-bubble.bot { max-width: 96%; }
+  .composer { padding: 9px 10px; }
+  .rag-toolbar span { display: none; }
+}
+@media (max-width: 420px) {
+  .quick-cards { grid-template-columns: minmax(0, 1fr); }
+  .quick-card:nth-child(n+5) { display: none; }
+  .composer-left { gap: 3px; }
+  .composer-actions { gap: 5px; }
+  .send-btn { padding: 8px 11px; }
+}
 </style>

@@ -32,4 +32,18 @@ class AgentBridgeControllerTest {
         assertThrows(ResponseStatusException.class,()->bridge.model(null,
                 new AgentBridgeController.ModelRequest(List.of(),List.of())));
     }
+    @Test void historyIsScopedByOwnerAndSession() {
+        RagService rag=mock(RagService.class);
+        RagStore store=mock(RagStore.class);
+        AgentBridgeController bridge=new AgentBridgeController(rag,store,mock(RagModelClient.class));
+        String key="x".repeat(32);
+        ReflectionTestUtils.setField(bridge,"sharedKey",key);
+        when(rag.session("s1")).thenReturn("s1");
+        when(store.agentRecent("USER:alice","s1")).thenReturn(List.of(new RagStore.Turn("问题","回答")));
+        assertEquals("问题",bridge.history(key,new AgentBridgeController.DocumentsRequest("USER:alice","s1"))
+                .get(0).question());
+        verify(store).agentRecent("USER:alice","s1");
+        assertThrows(IllegalArgumentException.class,()->bridge.history(key,
+                new AgentBridgeController.DocumentsRequest("PUBLIC","s1")));
+    }
 }

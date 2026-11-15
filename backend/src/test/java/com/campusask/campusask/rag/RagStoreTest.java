@@ -62,7 +62,7 @@ class RagStoreTest {
     }
     @Test void vectorJobsReplayExistingChunksAndTrackDeletion() {
         document("D1","USER:alice","s1");
-        store.bootstrapVectorJobs();
+        store.bootstrapVectorJobs("collection-v1");
         assertEquals("UPSERT",store.vectorJobs(10).get(0).operation());
         RagStore.VectorJob upsert=store.vectorJobs(10).get(0);
         assertEquals("CD1",store.vectorChunk(upsert.chunkId()).id());
@@ -72,6 +72,20 @@ class RagStoreTest {
         assertTrue(store.deleteDocument("USER:alice","s1","D1"));
         assertEquals("DELETE",store.vectorJobs(10).get(0).operation());
         assertNull(store.vectorChunk("CD1"));
+    }
+    @Test void newVectorCollectionRequeuesLiveChunksAndPendingScopeIsChecked() {
+        document("K1","PUBLIC",""); document("D1","USER:alice","s1");
+        document("D2","USER:bob","s1"); document("D3","USER:alice","s2");
+        for(RagStore.VectorJob job:store.vectorJobs(10)) store.finishVectorJob(job);
+        store.bootstrapVectorJobs("collection-v1");
+        assertEquals(4,store.vectorJobs(10).size());
+        for(RagStore.VectorJob job:store.vectorJobs(10)) store.finishVectorJob(job);
+        store.bootstrapVectorJobs("collection-v1");
+        assertTrue(store.vectorJobs(10).isEmpty());
+        store.bootstrapVectorJobs("collection-v2");
+        assertEquals(4,store.vectorJobs(10).size());
+        assertEquals(Set.of("CK1","CD1"),new HashSet<>(store.pendingChunks("USER:alice","s1",10)
+                .stream().map(RagStore.Chunk::id).toList()));
     }
     @Test void vectorResultsAreRecheckedAgainstMysqlPermissions() {
         document("K1","PUBLIC",""); document("D1","USER:alice","s1");
@@ -86,6 +100,20 @@ class RagStoreTest {
         assertTrue(store.memories("USER:alice").isEmpty());
         assertEquals("",store.summary("USER:alice","s1"));
         assertEquals(1,store.memories("USER:bob").size());
+    }
+    @Test void agentHistoryIsSessionScopedAndDeletedWithMemory() {
+        store.agentRemember("USER:alice","s1","图书馆在哪里","在校区内 [S1]");
+        store.agentRemember("USER:alice","s1","周末呢","请看公告 [S1]");
+        store.agentRemember("USER:alice","s2","其他问题","其他答案 [S1]");
+        store.agentRemember("GUEST","s1","匿名问题","匿名答案");
+        assertEquals(List.of("图书馆在哪里","周末呢"),store.agentRecent("USER:alice","s1")
+                .stream().map(RagStore.Turn::question).toList());
+        assertTrue(store.agentRecent("GUEST","s1").isEmpty());
+        store.clearSession("USER:alice","s1");
+        assertTrue(store.agentRecent("USER:alice","s1").isEmpty());
+        assertEquals(1,store.agentRecent("USER:alice","s2").size());
+        store.forget("USER:alice");
+        assertTrue(store.agentRecent("USER:alice","s2").isEmpty());
     }
     @Test void recentWindowIsBoundedAndChronological() {
         for(int i=0;i<8;i++) store.remember("USER:alice","s1","q"+i,"a","[1,0]","v1");

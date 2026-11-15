@@ -48,4 +48,13 @@ public class AgentBridgeController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"请先登录");
         return store.documents(request.owner(),rag.session(request.sessionId()));
     }
+    @PostMapping("/history")
+    public List<RagStore.Turn> history(@RequestHeader(value="X-Agent-Key",required=false) String key,
+                                       @RequestBody DocumentsRequest request) {
+        authorize(key);
+        if(request.owner()==null || !(request.owner().equals("GUEST")
+                || request.owner().matches("USER:[^\\p{Cntrl}]{1,120}")))
+            throw new IllegalArgumentException("检索身份无效");
+        return store.agentRecent(request.owner(),rag.session(request.sessionId()));
+    }
 }

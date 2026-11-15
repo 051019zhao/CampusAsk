@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS crawl_candidate (
   status VARCHAR(20) NOT NULL, knowledge_id BIGINT NULL,
   fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   reviewed_at TIMESTAMP NULL, reviewed_by BIGINT NULL,
-  INDEX crawl_review(status,fetched_at));
+  INDEX crawl_review(status,fetched_at), INDEX crawl_knowledge_source(knowledge_id));
 
 CREATE TABLE IF NOT EXISTS crawl_run (
   id VARCHAR(36) PRIMARY KEY, status VARCHAR(20) NOT NULL,
