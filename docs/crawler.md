@@ -18,7 +18,7 @@ $env:CRAWLER_CRON = '0 30 2 * * *'
 
 华南理工大学学生工作部「信息公告」可作为示例入口：主机 `www2.scut.edu.cn`，路径前缀 `/student/`，种子 `https://www2.scut.edu.cn/student/xxgg/list.htm`。本机忽略 Git 跟踪的 `application.properties` 已按此配置启用；修改配置后需重启后端。抓取器会在每轮先检查该主机的 `robots.txt`，如不可用或禁止抓取则不会写入候选。部署到其他环境时须单独配置。
 
-配置文件中的 `crawler.content-selector` 使用按优先级排列的 CSS 选择器，默认 `.wp_articlecontent, .article-content, article, main`。不同官网页面结构不同，应先确认正文容器，再在测试环境手动执行一轮。无正文容器或正文少于 100 字符的页面不会入待审区；`list.htm`、`list1.htm` 等栏目列表页只发现同一白名单范围内的 `.htm/.html` 文章链接，不暂存为知识。文章页不继续追踪侧栏链接，避免无关导航消耗访问上限。发现的 `page.htm` 文章链接会先于栏目分页处理；栏目导航较多时，建议将核对过的具体文章 URL 作为种子。
+配置文件中的 `crawler.content-selector` 使用按优先级排列的 CSS 选择器，默认 `.wp_articlecontent, .article-content, article, main`。不同官网页面结构不同，应先确认正文容器，再在测试环境手动执行一轮。无正文容器或正文少于 100 字符的页面不会入待审区；`list.htm`、`list1.htm` 等栏目列表页优先从 `.contentMain`、`.wp_listcolumn` 或 `main` 内容区发现同一白名单范围内的 `.htm/.html` 文章与分页链接，不暂存为知识，也不会把栏目外的首页导航当作文章。文章页不继续追踪侧栏链接，避免无关导航消耗访问上限。发现的 `page.htm` 文章链接会先于栏目分页处理；栏目导航较多时，建议将核对过的具体文章 URL 作为种子。
 
 ## 抓取约束
 
