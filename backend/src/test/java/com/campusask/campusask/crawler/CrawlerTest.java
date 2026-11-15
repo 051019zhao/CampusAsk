@@ -66,6 +66,15 @@ class CrawlerTest {
         CrawlExtractor.Article result=extractor.extract(url,html.getBytes(StandardCharsets.UTF_8));
         assertEquals("这是一篇来自学校官网的完整公告正文。",result.content());
     }
+    @Test void listingIgnoresSiteNavigationOutsideTheArticleArea() throws Exception {
+        URI list=URI.create("https://campus.example.edu/student/xxgg/list.htm");
+        String html="<header><a href='/student/main.htm'>首页</a></header>"
+                +"<div class='contentMain'><a href='/student/2026/notice/page.htm'>公告</a>"
+                +"<a href='/student/xxgg/list2.htm'>下一页</a></div>";
+        assertEquals(List.of("https://campus.example.edu/student/2026/notice/page.htm",
+                "https://campus.example.edu/student/xxgg/list2.htm"),
+                extractor.links(list,html.getBytes(StandardCharsets.UTF_8)));
+    }
     @Test void listSeedDiscoversArticleWithoutStagingTheList() throws Exception {
         URI list=URI.create("https://campus.example.edu/student/xxgg/list.htm");
         URI notice=URI.create("https://campus.example.edu/student/2026/1112/c9326a640151/page.htm");

@@ -19,7 +19,9 @@ public class CrawlExtractor {
         return path!=null && path.matches("(?i).*/list(?:_?\\d+)?\\.html?");
     }
     public List<String> links(URI uri,byte[] bytes) throws IOException {
-        return Jsoup.parse(new ByteArrayInputStream(bytes),null,uri.toString()).select("a[href]").stream()
+        Document doc=Jsoup.parse(new ByteArrayInputStream(bytes),null,uri.toString());
+        Element listing=doc.selectFirst(".contentMain, .wp_listcolumn, main");
+        return (listing==null?doc:listing).select("a[href]").stream()
                 .map(a->a.absUrl("href")).filter(s->s.matches("(?i)https://.*\\.html?(?:[?#].*)?$"))
                 .distinct().sorted(Comparator.comparingInt(this::linkPriority)).limit(1000).toList();
     }
