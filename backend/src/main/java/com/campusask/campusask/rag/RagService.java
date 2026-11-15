@@ -118,6 +118,36 @@ public class RagService {
         }
         return new SearchResult(citations,result.mode());
     }
+    Map<String,Object> readSourceForOwner(String documentId,String owner,String sessionId) {
+        if(owner==null || !(owner.equals("GUEST") || owner.matches("USER:[^\\p{Cntrl}]{1,120}")))
+            throw new IllegalArgumentException("检索身份无效");
+        String session=session(sessionId);
+        List<RagStore.Chunk> chunks=store.documentChunks(owner,session,documentId,7);
+        Knowledge published=null;
+        if(documentId!=null && documentId.matches("K[1-9][0-9]*")) {
+            try {
+                long id=Long.parseLong(documentId.substring(1));
+                if(!store.excludedKnowledgeIds().contains(id)) published=knowledge.selectById(id);
+            } catch(NumberFormatException ignored) { /* Invalid knowledge ID is treated as missing. */ }
+        }
+        if(chunks.isEmpty() && published==null) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND,"资料不存在或当前会话无权读取");
+        Map<String,Object> result=new LinkedHashMap<>();
+        result.put("documentId",documentId);
+        result.put("title",published!=null?published.getTitle():chunks.get(0).title());
+        result.put("sourceScope",published!=null?"published_knowledge":"indexed_attachment");
+        if(published!=null) {
+            List<Map<String,Object>> details=new ArrayList<>();
+            for(String text:TextChunks.split(knowledgeText(published))) {
+                if(details.size()>=7) break;
+                details.add(Map.of("ordinal",details.size()+1,"text",bounded(text,800)));
+            }
+            result.put("chunks",details);
+        } else result.put("chunks",chunks.stream().map(c->Map.of("ordinal",c.ordinal(),"text",bounded(c.text(),800))).toList());
+        String url=store.sourceUrls(Set.of(documentId)).get(documentId);
+        if(url!=null) result.put("url",url);
+        return result;
+    }
 
     private Retrieval retrieve(String query,String owner,String session) {
         boolean indexed=false;

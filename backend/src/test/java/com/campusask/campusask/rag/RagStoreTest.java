@@ -55,6 +55,15 @@ class RagStoreTest {
         assertFalse(store.deleteDocument("USER:alice","s1","D2"));
         assertEquals(1,store.documents("USER:bob","s1").size());
     }
+    @Test void sourceReadingCannotCrossUserOrSession() {
+        document("K1","PUBLIC",""); document("D1","USER:alice","s1");
+        document("D2","USER:bob","s1"); document("D3","USER:alice","s2");
+        assertEquals(1,store.documentChunks("USER:alice","s1","K1",7).size());
+        assertEquals(1,store.documentChunks("USER:alice","s1","D1",7).size());
+        assertTrue(store.documentChunks("USER:alice","s1","D2",7).isEmpty());
+        assertTrue(store.documentChunks("USER:alice","s1","D3",7).isEmpty());
+        assertThrows(IllegalArgumentException.class,()->store.documentChunks("USER:alice","s1","../D1",7));
+    }
     @Test void documentDeletionCascadesAndReplaceIsAtomic() {
         document("D1","USER:alice","s1");
         assertThrows(RuntimeException.class,()->store.replace("D1","USER:alice","s1","bad","new",List.of(

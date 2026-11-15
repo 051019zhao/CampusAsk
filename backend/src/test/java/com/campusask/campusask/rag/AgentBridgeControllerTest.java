@@ -32,6 +32,17 @@ class AgentBridgeControllerTest {
         assertThrows(ResponseStatusException.class,()->bridge.model(null,
                 new AgentBridgeController.ModelRequest(List.of(),List.of())));
     }
+    @Test void sourceCallbackRequiresSharedKey() {
+        RagService rag=mock(RagService.class);
+        AgentBridgeController bridge=new AgentBridgeController(rag,mock(RagStore.class),mock(RagModelClient.class));
+        String key="x".repeat(32);
+        ReflectionTestUtils.setField(bridge,"sharedKey",key);
+        AgentBridgeController.SourceRequest request=new AgentBridgeController.SourceRequest("USER:alice","s1","D1");
+        assertThrows(ResponseStatusException.class,()->bridge.source(null,request));
+        verifyNoInteractions(rag);
+        when(rag.readSourceForOwner("D1","USER:alice","s1")).thenReturn(Map.of("documentId","D1"));
+        assertEquals("D1",bridge.source(key,request).get("documentId"));
+    }
     @Test void historyIsScopedByOwnerAndSession() {
         RagService rag=mock(RagService.class);
         RagStore store=mock(RagStore.class);

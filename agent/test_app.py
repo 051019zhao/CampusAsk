@@ -49,7 +49,7 @@ class AgentTest(unittest.TestCase):
         result = build_graph(bridge).invoke(state)
         self.assertEqual(2, result["search_count"])
         self.assertEqual(1, len(result["citations"]))
-        self.assertEqual("分题检索校园资料", result["steps"][0])
+        self.assertIn("分题检索校园资料", result["steps"])
 
     def test_graph_searches_then_answers_with_citation(self):
         bridge = FakeBridge()
@@ -64,7 +64,8 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(result["verified"])
         self.assertEqual("milvus", result["mode"])
         self.assertEqual("https://example.edu/notice", result["citations"][0]["url"])
-        self.assertEqual(["history", "search", "model", "search", "model"], [x[0] for x in bridge.calls])
+        self.assertEqual(["history", "model", "search", "model"], [x[0] for x in bridge.calls])
+        self.assertIn("选择查证工具", result["steps"])
 
     def test_short_followup_uses_session_history_and_repairs_bad_citation(self):
         class RetryBridge(FakeBridge):
@@ -89,9 +90,10 @@ class AgentTest(unittest.TestCase):
         result = build_graph(bridge).invoke(state)
         self.assertTrue(result["verified"])
         self.assertEqual("开放时间见公告 [S1]。", result["answer"])
-        self.assertIn("图书馆开放时间", bridge.calls[1][1]["query"])
-        self.assertIn("周末呢？", bridge.calls[1][1]["query"])
-        self.assertIn("核对引用", result["steps"])
+        query = next(body["query"] for path, body in bridge.calls if path == "search")
+        self.assertIn("图书馆开放时间", query)
+        self.assertIn("周末呢？", query)
+        self.assertIn("补充首轮检索", result["steps"])
 
     def test_endpoint_requires_shared_key(self):
         with patch.dict(os.environ, {"AGENT_SHARED_KEY": "a" * 32}):
@@ -131,7 +133,65 @@ class AgentTest(unittest.TestCase):
         result = build_graph(bridge).invoke(state)
         self.assertTrue(result["verified"])
         self.assertEqual("详见原文公告 [S1]。", result["answer"])
-        self.assertIn("核对引用", result["steps"])
+        self.assertIn("补充首轮检索", result["steps"])
+
+    def test_model_chooses_source_detail_after_search(self):
+        class DetailBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "model":
+                    self.calls.append((path, body))
+                    turn = len([entry for entry in self.calls if entry[0] == "model"])
+                    if turn < 3:
+                        name = "search_campus_knowledge" if turn == 1 else "read_campus_source"
+                        arguments = '{"query":"图书馆"}' if turn == 1 else '{"documentId":"K1"}'
+                        return {"role": "assistant", "content": None, "tool_calls": [{"id": f"call-{turn}",
+                            "type": "function", "function": {"name": name, "arguments": arguments}}]}
+                    return {"role": "assistant", "content": "详情见公告 [S1]。"}
+                if path == "source":
+                    self.calls.append((path, body))
+                    return {"documentId": "K1", "title": "图书馆公告",
+                            "chunks": [{"ordinal": 1, "text": "图书馆具体开放安排见官网公告。"}]}
+                return super().post(path, body)
+
+        bridge = DetailBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "图书馆开放安排的详情"}],
+                 "owner": "GUEST", "session_id": "session", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [],
+                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
+        result = build_graph(bridge).invoke(state)
+        self.assertTrue(result["verified"])
+        self.assertEqual(["history", "model", "search", "model", "source", "model"],
+                         [entry[0] for entry in bridge.calls])
+        self.assertIn("图书馆具体开放安排", result["citations"][0]["excerpt"])
+        self.assertIn("阅读来源详情", result["steps"])
+
+    def test_unsearched_source_id_is_rejected(self):
+        class WrongSourceBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "model":
+                    self.calls.append((path, body))
+                    turn = len([entry for entry in self.calls if entry[0] == "model"])
+                    if turn == 1:
+                        return {"role": "assistant", "content": None, "tool_calls": [{"id": "search",
+                            "function": {"name": "search_campus_knowledge", "arguments": '{"query":"图书馆"}'}}]}
+                    if turn == 2:
+                        return {"role": "assistant", "content": None, "tool_calls": [{"id": "read",
+                            "function": {"name": "read_campus_source", "arguments": '{"documentId":"D-other"}'}}]}
+                    return {"role": "assistant", "content": "请查看公告 [S1]。"}
+                return super().post(path, body)
+
+        bridge = WrongSourceBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "图书馆"}],
+                 "owner": "GUEST", "session_id": "session", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [],
+                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
+        result = build_graph(bridge).invoke(state)
+        self.assertTrue(result["verified"])
+        self.assertNotIn("source", [entry[0] for entry in bridge.calls])
+        self.assertIn('"error": "ValueError"',
+                      result["messages"][-2]["content"] if result["messages"][-2]["role"] == "tool" else "")
 
 
 if __name__ == "__main__":
