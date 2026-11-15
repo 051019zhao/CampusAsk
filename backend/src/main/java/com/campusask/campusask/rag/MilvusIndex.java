@@ -87,7 +87,7 @@ public class MilvusIndex {
     /** Replays durable jobs in batches. Jobs are acknowledged only after Milvus confirms the request. */
     public int syncBatch() {
         if(!enabled()) return 0;
-        store.bootstrapVectorJobs();
+        store.bootstrapVectorJobs(digest(collection+"|"+modelClient.embeddingVersion()));
         List<RagStore.VectorJob> jobs=store.vectorJobs(100);
         if(jobs.isEmpty()) return 0;
         List<Map<String,Object>> upserts=new ArrayList<>();

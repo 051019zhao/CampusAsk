@@ -146,6 +146,22 @@ class RagCoreTest {
         assertEquals(1,result.citations().size());
         verify(store,never()).chunks(anyString(),anyString());
     }
+    @Test void pendingVisibleChunksJoinMilvusResultsWithoutGlobalFallback() {
+        MilvusIndex index=mock(MilvusIndex.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"milvus",index);
+        when(index.enabled()).thenReturn(true);
+        when(index.search(any(double[].class),eq("USER:alice"),eq("session"),eq("test-v1"),eq(40)))
+                .thenReturn(List.of("c1"));
+        when(store.chunksByIds("USER:alice","session",List.of("c1"))).thenReturn(List.of(
+                new RagStore.Chunk("c1","K1","旧公告",1,"图书馆开放","[1,0]","test-v1")));
+        when(store.pendingChunks("USER:alice","session",101)).thenReturn(List.of(
+                new RagStore.Chunk("c2","K2","新公告",1,"图书馆开放时间调整","[1,0]","test-v1")));
+        RagService.SearchResult result=service.search("图书馆开放时间","session");
+        assertEquals("milvus",result.retrievalMode());
+        assertEquals(Set.of("K1","K2"),result.citations().stream()
+                .map(c->c.get("documentId").toString()).collect(java.util.stream.Collectors.toSet()));
+        verify(store,never()).chunks(anyString(),anyString());
+    }
     @Test void remembersAndRecallsPersistedUserHistoryAcrossSessions() {
         when(store.memories("USER:alice")).thenReturn(List.of(new RagStore.Chunk("M1","old-session","历史对话",0,"我住五山校区","[1,0]","test-v1")));
         service.ask("我住哪个校区","new-session",true);

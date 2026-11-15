@@ -13,10 +13,11 @@ import java.util.*;
 @Service
 public class LangGraphGateway {
     private final RagService rag;
+    private final RagStore store;
     private final ObjectMapper json=new ObjectMapper();
     @Value("${agent.service.url:}") private String serviceUrl;
     @Value("${agent.shared-key:}") private String sharedKey;
-    public LangGraphGateway(RagService rag) { this.rag=rag; }
+    public LangGraphGateway(RagService rag,RagStore store) { this.rag=rag;this.store=store; }
 
     public Map<String,Object> ask(String question,String sessionId) {
         if(question==null || question.isBlank() || question.length()>2000)
@@ -57,6 +58,9 @@ public class LangGraphGateway {
             }
             List<String> steps=new ArrayList<>();
             for(JsonNode step:data.path("agentSteps")) if(steps.size()<4) steps.add(step.asText(""));
+            if(owner.startsWith("USER:")) try { store.agentRemember(owner,session,question,answer); }
+            catch(RuntimeException ex) { org.slf4j.LoggerFactory.getLogger(LangGraphGateway.class)
+                    .warn("agent_history_save_failed type={}",ex.getClass().getSimpleName()); }
             return Map.of("source","agent","answer",answer,"citations",citations,"agentSteps",steps,
                     "retrievalMode",data.path("retrievalMode").asText("lexical"),"memoryEnabled",false,"memorySaved",false);
         } catch(Exception ex) {
