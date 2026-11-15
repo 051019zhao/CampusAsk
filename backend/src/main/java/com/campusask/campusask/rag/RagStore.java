@@ -63,6 +63,13 @@ public class RagStore {
               INDEX rag_agent_run_expiry(created_at))
             """);
         db.execute("""
+            CREATE TABLE IF NOT EXISTS rag_agent_memory (
+              id BIGINT AUTO_INCREMENT PRIMARY KEY, owner VARCHAR(128) NOT NULL,
+              session_id VARCHAR(100) NOT NULL, question TEXT NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX rag_agent_memory_owner(owner,id), INDEX rag_agent_memory_expiry(created_at))
+            """);
+        db.execute("""
             CREATE TABLE IF NOT EXISTS rag_vector_job (
               chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,
               version BIGINT NOT NULL DEFAULT 1, queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -269,6 +276,23 @@ public class RagStore {
                     owner,session,cutoff.get(0));
         });
     }
+    public List<String> agentMemories(String owner,String session) {
+        if(owner==null || !owner.startsWith("USER:")) return List.of();
+        return db.queryForList("""
+            SELECT question FROM rag_agent_memory WHERE owner=? AND session_id<>? AND created_at>=?
+            ORDER BY id DESC LIMIT 100
+            """,String.class,owner,session,retentionCutoff());
+    }
+    public void agentRememberLongTerm(String owner,String session,String question) {
+        if(owner==null || !owner.startsWith("USER:")) return;
+        tx.executeWithoutResult(status -> {
+            db.update("INSERT INTO rag_agent_memory(owner,session_id,question) VALUES(?,?,?)",owner,session,question);
+            List<Long> cutoff=db.queryForList("""
+                SELECT id FROM rag_agent_memory WHERE owner=? ORDER BY id DESC LIMIT 1 OFFSET 199
+                """,Long.class,owner);
+            if(!cutoff.isEmpty()) db.update("DELETE FROM rag_agent_memory WHERE owner=? AND id<?",owner,cutoff.get(0));
+        });
+    }
     /** Operational trace only: never persist prompts, answers, source text or model keys here. */
     public void recordAgentRun(String id,String owner,String session,String status,String mode,
                                int citations,int modelTurns,int toolCalls,long durationMs) {
@@ -307,6 +331,7 @@ public class RagStore {
             db.update("DELETE FROM rag_turn WHERE owner=?",owner);
             db.update("DELETE FROM rag_summary WHERE owner=?",owner);
             db.update("DELETE FROM rag_agent_turn WHERE owner=?",owner);
+            db.update("DELETE FROM rag_agent_memory WHERE owner=?",owner);
             db.update("DELETE FROM rag_agent_run WHERE owner=?",owner);
         });
     }
@@ -316,6 +341,7 @@ public class RagStore {
                 queueDocumentDeletion(id);
             db.update("DELETE FROM rag_turn WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_agent_turn WHERE owner=? AND session_id=?",owner,session);
+            db.update("DELETE FROM rag_agent_memory WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_agent_run WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_summary WHERE owner=? AND session_id=?",owner,session);
             db.update("DELETE FROM rag_document WHERE owner=? AND session_id=?",owner,session);
@@ -324,6 +350,7 @@ public class RagStore {
     public void expire() {
         java.sql.Timestamp cutoff = java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(90)));
         db.update("DELETE FROM rag_agent_turn WHERE created_at < ?",cutoff);
+        db.update("DELETE FROM rag_agent_memory WHERE created_at < ?",cutoff);
         db.update("DELETE FROM rag_agent_run WHERE created_at < ?",cutoff);
         // Only sessions with expired turns need their extractive summaries rebuilt.
         List<Map<String,Object>> affected=db.queryForList(

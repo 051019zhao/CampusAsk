@@ -55,7 +55,7 @@ public class QaController {
     public Result<Map<String,Object>> agentAsk(@jakarta.validation.Valid @RequestBody com.campusask.campusask.dto.AskRequest body) {
         String sessionId=body.sessionId();
         if(sessionId==null || sessionId.isBlank()) sessionId=java.util.UUID.randomUUID().toString();
-        Map<String,Object> data=langGraphGateway.ask(body.keyword(),sessionId);
+        Map<String,Object> data=langGraphGateway.ask(body.keyword(),sessionId,!Boolean.FALSE.equals(body.memoryEnabled()));
         qaService.recordRagQuestion(body.keyword(),String.valueOf(data.get("source")));
         return Result.success(data);
     }
