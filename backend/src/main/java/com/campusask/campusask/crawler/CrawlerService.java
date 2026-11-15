@@ -38,12 +38,17 @@ public class CrawlerService {
         } catch(RuntimeException e) { running.set(false); store.release(id); throw e; }
     }
     void run(String id,List<URI> seeds) {
-        int visited=0,changed=0,failed=0; String detail="";
+        int visited=0,changed=0,failed=0,skipped=0; String detail="";
         Deque<URI> queue=new ArrayDeque<>(seeds); Set<URI> seen=new HashSet<>(); Map<String,RobotsRules> robots=new HashMap<>();
         try {
             while(!queue.isEmpty()&&visited<config.getMaxPages()&&!Thread.currentThread().isInterrupted()) {
-                URI uri=queue.removeFirst(); if(!seen.add(uri)) continue; visited++;
+                URI uri=queue.removeFirst(); if(!seen.add(uri)) continue;
                 try {
+                    if(!extractor.isListingPage(uri) && store.recentlyFetched(uri.toString(),config.getRefreshHours())) {
+                        skipped++;
+                        continue;
+                    }
+                    visited++;
                     RobotsRules rules=robots.get(uri.getHost());
                     if(rules==null) {
                         robots.put(uri.getHost(),new RobotsRules("User-agent: *\nDisallow: /"));
@@ -79,6 +84,7 @@ public class CrawlerService {
             }
         } finally {
             boolean interrupted=Thread.interrupted();
+            if(skipped>0) detail=(detail.isEmpty()?"":detail+"；")+"跳过近期已抓取文章 "+skipped+" 篇";
             try { store.finish(id,visited,changed,failed,detail); }
             finally {
                 try { store.release(id); }
