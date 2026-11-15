@@ -117,6 +117,23 @@ class RagCoreTest {
         verify(store,never()).replace(eq("K10"),anyString(),anyString(),anyString(),anyString(),anyList());
         verify(store).pruneKnowledge(anySet(),eq(Set.of()));
     }
+    @Test void agentReadsFullPublishedKnowledgeWhenIndexOnlyHasASummary() {
+        Knowledge item=new Knowledge();
+        item.setId(28L); item.setTitle("宿舍报修");
+        item.setContent("先登记故障，再等待维修人员联系。来源：https://example.edu/repair");
+        KnowledgeMapper knowledge=mock(KnowledgeMapper.class);
+        when(knowledge.selectById(28L)).thenReturn(item);
+        when(store.excludedKnowledgeIds()).thenReturn(Set.of());
+        when(store.documentChunks("GUEST","s1","K28",7)).thenReturn(List.of(
+                new RagStore.Chunk("c1","K28","宿舍报修",1,"先登记故障","[]","test-v1")));
+        RagService reader=new RagService(store,model,new DocumentLoader(),knowledge);
+        Map<String,Object> result=reader.readSourceForOwner("K28","GUEST","s1");
+        assertEquals("published_knowledge",result.get("sourceScope"));
+        @SuppressWarnings("unchecked") List<Map<String,Object>> chunks=(List<Map<String,Object>>)result.get("chunks");
+        assertTrue(chunks.get(0).get("text").toString().contains("等待维修人员联系"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                ()->reader.readSourceForOwner("D-other","GUEST","s1"));
+    }
     @Test void retrievesSemanticMatchAndReturnsTraceableCitation() {
         when(store.chunks("USER:alice","session")).thenReturn(List.of(new RagStore.Chunk("c1","d1","校园资料",2,"自习室位于二楼","[1,0]","test-v1")));
         Map<String,Object> response=service.ask("在哪里学习","session",false);

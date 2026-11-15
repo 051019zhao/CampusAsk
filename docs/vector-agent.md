@@ -49,7 +49,7 @@ cd backend
 
 ## LangGraph Agent
 
-Java Spring Boot 仍负责账户、审核、知识检索、模型密钥和对外 API。`agent/` 是独立的 Python LangGraph 服务，状态图执行「读取会话上下文 → 分题检索 → 模型/只读工具循环 → 校验引用 → 必要时纠错」。显式复合问题最多拆为两个检索线索；模型还可补检，总知识检索上限为三次。工具为校园知识检索、当前会话附件列表、北京时间；最多五轮模型调用、六次工具调用。回答只返回实际引用的来源，并拒绝模型写出的未知来源 URL。Agent 故障时 Java 回退到现有 RAG 问答。`rag_agent_run` 只记录运行状态、检索方式、引用数、模型轮数、工具次数和耗时，不保存提问或回答；`agentRunId` 可用于定位这条本机记录。已登录用户的成功回答写入独立的 `rag_agent_turn`，同一话题最多使用最近四轮理解追问，90 天过期；访客不保存。会话历史不能作为校园事实证据，删除记忆与清除会话也会清理它。Agent 不读写跨话题长时记忆，不执行发帖、知识审核或外部写操作。
+Java Spring Boot 仍负责账户、审核、知识检索、模型密钥和对外 API。`agent/` 是独立的 Python LangGraph 服务。状态图执行「读取会话上下文 → 模型选择只读工具 → 观察结果并继续查证 → 校验引用 → 必要时补检或修正」。模型可以按问题自主选择校园知识检索、当前会话附件列表、已命中来源的详情、北京时间；多个主题可分别检索。若模型直接回答且没有证据，图会先作一次分题检索，再让模型重答。知识检索最多三次，模型最多五轮，工具最多六次。来源详情读取只接受本轮已检索的文档 ID；Java 再校验用户和会话权限。公开知识详情来自当前已发布的知识正文，私人附件来自有权限的索引切片；该工具不会联网打开官网原网页，Agent 不应声称已核对原网页全文。回答只返回实际引用的来源，并拒绝模型写出的未知来源 URL。Agent 故障时 Java 回退到现有 RAG 问答。`rag_agent_run` 只记录运行状态、检索方式、引用数、模型轮数、工具次数和耗时，不保存提问或回答；`agentRunId` 可用于定位这条本机记录。已登录用户的成功回答写入独立的 `rag_agent_turn`，同一话题最多使用最近四轮理解追问，90 天过期；访客不保存。会话历史不能作为校园事实证据，删除记忆与清除会话也会清理它。Agent 不读写跨话题长时记忆，不执行发帖、知识审核或外部写操作。
 
 ```powershell
 cd agent
@@ -59,7 +59,7 @@ $env:CAMPUSASK_BACKEND_URL = 'http://127.0.0.1:8080'
 python -m uvicorn agent.app:app --app-dir .. --host 127.0.0.1 --port 8090
 ```
 
-同一个 `AGENT_SHARED_KEY` 注入 Java 后端，配置 `AGENT_SERVICE_URL=http://127.0.0.1:8090/agent/ask`，再重启 Java 服务。前端勾选「Agent 模式」后调用 `/api/qa/agent/ask`。`/internal/agent/**` 仅供 Python 服务调用，必须在反向代理和防火墙中保持私有；共享密钥不能写入前端。若后端运行在 8082，改 `CAMPUSASK_BACKEND_URL` 为对应地址。
+同一个 `AGENT_SHARED_KEY` 注入 Java 后端，配置 `AGENT_SERVICE_URL=http://127.0.0.1:8090/agent/ask`，再重启 Java 服务。前端的「多步查证」默认开启，调用 `/api/qa/agent/ask`；上传图片时会使用原问答接口。`/internal/agent/**` 仅供 Python 服务调用，必须在反向代理和防火墙中保持私有；共享密钥不能写入前端。若后端运行在 8082，改 `CAMPUSASK_BACKEND_URL` 为对应地址。
 
 若在 Codex Windows 内置终端启动 Java 时出现 `Unable to establish loopback connection`，可仅在该终端设置 `$env:JAVA_TOOL_OPTIONS='-Djdk.net.unixdomain.tmpdir=C:\Windows\Temp'` 后重试；这是启动环境的 JDK 套接字问题，不属于数据库故障。[问题与验证记录](https://github.com/openai/codex/issues/40902)
 

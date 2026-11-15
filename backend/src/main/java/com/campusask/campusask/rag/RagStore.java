@@ -173,6 +173,18 @@ public class RagStore {
             WHERE c.id IN (%s) AND (d.owner='PUBLIC' OR (d.owner=? AND d.session_id=? AND d.created_at>=?))
             """.formatted(placeholders),(r,n)->new Chunk(r.getString(1),r.getString(2),r.getString(7),r.getInt(3),r.getString(4),r.getString(5),r.getString(6)),params.toArray());
     }
+    /** Read a selected document with the same public/owner/session boundary as search. */
+    public List<Chunk> documentChunks(String owner,String session,String documentId,int limit) {
+        if(documentId==null || !documentId.matches("[A-Za-z0-9-]{1,64}") || limit<1 || limit>8)
+            throw new IllegalArgumentException("文档 ID 或读取数量无效");
+        return db.query("""
+            SELECT c.id,c.document_id,c.ordinal,c.content,c.embedding,c.model,d.title
+            FROM rag_chunk c JOIN rag_document d ON d.id=c.document_id
+            WHERE d.id=? AND (d.owner='PUBLIC' OR (d.owner=? AND d.session_id=? AND d.created_at>=?))
+            ORDER BY c.ordinal LIMIT ?
+            """,(r,n)->new Chunk(r.getString(1),r.getString(2),r.getString(7),r.getInt(3),
+                    r.getString(4),r.getString(5),r.getString(6)),documentId,owner,session,retentionCutoff(),limit);
+    }
     public Map<String,String> publicFingerprints() {
         return db.query("SELECT id,fingerprint FROM rag_document WHERE owner='PUBLIC'", rows -> {
             Map<String,String> fingerprints=new HashMap<>();

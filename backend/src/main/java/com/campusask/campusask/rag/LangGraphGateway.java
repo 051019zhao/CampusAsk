@@ -60,7 +60,7 @@ public class LangGraphGateway {
                 citations.add(citation);
             }
             List<String> steps=new ArrayList<>();
-            for(JsonNode step:data.path("agentSteps")) if(steps.size()<4) steps.add(step.asText(""));
+            for(JsonNode step:data.path("agentSteps")) if(steps.size()<12) steps.add(step.asText(""));
             if(owner.startsWith("USER:")) try { store.agentRemember(owner,session,question,answer); }
             catch(RuntimeException ex) { org.slf4j.LoggerFactory.getLogger(LangGraphGateway.class)
                     .warn("agent_history_save_failed type={}",ex.getClass().getSimpleName()); }

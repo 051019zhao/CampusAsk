@@ -17,6 +17,7 @@ public class AgentBridgeController {
     public record ModelRequest(List<Object> messages,List<Map<String,Object>> tools) {}
     public record SearchRequest(String owner,String sessionId,String query) {}
     public record DocumentsRequest(String owner,String sessionId) {}
+    public record SourceRequest(String owner,String sessionId,String documentId) {}
     private final RagService rag;
     private final RagStore store;
     private final RagModelClient model;
@@ -47,6 +48,12 @@ public class AgentBridgeController {
         if(request.owner()==null || !request.owner().matches("USER:[^\\p{Cntrl}]{1,120}"))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"请先登录");
         return store.documents(request.owner(),rag.session(request.sessionId()));
+    }
+    @PostMapping("/source")
+    public Map<String,Object> source(@RequestHeader(value="X-Agent-Key",required=false) String key,
+                                     @RequestBody SourceRequest request) {
+        authorize(key);
+        return rag.readSourceForOwner(request.documentId(),request.owner(),request.sessionId());
     }
     @PostMapping("/history")
     public List<RagStore.Turn> history(@RequestHeader(value="X-Agent-Key",required=false) String key,

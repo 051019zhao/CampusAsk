@@ -261,7 +261,7 @@ export default {
       documentLoading: false,
       documentStatus: '',
       memoryEnabled: true,
-      agentEnabled: false,
+      agentEnabled: true,
       suggestedQuestions: [],  // V3: 相关问题推荐
       qaImageUrl: '',          // V4: 问答图片
       qaUploading: false,      // V4: 图片上传中
