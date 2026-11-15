@@ -23,6 +23,7 @@ class RagCoreTest {
         when(knowledge.listAll()).thenReturn(List.of());
         when(model.embeddingsEnabled()).thenReturn(true);
         when(store.publicFingerprints()).thenReturn(Map.of());
+        when(store.excludedKnowledgeIds()).thenReturn(Set.of());
         when(model.embeddingVersion()).thenReturn("test-v1");
         when(model.embed(anyString())).thenReturn(new double[]{1,0});
         when(model.answer(anyString(),anyString())).thenReturn("请参考 [S1]。");
@@ -105,6 +106,16 @@ class RagCoreTest {
         verify(store,never()).unchanged(eq("K7"),anyString());
         verify(store).replace(eq("K7"),eq("PUBLIC"),eq(""),eq("奖助咨询"),anyString(),
                 argThat(chunks -> chunks.size()==1 && chunks.get(0).text().contains("关键词：助学金,奖学金")));
+    }
+    @Test void excludedDemoKnowledgeIsPrunedFromPublicIndex() {
+        Knowledge item=new Knowledge();item.setId(10L);item.setTitle("宿舍报修流程是什么？");
+        item.setContent("通过维修电话提交报修申请");
+        KnowledgeMapper knowledge=mock(KnowledgeMapper.class);
+        when(knowledge.listAll()).thenReturn(List.of(item));
+        when(store.excludedKnowledgeIds()).thenReturn(Set.of(10L));
+        new RagService(store,model,new DocumentLoader(),knowledge).refreshKnowledgeIndex();
+        verify(store,never()).replace(eq("K10"),anyString(),anyString(),anyString(),anyString(),anyList());
+        verify(store).pruneKnowledge(anySet(),eq(Set.of()));
     }
     @Test void retrievesSemanticMatchAndReturnsTraceableCitation() {
         when(store.chunks("USER:alice","session")).thenReturn(List.of(new RagStore.Chunk("c1","d1","校园资料",2,"自习室位于二楼","[1,0]","test-v1")));

@@ -57,11 +57,13 @@ public class CrawlerService {
                     if(!rules.allowed(ascii.getRawPath()+(ascii.getRawQuery()==null?"":"?"+ascii.getRawQuery()))) throw new IllegalArgumentException("robots.txt 禁止抓取");
                     CrawlFetcher.Page page=fetcher.fetch(uri);
                     if(page.status()!=200 || !page.contentType().toLowerCase(Locale.ROOT).contains("text/html")) throw new IllegalArgumentException("页面状态异常或不是 HTML");
-                    for(String link:extractor.links(uri,page.body())) {
-                        if(queue.size()>=100) break;
-                        try { URI next=policy.canonical(link); if(!seen.contains(next)) queue.addLast(next); } catch(IllegalArgumentException ignored) { /* Out-of-scope link. */ }
+                    if(extractor.isListingPage(uri)) {
+                        for(String link:extractor.links(uri,page.body())) {
+                            if(queue.size()>=100) break;
+                            try { URI next=policy.canonical(link); if(!seen.contains(next)) queue.addLast(next); } catch(IllegalArgumentException ignored) { /* Out-of-scope link. */ }
+                        }
+                        continue;
                     }
-                    if(extractor.isListingPage(uri)) continue;
                     CrawlExtractor.Article article=extractor.extract(uri,page.body());
                     if(store.stage(article)) changed++;
                 } catch(InterruptedException e) { Thread.currentThread().interrupt(); failed++; detail="任务已中断"; break; }

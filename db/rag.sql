@@ -23,11 +23,23 @@ CREATE TABLE IF NOT EXISTS rag_summary (
   owner VARCHAR(128) NOT NULL, session_id VARCHAR(100) NOT NULL,
   content TEXT NOT NULL, PRIMARY KEY(owner,session_id));
 
+CREATE TABLE IF NOT EXISTS rag_knowledge_exclusion (
+  knowledge_id BIGINT PRIMARY KEY, reason VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
 CREATE TABLE IF NOT EXISTS rag_agent_turn (
   id BIGINT AUTO_INCREMENT PRIMARY KEY, owner VARCHAR(128) NOT NULL,
   session_id VARCHAR(100) NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX rag_agent_session(owner,session_id,id), INDEX rag_agent_expiry(created_at));
+
+CREATE TABLE IF NOT EXISTS rag_agent_run (
+  id VARCHAR(36) PRIMARY KEY, owner VARCHAR(128) NOT NULL,
+  session_id VARCHAR(100) NOT NULL, status VARCHAR(16) NOT NULL,
+  retrieval_mode VARCHAR(20) NOT NULL, citation_count INT NOT NULL,
+  model_turns INT NOT NULL, tool_calls INT NOT NULL, duration_ms BIGINT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX rag_agent_run_owner(owner,session_id,created_at), INDEX rag_agent_run_expiry(created_at));
 
 CREATE TABLE IF NOT EXISTS rag_vector_job (
   chunk_id VARCHAR(64) PRIMARY KEY, operation VARCHAR(8) NOT NULL,

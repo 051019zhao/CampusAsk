@@ -74,8 +74,10 @@ public class RagService {
     private synchronized void syncKnowledge() {
         if (System.currentTimeMillis()-syncedAt<30_000) return;
         Map<String,String> known=store.publicFingerprints();
+        Set<Long> excluded=store.excludedKnowledgeIds();
         Set<String> ids=new HashSet<>();
         for (Knowledge k : knowledge.listAll()) {
+            if(excluded.contains(k.getId())) continue;
             String id="K"+k.getId(); ids.add(id);
             String text=knowledgeText(k);
             String fingerprint=hash(text+model.embeddingVersion());
@@ -143,7 +145,9 @@ public class RagService {
         } else candidates=new ArrayList<>(store.chunks(owner,session));
         if(!indexed && !vectorSearch) {
             candidates.removeIf(c->c.documentId().startsWith("K"));
+            Set<Long> excluded=store.excludedKnowledgeIds();
             for(Knowledge k:knowledge.listAll()) {
+                if(excluded.contains(k.getId())) continue;
                 int ordinal=0;
                 for(String text:TextChunks.split(knowledgeText(k)))
                     candidates.add(new RagStore.Chunk("K"+k.getId()+"-"+ordinal,"K"+k.getId(),k.getTitle(),++ordinal,text,"[]","lexical"));
