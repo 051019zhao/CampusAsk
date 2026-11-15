@@ -78,6 +78,12 @@ public class CrawlStore {
         db.update("DELETE FROM crawl_run WHERE started_at<?",Timestamp.from(java.time.Instant.now().minusSeconds(90L*86400)));
     }
     public List<Map<String,Object>> runs() { return db.queryForList("SELECT * FROM crawl_run ORDER BY started_at DESC LIMIT 20"); }
+    /** Recent articles are revisited after the refresh interval; skipping them frees the page budget for older list pages. */
+    public boolean recentlyFetched(String url,int refreshHours) {
+        String id=UUID.nameUUIDFromBytes(url.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        return !db.queryForList("SELECT id FROM crawl_candidate WHERE id=? AND fetched_at>=?",String.class,
+                id,Timestamp.from(java.time.Instant.now().minusSeconds(refreshHours*3600L))).isEmpty();
+    }
     public boolean stage(CrawlExtractor.Article article) {
         String id=UUID.nameUUIDFromBytes(article.url().getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
         List<String> previous=db.queryForList("SELECT fingerprint FROM crawl_candidate WHERE id=?",String.class,id);

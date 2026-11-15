@@ -107,6 +107,30 @@ class CrawlerTest {
             verify(fetcher,times(2)).fetch(any());
         }
     }
+    @Test void recentArticleDoesNotConsumeBudgetNeededForNewArticle() throws Exception {
+        config.setMaxPages(2);
+        URI list=URI.create("https://campus.example.edu/student/xxgg/list.htm");
+        URI old=URI.create("https://campus.example.edu/student/a-old/page.htm");
+        URI fresh=URI.create("https://campus.example.edu/student/z-new/page.htm");
+        store.stage(new CrawlExtractor.Article(old.toString(),"旧公告","已有正文","old-hash",List.of()));
+        String listing="<main><a href='"+old+"'>旧公告</a><a href='"+fresh+"'>新公告</a></main>";
+        String articleHtml="<title>新公告</title><main>这是一篇新的校园通知正文。</main>";
+        CrawlFetcher fetcher=mock(CrawlFetcher.class);
+        when(fetcher.fetch(any())).thenAnswer(invocation -> {
+            URI uri=invocation.getArgument(0);
+            if(uri.getPath().equals("/robots.txt")) return new CrawlFetcher.Page(404,"text/plain",new byte[0]);
+            return new CrawlFetcher.Page(200,"text/html",
+                    (uri.equals(list)?listing:articleHtml).getBytes(StandardCharsets.UTF_8));
+        });
+        try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
+            store.start("progress-run"); runner.service.run("progress-run",List.of(list));
+            assertEquals(2,store.runs().get(0).get("visited"));
+            assertEquals(1,store.runs().get(0).get("changed_count"));
+            assertTrue(store.runs().get(0).get("detail").toString().contains("跳过近期已抓取文章 1 篇"));
+            assertEquals(2L,store.candidates("PENDING",1).get("total"));
+            verify(fetcher,never()).fetch(old);
+        }
+    }
     @Test void noindexAndMissingBodyAreNotStaged() {
         assertThrows(IllegalArgumentException.class,()->extractor.extract(url,"<meta name='robots' content='noindex'><main>正文正文正文正文正文正文</main>".getBytes(StandardCharsets.UTF_8)));
         assertThrows(IllegalArgumentException.class,()->extractor.extract(url,"<title>列表</title>".getBytes(StandardCharsets.UTF_8)));
