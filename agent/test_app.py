@@ -1,10 +1,10 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
 
-from agent.app import AskRequest, ask, build_graph
+from agent.app import AskRequest, ask, build_graph, search_queries
 
 
 class FakeBridge:
@@ -27,6 +27,30 @@ class FakeBridge:
 
 
 class AgentTest(unittest.TestCase):
+    def test_explicit_multi_part_query_is_split(self):
+        self.assertEqual(["图书馆几点开", "宿舍几点关门"],
+                         search_queries("图书馆几点开？宿舍几点关门？", []))
+        self.assertEqual(["图书馆几点开"], search_queries("图书馆几点开", []))
+
+    def test_compound_search_deduplicates_same_source(self):
+        class DirectBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "model":
+                    self.calls.append((path, body))
+                    return {"role": "assistant", "content": "请查看公告 [S1]。"}
+                return super().post(path, body)
+
+        bridge = DirectBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "图书馆几点开？宿舍几点关门？"}],
+                 "owner": "GUEST", "session_id": "session", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [],
+                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
+        result = build_graph(bridge).invoke(state)
+        self.assertEqual(2, result["search_count"])
+        self.assertEqual(1, len(result["citations"]))
+        self.assertEqual("分题检索校园资料", result["steps"][0])
+
     def test_graph_searches_then_answers_with_citation(self):
         bridge = FakeBridge()
         state = {"messages": [{"role": "system", "content": "test"},
@@ -74,6 +98,40 @@ class AgentTest(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 ask(AskRequest(question="图书馆", sessionId="s1", owner="GUEST"), None)
             self.assertEqual(403, caught.exception.status_code)
+
+    def test_endpoint_returns_only_sources_used_in_answer(self):
+        result = {"verified": True, "answer": "见公告 [S2]。", "turns": 2,
+                  "tool_count": 2, "search_count": 2, "steps": ["检索校园资料"],
+                  "mode": "milvus", "citations": [
+                      {"id": "S1", "documentId": "K1", "excerpt": "甲"},
+                      {"id": "S2", "documentId": "K2", "excerpt": "乙"}]}
+        with patch.dict(os.environ, {"AGENT_SHARED_KEY": "a" * 32}), \
+             patch("agent.app.build_graph", return_value=Mock(invoke=Mock(return_value=result))):
+            response = ask(AskRequest(question="测试", sessionId="s1", owner="GUEST"), "a" * 32)
+        self.assertEqual(["S2"], [item["id"] for item in response["citations"]])
+        self.assertEqual(2, response["modelTurns"])
+
+    def test_invented_link_is_corrected_before_return(self):
+        class LinkBridge(FakeBridge):
+            def post(self, path, body):
+                if path == "model":
+                    self.calls.append((path, body))
+                    turns = len([x for x in self.calls if x[0] == "model"])
+                    return {"role": "assistant", "content":
+                            "详见 https://invented.example/notice [S1]。" if turns == 1
+                            else "详见原文公告 [S1]。"}
+                return super().post(path, body)
+
+        bridge = LinkBridge()
+        state = {"messages": [{"role": "system", "content": "test"},
+                              {"role": "user", "content": "图书馆几点开"}],
+                 "owner": "GUEST", "session_id": "session", "turns": 0,
+                 "tool_count": 0, "search_count": 0, "citations": [],
+                 "steps": [], "answer": "", "mode": "lexical", "history": [], "verified": False}
+        result = build_graph(bridge).invoke(state)
+        self.assertTrue(result["verified"])
+        self.assertEqual("详见原文公告 [S1]。", result["answer"])
+        self.assertIn("核对引用", result["steps"])
 
 
 if __name__ == "__main__":

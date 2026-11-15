@@ -89,6 +89,24 @@ class CrawlerTest {
             assertEquals(0,store.runs().get(0).get("failed"));
         }
     }
+    @Test void articleNavigationDoesNotConsumeCrawlBudget() throws Exception {
+        URI article=URI.create("https://campus.example.edu/student/guide/page.htm");
+        String html="<html><title>宿舍报修</title><main>宿舍报修请通过校内服务平台提交。"
+                +"<a href='/student/old/page.htm'>侧栏旧公告</a></main></html>";
+        CrawlFetcher fetcher=mock(CrawlFetcher.class);
+        when(fetcher.fetch(any())).thenAnswer(invocation -> {
+            URI uri=invocation.getArgument(0);
+            return uri.getPath().equals("/robots.txt")
+                    ? new CrawlFetcher.Page(404,"text/plain",new byte[0])
+                    : new CrawlFetcher.Page(200,"text/html",html.getBytes(StandardCharsets.UTF_8));
+        });
+        try(CloseableCrawler runner=new CloseableCrawler(new CrawlerService(config,policy,fetcher,extractor,store))) {
+            store.start("direct-run");runner.service.run("direct-run",List.of(article));
+            assertEquals(1,store.runs().get(0).get("visited"));
+            assertEquals(1L,store.candidates("PENDING",1).get("total"));
+            verify(fetcher,times(2)).fetch(any());
+        }
+    }
     @Test void noindexAndMissingBodyAreNotStaged() {
         assertThrows(IllegalArgumentException.class,()->extractor.extract(url,"<meta name='robots' content='noindex'><main>正文正文正文正文正文正文</main>".getBytes(StandardCharsets.UTF_8)));
         assertThrows(IllegalArgumentException.class,()->extractor.extract(url,"<title>列表</title>".getBytes(StandardCharsets.UTF_8)));

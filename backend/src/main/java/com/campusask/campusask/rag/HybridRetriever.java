@@ -11,7 +11,7 @@ public class HybridRetriever {
     private final ObjectMapper json=new ObjectMapper();
     public List<Hit> retrieve(String query,double[] vector,List<RagStore.Chunk> chunks,String version,int limit) {
         Set<String> terms=TextChunks.terms(query);
-        return chunks.stream().map(c -> {
+        List<Hit> ranked=chunks.stream().map(c -> {
             Set<String> words=TextChunks.terms(c.title()+"\n"+c.text());
             double lexical=terms.stream().filter(words::contains).count()/(double)Math.max(1,terms.size());
             double score=lexical;
@@ -26,5 +26,8 @@ public class HybridRetriever {
             }
             return new Hit(c,score);
         }).filter(h->h.score()>=.30).sorted(Comparator.comparingDouble(Hit::score).reversed()).limit(limit).toList();
+        if(ranked.isEmpty()) return ranked;
+        double floor=Math.max(.30,ranked.get(0).score()-.10);
+        return ranked.stream().filter(h->h.score()>=floor).toList();
     }
 }

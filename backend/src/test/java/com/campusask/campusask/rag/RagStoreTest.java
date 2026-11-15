@@ -20,6 +20,10 @@ class RagStoreTest {
     private void document(String id,String owner,String session) {
         store.replace(id,owner,session,id,"hash",List.of(new RagStore.Chunk("C"+id,id,id,1,"校园资料","[1,0]","v1")));
     }
+    @Test void demoExclusionsStaySeparateFromKnowledgeRows() {
+        db.update("INSERT INTO rag_knowledge_exclusion(knowledge_id,reason) VALUES(10,'UNVERIFIED_DEMO_CONTENT')");
+        assertEquals(Set.of(10L),store.excludedKnowledgeIds());
+    }
     @Test void persistsAcrossServiceRecreation() {
         document("D1","USER:alice","s1");
         store.remember("USER:alice","s1","我住五山","好的","[1,0]","v1");
@@ -114,6 +118,19 @@ class RagStoreTest {
         assertEquals(1,store.agentRecent("USER:alice","s2").size());
         store.forget("USER:alice");
         assertTrue(store.agentRecent("USER:alice","s2").isEmpty());
+    }
+    @Test void agentRunStoresOnlyMetadataAndExpires() {
+        String run=java.util.UUID.randomUUID().toString();
+        store.recordAgentRun(run,"USER:alice","s1","VERIFIED","milvus",2,3,4,125);
+        Map<String,Object> saved=db.queryForMap("SELECT * FROM rag_agent_run WHERE id=?",run);
+        assertEquals("VERIFIED",saved.get("status"));
+        assertEquals(2,((Number)saved.get("citation_count")).intValue());
+        assertFalse(saved.containsKey("question"));
+        assertFalse(saved.containsKey("answer"));
+        db.update("UPDATE rag_agent_run SET created_at=? WHERE id=?",
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(91))),run);
+        store.expire();
+        assertTrue(db.queryForList("SELECT id FROM rag_agent_run WHERE id=?",run).isEmpty());
     }
     @Test void recentWindowIsBoundedAndChronological() {
         for(int i=0;i<8;i++) store.remember("USER:alice","s1","q"+i,"a","[1,0]","v1");
