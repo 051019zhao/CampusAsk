@@ -15,6 +15,8 @@ from fastapi import FastAPI, Header, HTTPException
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
+from agent.mcp_tools import campus_server, invoke_tool, tool_catalog
+
 TOOLS = [
     {"type": "function", "function": {"name": "search_campus_knowledge",
         "description": "检索校园知识库和当前会话资料；回答校园事实前必须调用。",
@@ -107,7 +109,7 @@ def append_citations(target: list[dict[str, Any]], incoming: Any, limit: int = 1
         seen.add(identity)
     return added
 
-def build_graph(bridge: JavaBridge):
+def build_graph(bridge: JavaBridge, mcp_server=None, mcp_catalog=None):
     def prepare_node(state: AgentState) -> dict[str, Any]:
         raw = bridge.post("history", {"owner": state["owner"], "sessionId": state["session_id"]})
         history = []
@@ -175,7 +177,7 @@ def build_graph(bridge: JavaBridge):
                 "tool_count": len(queries), "search_count": len(queries), "mode": mode}
 
     def model_node(state: AgentState) -> dict[str, Any]:
-        raw = bridge.post("model", {"messages": state["messages"], "tools": TOOLS})
+        raw = bridge.post("model", {"messages": state["messages"], "tools": mcp_catalog or TOOLS})
         if not isinstance(raw, dict) or raw.get("role") != "assistant":
             log.warning("agent_model_shape keys=%s role=%s", list(raw) if isinstance(raw, dict) else type(raw).__name__,
                         raw.get("role") if isinstance(raw, dict) else "")
@@ -251,8 +253,9 @@ def build_graph(bridge: JavaBridge):
                     query = args.get("query", "")
                     if not isinstance(query, str) or not 1 <= len(query.strip()) <= 500:
                         raise ValueError("Invalid query")
-                    found = bridge.post("search", {"owner": state["owner"],
-                        "sessionId": state["session_id"], "query": query})
+                    found = (invoke_tool(mcp_server, name, {"query": query}) if mcp_server
+                             else bridge.post("search", {"owner": state["owner"],
+                                 "sessionId": state["session_id"], "query": query}))
                     mode = found.get("retrievalMode", mode)
                     search_count += 1
                     matches = append_citations(citations, found.get("citations", []))
@@ -263,8 +266,9 @@ def build_graph(bridge: JavaBridge):
                         raise ValueError("Invalid document ID")
                     if document_id not in {item.get("documentId") for item in citations}:
                         raise ValueError("Document was not found by this run")
-                    result = bridge.post("source", {"owner": state["owner"],
-                        "sessionId": state["session_id"], "documentId": document_id})
+                    result = (invoke_tool(mcp_server, name, {"documentId": document_id}) if mcp_server
+                              else bridge.post("source", {"owner": state["owner"],
+                                  "sessionId": state["session_id"], "documentId": document_id}))
                     if not isinstance(result, dict) or result.get("documentId") != document_id:
                         raise ValueError("Invalid source response")
                     detail = "\n".join(str(chunk.get("text", "")) for chunk in result.get("chunks", [])
@@ -273,8 +277,9 @@ def build_graph(bridge: JavaBridge):
                         if item.get("documentId") == document_id and detail:
                             item["excerpt"] = detail
                 elif name == "list_my_documents":
-                    documents = bridge.post("documents", {"owner": state["owner"],
-                        "sessionId": state["session_id"]})
+                    documents = (invoke_tool(mcp_server, name, {}) if mcp_server
+                                 else bridge.post("documents", {"owner": state["owner"],
+                                     "sessionId": state["session_id"]}))
                     if not isinstance(documents, list):
                         raise ValueError("Invalid document list")
                     listed = []
@@ -294,7 +299,8 @@ def build_graph(bridge: JavaBridge):
                         empty_id = empty_added[0]["id"] if empty_added else None
                     result = {"documents": listed, "emptySourceId": empty_id}
                 elif name == "current_date":
-                    today = datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+                    today = (invoke_tool(mcp_server, name, {})["date"] if mcp_server
+                             else datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat())
                     added = append_citations(citations, [{"documentId": "CLOCK_DATE",
                         "title": "北京时间", "chunk": 0, "excerpt": "当前北京时间日期：" + today,
                         "score": 1}])
@@ -358,7 +364,8 @@ def ask(request: AskRequest, x_agent_key: str | None = Header(default=None)):
         "history": [], "verified": False, "memory_enabled": request.memoryEnabled,
         "verification_attempts": 0}
     try:
-        result = build_graph(bridge).invoke(initial)
+        server = campus_server(bridge, request.owner, request.sessionId)
+        result = build_graph(bridge, server, tool_catalog(server)).invoke(initial)
         if not result["verified"] or not result["answer"].strip() or not result["citations"]:
             log.warning("agent_fallback reason=missing_answer_or_evidence turns=%s citations=%s",
                         result["turns"], len(result["citations"]))
